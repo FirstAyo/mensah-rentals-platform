@@ -35,10 +35,12 @@ provided through narrow server-only boundaries. Future modules and route
 namespaces will separate public, customer-account, and administrative
 contracts. Prisma records will not be returned directly from controllers.
 
-Phase 1 provides:
+The foundation provides:
 
 - `GET /health` for API liveness.
 - `GET /health/database` for PostgreSQL readiness using `SELECT 1`.
+- `POST /auth/login`, `POST /auth/logout`, and `GET /auth/me` for staff
+  authentication.
 
 Health responses expose status only. They never include connection strings,
 credentials, hostnames, schema names, query text, stack traces, or database
@@ -48,19 +50,18 @@ versions.
 
 - `packages/config` owns build-time TypeScript conventions. Runtime browser and server configuration must remain separate so secrets cannot enter client bundles.
 - `packages/database` owns Prisma configuration, migrations, client generation, and the shared client. Only the API consumes it.
+- `packages/auth` owns server-only Argon2id password and opaque session-token primitives. It contains no browser state or authorization policy.
 - `packages/types` owns deliberately shared, runtime-free contracts. Future public and administrative DTOs must be separately named rather than represented by a universal product type.
 - `packages/validation` owns Zod schemas that are genuinely shared. It must not become a channel for exposing internal fields.
 - `packages/ui` owns only genuine cross-application primitives. Public and admin visual systems may diverge where their needs differ.
-
-Authentication code is deferred until the authentication phase. A future
-`packages/auth` may be added when its boundary is known.
 
 ## Database boundary
 
 PostgreSQL is the authoritative datastore and Prisma is the ORM. Schema changes
 are made through reviewed Prisma migrations, not manual production edits. Phase
-1 deliberately has no business tables; an empty schema plus a real query is
-enough to prove the database foundation.
+2 contains only the staff `User`, `UserStatus`, and database-backed
+`StaffSession` identity foundation. It has no rental business tables or RBAC
+tables.
 
 Money will use PostgreSQL decimal types. Important entities will use keys,
 constraints, indexes, and timestamps. Historical business records will be
@@ -80,12 +81,16 @@ See [API visibility](api-visibility.md).
 
 ## Authentication direction
 
-Authentication will be implemented after the database foundation. The chosen
-session or token design must use secure storage and transport. Browser tokens
-or cookies must not expose secrets; cookie-based authentication requires
-HttpOnly, Secure in production, appropriate SameSite behavior, and CSRF
-protection. CORS uses configured origins rather than wildcard credentialed
-access. Customer identity and staff identity do not imply the same authority.
+Staff authentication uses a same-origin Next.js BFF and database-backed opaque
+sessions. The browser receives only a host-only, HttpOnly, SameSite=Lax cookie;
+production requires HTTPS, `Secure`, and a `__Host-` cookie name. Only a SHA-256
+token hash is stored. Unsafe requests require the exact admin Origin and auth
+POSTs require JSON. Protected admin Server Components validate the session
+with the API before rendering. See [Staff authentication](authentication.md).
+
+This establishes identity, not permission. Customer authentication remains
+separate and unimplemented, and future guest requests cannot require an
+account.
 
 ## RBAC direction
 
@@ -133,8 +138,9 @@ A root `.env`, copied from `.env.example`, supplies development-only database
 and API settings. Prisma and NestJS load this file explicitly rather than
 depending on the shell's current directory.
 
-Redis is not present because Phase 1 has no cache, queue, distributed lock, or
-session requirement that justifies it.
+Redis is not present. Phase 2 sessions are authoritative in PostgreSQL, and
+the initial single-process login limiter does not yet justify Redis. A shared
+limiter store becomes relevant before horizontal scaling.
 
 ## Staging direction
 
@@ -154,10 +160,10 @@ rollback procedures before launch.
 ## Testing strategy
 
 Each vertical slice will add unit, integration, API, permission, and end-to-end
-tests proportional to its risk. Phase 1 checks exact placeholder content, API
-health behavior, database failure sanitization, types, linting, formatting, and
-production builds. Runtime smoke tests verify each port and execute a real
-PostgreSQL readiness query.
+tests proportional to its risk. Phase 2 adds password/session unit tests,
+NestJS HTTP integration tests, admin BFF and protected-rendering tests, generic
+error and disabled-user tests, types, linting, formatting, builds, migration
+verification, and runtime login/logout smoke tests.
 
 Future contract tests will recursively assert that forbidden inventory keys are
 absent from all public and customer responses. Permission tests will verify 401,

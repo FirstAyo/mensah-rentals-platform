@@ -1,10 +1,9 @@
-import { DevelopmentPage } from '@mensah-rentals/ui';
+import { AdminLanding } from '@/components/admin-landing';
+import { requireCurrentStaffUser } from '@/lib/auth-server';
 
-export default function AdminPage() {
-  return (
-    <DevelopmentPage
-      eyebrow="Development Environment"
-      title="Mensah Rentals Admin Dashboard"
-    />
-  );
+export const dynamic = 'force-dynamic';
+
+export default async function AdminPage() {
+  const user = await requireCurrentStaffUser();
+  return <AdminLanding user={user} />;
 }

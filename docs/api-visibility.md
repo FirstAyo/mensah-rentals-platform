@@ -4,6 +4,12 @@ API responses are designed for their audience. Prisma records and universal
 product entities must never be serialized directly to the network. Queries use
 allowlisted `select` projections and response mappers construct dedicated DTOs.
 
+Staff authentication uses its own minimal response contract. It may contain
+safe identity/profile fields, but never `passwordHash`, raw session tokens,
+stored `tokenHash`, or cookie values. Authentication alone does not authorize
+future administrative inventory responses; those will also require the
+explicit internal permission documented below.
+
 ## Public product responses
 
 Future public product responses may contain:

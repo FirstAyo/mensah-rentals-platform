@@ -1,5 +1,10 @@
 # Permissions and Roles
 
+Phase 2 authenticates staff and protects API routes by default, but it does not
+implement role or permission records. Authentication establishes identity;
+Phase 3 will add a separate backend authorization guard that evaluates these
+permissions.
+
 Mensah Rentals will use permission-based role-based access control (RBAC). The
 data model is based on User, Role, Permission, UserRole, and RolePermission.
 Roles group permissions; backend guards authorize capabilities. Code must not

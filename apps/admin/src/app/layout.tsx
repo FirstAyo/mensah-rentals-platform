@@ -4,8 +4,9 @@ import type { ReactNode } from 'react';
 import './globals.css';
 
 export const metadata: Metadata = {
-  description: 'Mensah Rentals admin dashboard development environment.',
-  title: 'Mensah Rentals Admin Dashboard',
+  description:
+    'Secure staff access for the Mensah Rentals administration platform.',
+  title: 'Mensah Rentals Admin',
 };
 
 export default function RootLayout({

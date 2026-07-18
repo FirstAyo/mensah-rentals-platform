@@ -19,9 +19,12 @@
     "db:migrate": "dotenv -e ../../.env -- prisma migrate deploy --schema=prisma/schema.prisma",
     "db:migrate:dev": "dotenv -e ../../.env -- prisma migrate dev --schema=prisma/schema.prisma",
     "db:status": "dotenv -e ../../.env -- prisma migrate status --schema=prisma/schema.prisma",
-    "db:reset": "dotenv -e ../../.env -- prisma migrate reset --schema=prisma/schema.prisma"
+    "db:reset": "dotenv -e ../../.env -- prisma migrate reset --schema=prisma/schema.prisma",
+    "staff:bootstrap": "dotenv -e ../../.env -- node dist/scripts/bootstrap-staff.js"
   },
   "dependencies": {
+    "@mensah-rentals/auth": "workspace:*",
+    "@mensah-rentals/validation": "workspace:*",
     "@prisma/client": "6.15.0"
   },
   "devDependencies": {

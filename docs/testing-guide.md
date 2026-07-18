@@ -36,9 +36,10 @@ Then:
 (Invoke-WebRequest http://localhost:3001).StatusCode
 ```
 
-Success prints `200`. The page must show **Mensah Rentals Admin Dashboard** and
-**Development Environment**. Check port 3001 and the terminal output if it does
-not load.
+Success prints `200` after following the redirect to `/login`. The page must
+show the staff login form and **Mensah Rentals Admin**. After bootstrap and a
+successful login, `/` must show **Authenticated Development Environment**.
+Check port 3001 and the terminal output if it does not load.
 
 ## API
 
@@ -126,10 +127,9 @@ checkout, database client generation runs before API/shared-package checks.
 pnpm test
 ```
 
-Success reports passing tests for both temporary pages and API health behavior.
-Packages without Phase 1 behavior explicitly pass with no tests. These tests do
-not prove that a real PostgreSQL server is reachable; use the connectivity steps
-above for that.
+Success reports passing website, API health, authentication unit/integration,
+admin BFF, protected-rendering, validation, and cryptography tests. These tests
+do not replace the real PostgreSQL and browser checks below.
 
 ## Production builds
 
@@ -161,10 +161,96 @@ pnpm db:generate
 
 Success reports a valid Prisma schema and a generated Prisma Client.
 `db:validate` and `db:generate` do not themselves prove network connectivity.
-After a later phase commits the first migration, `pnpm db:status` can also be
-used to check for pending migrations against a running database.
+Run `pnpm db:status` to confirm the committed staff-authentication migration is
+applied and no migrations are pending against the running database.
 
-## Complete Phase 1 verification sequence
+## Staff authentication tests
+
+First prepare the real local database and staff user as described in
+[Local development](local-development.md):
+
+```powershell
+docker compose up -d postgres
+pnpm db:migrate
+pnpm staff:bootstrap
+pnpm dev
+```
+
+Keep that window open. In a second PowerShell window, assign the credentials
+from your ignored `.env` without printing the password:
+
+```powershell
+$staffEmail = (Get-Content .env | Where-Object { $_ -like 'STAFF_BOOTSTRAP_EMAIL=*' } | Select-Object -First 1).Split('=', 2)[1]
+$staffPassword = (Get-Content .env | Where-Object { $_ -like 'STAFF_BOOTSTRAP_PASSWORD=*' } | Select-Object -First 1).Split('=', 2)[1]
+$loginBody = @{ email = $staffEmail; password = $staffPassword } | ConvertTo-Json
+$authSession = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+```
+
+Do not echo `$staffPassword` or `$loginBody`.
+
+### Successful login and safe response
+
+```powershell
+$login = Invoke-RestMethod -Method Post -Uri http://localhost:4000/auth/login -WebSession $authSession -Headers @{ Origin = 'http://localhost:3001' } -ContentType 'application/json' -Body $loginBody
+$login.user | Select-Object id,email,firstName,lastName,status,lastLoginAt
+$login | ConvertTo-Json -Depth 5 | Select-String 'passwordHash|tokenHash|rawToken'
+```
+
+Success returns an `ACTIVE` safe staff user. The final command returns no
+matches. The session cookie remains inside `$authSession` and is not printed.
+
+### Authenticated and unauthenticated `/auth/me`
+
+```powershell
+Invoke-RestMethod -Uri http://localhost:4000/auth/me -WebSession $authSession
+curl.exe -i http://localhost:4000/auth/me
+```
+
+The first returns the same safe user. The second returns HTTP `401` because it
+does not have the PowerShell session cookie.
+
+### Incorrect and unknown credentials
+
+```powershell
+$wrongKnown = @{ email = $staffEmail; password = 'intentionally-wrong' } | ConvertTo-Json
+$wrongUnknown = @{ email = 'unknown-user@example.test'; password = 'intentionally-wrong' } | ConvertTo-Json
+curl.exe -s -i -X POST http://localhost:4000/auth/login -H "Origin: http://localhost:3001" -H "Content-Type: application/json" --data $wrongKnown
+curl.exe -s -i -X POST http://localhost:4000/auth/login -H "Origin: http://localhost:3001" -H "Content-Type: application/json" --data $wrongUnknown
+```
+
+Both return HTTP `401` and the same generic `Invalid email or password`
+message. They must not reveal whether the address exists. Repeated rapid tests
+may correctly return `429`; wait 60 seconds before continuing.
+
+Disabled-account behavior is covered by automated service and HTTP integration
+tests because Phase 2 intentionally has no account-management UI. Those tests
+verify disabled login rejection and immediate rejection of an existing session
+after the user becomes disabled.
+
+### Logout and session invalidation
+
+```powershell
+$preLogoutCookie = $authSession.Cookies.GetCookieHeader('http://localhost:4000')
+Invoke-RestMethod -Method Post -Uri http://localhost:4000/auth/logout -WebSession $authSession -Headers @{ Origin = 'http://localhost:3001' } -ContentType 'application/json' -Body '{}'
+curl.exe -i -b $preLogoutCookie http://localhost:4000/auth/me
+```
+
+Logout returns no body (`204`). The subsequent request deliberately replays the
+pre-logout token and returns `401`, proving that the database session—not merely
+the visible cookie—was invalidated. Do not print `$preLogoutCookie`.
+
+### Protected admin route
+
+Open http://localhost:3001 in a private browser window. It must redirect to
+`/login`. Log in using the values from the ignored `.env`; it must show
+**Mensah Rentals Admin** and **Authenticated Development Environment**. Click
+**Sign out**, refresh `/`, and confirm it redirects to `/login` again.
+
+Common failures are mismatched `localhost`/`127.0.0.1`, an incorrect
+`ADMIN_ORIGIN`, an API that is not running, a pending migration, an account
+created with older bootstrap values, or the intentional login rate limiter.
+
+## Complete Phase 2 verification sequence
 
 ```powershell
 pnpm install
@@ -174,6 +260,7 @@ docker compose ps
 pnpm db:validate
 pnpm db:generate
 pnpm db:migrate
+pnpm staff:bootstrap
 pnpm format:check
 pnpm lint
 pnpm typecheck
@@ -191,5 +278,7 @@ Invoke-RestMethod http://localhost:4000/health
 Invoke-RestMethod http://localhost:4000/health/database
 ```
 
-Expected results are HTTP 200 from both websites, an API `ok` response, and a
-database `connected` response.
+Expected results are HTTP 200 from the customer website and admin login page,
+an API `ok` response, and a database `connected` response. Complete the staff
+login, `/auth/me`, logout, and protected-admin checks above before calling the
+authentication flow verified.

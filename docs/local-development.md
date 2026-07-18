@@ -119,8 +119,9 @@ docker compose up -d postgres
 The first run downloads the PostgreSQL image. Success creates the service and
 returns to the prompt. Data is retained in the Compose-managed named volume.
 
-Redis is intentionally not part of Phase 1. It will be introduced only for a
-specific cache, queue, distributed lock, or session use case.
+Redis is intentionally absent. PostgreSQL-backed sessions and the initial
+single-process login limiter do not require it. Add Redis only when a concrete
+distributed requirement exists.
 
 ## 9. Check PostgreSQL
 
@@ -150,10 +151,9 @@ pnpm db:generate
 pnpm db:migrate
 ```
 
-Phase 1 has no business models and no committed migrations to apply. Validation
-should report a valid schema and generation should report that Prisma Client
-was generated. `db:migrate` is already the forward-only command to use when
-later phases commit migrations.
+The committed `20260718074428_staff_authentication` migration creates only the
+staff identity/session foundation. `db:migrate` should report that migration as
+applied or that no pending migrations exist.
 
 When a later development phase intentionally adds a schema migration, use:
 
@@ -248,7 +248,70 @@ it; the next `up` creates a clean volume.
 development use. Prefer the explicit Docker reset sequence above when a full
 local reset is required.
 
-## 17. Troubleshooting Windows issues
+After a reset, repeat `pnpm staff:bootstrap` after setting the four bootstrap
+variables described below.
+
+## 17. Create the first local staff user
+
+Open the ignored `.env` in a text editor. Leave the existing database settings
+in place and fill in these development-only values:
+
+```dotenv
+STAFF_BOOTSTRAP_EMAIL=your-local-staff-email@example.test
+STAFF_BOOTSTRAP_PASSWORD=choose-your-own-local-password-at-least-12-characters
+STAFF_BOOTSTRAP_FIRST_NAME=Your
+STAFF_BOOTSTRAP_LAST_NAME=Name
+```
+
+Do not put the password in `.env.example`, a committed file, chat, test output,
+or a screenshot. Then run:
+
+```powershell
+pnpm staff:bootstrap
+```
+
+Success says the development staff user was created. Running the same command
+again says it already exists and leaves it unchanged. If you need to change an
+existing local account, reset the disposable local database or use a future
+staff-management feature; the bootstrap intentionally will not overwrite or
+reactivate accounts.
+
+## 18. Log in and log out locally
+
+Start PostgreSQL and all applications:
+
+```powershell
+docker compose up -d postgres
+pnpm db:migrate
+pnpm dev
+```
+
+Open http://localhost:3001/login. Enter the email and password from your
+ignored `.env`. Successful login redirects to http://localhost:3001 and shows
+**Mensah Rentals Admin**, **Authenticated Development Environment**, and safe
+profile information. The page never displays the password hash or session
+token.
+
+Click **Sign out**. You should return to `/login`. Refreshing `/` must redirect
+back to login. Opening `/` in a private browser window must also redirect.
+
+## 19. Authentication environment settings
+
+The safe development defaults in `.env.example` are:
+
+- `STAFF_SESSION_COOKIE_NAME=mensah_staff_session`
+- `STAFF_SESSION_TTL_HOURS=12`
+- `AUTH_COOKIE_SECURE=false` because local URLs use HTTP
+- `AUTH_LOGIN_RATE_LIMIT=5`
+- `AUTH_LOGIN_RATE_WINDOW_SECONDS=60`
+- `ADMIN_ORIGIN=http://localhost:3001`
+
+The admin server optionally accepts
+`API_INTERNAL_URL=http://localhost:4000`; that is also its local default.
+Production must use HTTPS, `AUTH_COOKIE_SECURE=true`, a `__Host-` cookie name,
+and exact production admin/API URLs. See [Staff authentication](authentication.md).
+
+## 20. Troubleshooting Windows and authentication issues
 
 ### A command is not recognized
 
@@ -310,3 +373,39 @@ disable security controls globally merely to run the project.
 Git may mention LF/CRLF conversion on Windows. This is normally harmless. Do
 not run bulk line-ending rewrites unless the team intentionally adopts a new
 repository policy.
+
+### Login always says the email or password is invalid
+
+Confirm the email/password are the values in your ignored `.env`, then rerun
+`pnpm staff:bootstrap`. Existing users are not changed by rerunning it. If the
+account was created with different values, only reset the disposable local
+database when losing local data is acceptable, then migrate and bootstrap
+again.
+
+### Login returns 403 Request origin is not allowed
+
+Use exactly http://localhost:3001 rather than another hostname or port. Confirm
+`ADMIN_ORIGIN=http://localhost:3001`, stop `pnpm dev`, and restart it after an
+environment change.
+
+### Login returns 415 JSON requests are required
+
+Use the admin login form or send `Content-Type: application/json`. Form-encoded
+direct API requests are intentionally rejected.
+
+### Login returns 429 Too Many Requests
+
+Wait for the development rate-limit window (60 seconds by default). Do not
+raise production limits without a security review.
+
+### Login returns Authentication service is unavailable
+
+Confirm the API is running on port 4000 and
+`Invoke-RestMethod http://localhost:4000/health` succeeds. Check
+`API_INTERNAL_URL` if you overrode it.
+
+### Login succeeds but the protected page redirects back to login
+
+Use only `localhost` consistently; mixing `127.0.0.1` and `localhost` changes
+cookie hosts. Clear cookies for localhost, confirm the cookie name matches in
+the API and admin environment, and restart both applications.

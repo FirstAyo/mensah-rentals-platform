@@ -9,9 +9,9 @@ checkout. Customers will request equipment and quantities without seeing
 internal availability or an automatically calculated final price. Authorized
 staff will review each request and prepare a custom quote in a later phase.
 
-Phase 1 contains only the monorepo, local infrastructure, documentation, two
-temporary Next.js pages, and a NestJS health API. It does not contain business
-features.
+Phase 2 adds secure internal staff authentication and a protected development
+landing page. It does not contain customer authentication, RBAC, or rental
+business features. Future guest rental requests will not require an account.
 
 ## Architecture
 
@@ -21,6 +21,7 @@ This pnpm and Turborepo monorepo contains:
 - `apps/admin` — internal administration application, port 3001.
 - `apps/api` — NestJS REST API and the only application allowed to access the database, port 4000.
 - `packages/database` — Prisma schema, generated client, and database boundary.
+- `packages/auth` — server-side password and opaque-session cryptography.
 - `packages/ui` — narrowly shared React UI primitives.
 - `packages/types` — runtime-free shared TypeScript contracts.
 - `packages/validation` — shared Zod validation schemas.
@@ -48,19 +49,27 @@ Run these commands in PowerShell from the repository root:
 corepack enable
 corepack prepare pnpm@10.15.1 --activate
 Copy-Item .env.example .env
+```
+
+Open the new, Git-ignored `.env` and fill in the four
+`STAFF_BOOTSTRAP_*` values with your own local email, name, and password. Do not
+put the password in `.env.example`. Then continue:
+
+```powershell
 pnpm install
 docker compose up -d postgres
 docker compose ps
 pnpm db:validate
 pnpm db:generate
 pnpm db:migrate
+pnpm staff:bootstrap
 pnpm dev
 ```
 
 Then open:
 
 - Customer website: http://localhost:3000
-- Admin dashboard: http://localhost:3001
+- Admin staff login: http://localhost:3001/login
 - API liveness: http://localhost:4000/health
 - PostgreSQL readiness: http://localhost:4000/health/database
 
@@ -76,11 +85,13 @@ pnpm lint         # Run ESLint
 pnpm typecheck    # Run TypeScript checks
 pnpm test         # Run unit tests
 pnpm format:check # Check formatting
+pnpm staff:bootstrap # Idempotently create the local development staff user
 ```
 
 ## Documentation
 
 - [Architecture](docs/architecture.md)
+- [Staff authentication](docs/authentication.md)
 - [Planned domain model](docs/domain-model.md)
 - [Permissions](docs/permissions.md)
 - [API data visibility](docs/api-visibility.md)

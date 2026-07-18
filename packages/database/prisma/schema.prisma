@@ -7,6 +7,32 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Phase 1 intentionally contains no business models. Domain tables will be
-// introduced through reviewed Prisma migrations in later vertical slices.
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
 
+model User {
+  id           String         @id @default(cuid())
+  email        String         @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  status       UserStatus     @default(DISABLED)
+  lastLoginAt  DateTime?      @db.Timestamptz(3)
+  createdAt    DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime       @updatedAt @db.Timestamptz(3)
+  sessions     StaffSession[]
+}
+
+model StaffSession {
+  id        String   @id @default(cuid())
+  userId    String
+  tokenHash String   @unique
+  expiresAt DateTime @db.Timestamptz(3)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+}

@@ -1,15 +1,20 @@
 # Planned Domain Model
 
-This document describes direction only. Phase 1 does not implement the complete
-database schema. Each domain will be refined and introduced through a reviewed
-vertical slice and Prisma migration.
+Phase 2 implements only the identity/session foundation. Every remaining
+domain is direction that will be refined through a reviewed vertical slice and
+Prisma migration.
 
 ## Identity and access
 
-- **User** represents a staff or customer authentication identity as determined by the authentication design.
+- **User (implemented)** represents an internal staff identity. It stores a canonical unique email, Argon2id password hash, name, `ACTIVE`/`DISABLED` status, optional last-login time, and timestamps. Password hashes are never response fields.
+- **StaffSession (implemented)** stores a unique hash of an opaque browser token, its staff user, creation time, and expiry. Cascading user deletion removes sessions; logout removes the matching session. Only active-user, unexpired sessions authenticate.
 - **Role** groups permissions and supports both initial and future custom roles.
 - **Permission** names a protected capability.
 - **UserRole** and **RolePermission** model many-to-many assignments without hard-coded role checks.
+
+Role, Permission, UserRole, and RolePermission are deliberately not implemented
+in Phase 2. Customer identity will be designed separately so optional accounts
+do not make guest rental requests dependent on staff-auth assumptions.
 
 ## Customers
 
