@@ -51,3 +51,88 @@ export interface RoleDetailResponse extends RoleResponse {
 export interface StaffAuthResponse {
   user: StaffUserResponse;
 }
+
+export interface PaginationMeta {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+}
+
+export interface PaginatedResponse<T> {
+  items: T[];
+  meta: PaginationMeta;
+}
+
+export interface AdminCategoryResponse {
+  createdAt: string;
+  description: string | null;
+  id: string;
+  isActive: boolean;
+  name: string;
+  productCount: number;
+  slug: string;
+  sortOrder: number;
+  updatedAt: string;
+}
+
+export interface AdminProductImageResponse {
+  altText: string;
+  createdAt: string;
+  id: string;
+  isPrimary: boolean;
+  sortOrder: number;
+  url: string;
+}
+
+export interface AdminProductSpecificationResponse {
+  id: string;
+  label: string;
+  sortOrder: number;
+  value: string;
+}
+
+export interface AdminProductResponse {
+  category: Pick<AdminCategoryResponse, 'id' | 'name' | 'slug'>;
+  categoryId: string;
+  createdAt: string;
+  description: string | null;
+  id: string;
+  images: AdminProductImageResponse[];
+  isActive: boolean;
+  isFeatured: boolean;
+  name: string;
+  rentalUnit: string;
+  shortDescription: string;
+  slug: string;
+  specifications: AdminProductSpecificationResponse[];
+  updatedAt: string;
+}
+
+export interface PublicCategoryResponse {
+  description: string | null;
+  name: string;
+  slug: string;
+}
+
+export interface PublicProductImageResponse {
+  altText: string;
+  isPrimary: boolean;
+  url: string;
+}
+
+export interface PublicProductSummaryResponse {
+  category: PublicCategoryResponse;
+  images: PublicProductImageResponse[];
+  isFeatured: boolean;
+  name: string;
+  rentalUnit: string;
+  shortDescription: string;
+  slug: string;
+}
+
+export interface PublicProductDetailResponse
+  extends PublicProductSummaryResponse {
+  description: string | null;
+  specifications: Array<{ label: string; value: string }>;
+}

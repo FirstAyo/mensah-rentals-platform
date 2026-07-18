@@ -46,7 +46,7 @@ export class OriginGuard implements CanActivate {
     }
 
     if (
-      isAuthenticationRequest &&
+      requiresAdminOrigin &&
       !request.headers['content-type']?.startsWith('application/json')
     ) {
       throw new UnsupportedMediaTypeException('JSON requests are required');

@@ -14,6 +14,11 @@ protected role administration APIs, and a permission-aware development shell.
 It does not contain customer authentication or rental business features. Future
 guest rental requests will not require an account.
 
+Phase 4 adds product/category data, protected management APIs and admin pages,
+public-safe catalogue APIs and slug routes, shared light/dark theming, and the
+technical SEO foundation. It still contains no inventory quantities, prices,
+cart, rental request, quote, or order workflow.
+
 ## Architecture
 
 This pnpm and Turborepo monorepo contains:
@@ -67,12 +72,14 @@ pnpm db:migrate
 pnpm rbac:seed
 pnpm staff:bootstrap
 pnpm rbac:verify
+pnpm catalogue:seed
 pnpm dev
 ```
 
 Then open:
 
 - Customer website: http://localhost:3000
+- Public rentals: http://localhost:3000/rentals
 - Admin staff login: http://localhost:3001/login
 - API liveness: http://localhost:4000/health
 - PostgreSQL readiness: http://localhost:4000/health/database
@@ -92,6 +99,7 @@ pnpm format:check # Check formatting
 pnpm staff:bootstrap # Idempotently create the local development staff user
 pnpm rbac:seed       # Idempotently seed roles, permissions, and defaults
 pnpm rbac:verify     # Verify seed, uniqueness, and bootstrap SUPER_ADMIN
+pnpm catalogue:seed  # Create missing development-only catalogue samples
 ```
 
 ## Documentation
@@ -105,3 +113,6 @@ pnpm rbac:verify     # Verify seed, uniqueness, and bootstrap SUPER_ADMIN
 - [Roadmap](docs/roadmap.md)
 - [Local development](docs/local-development.md)
 - [Testing guide](docs/testing-guide.md)
+- [Products and categories](docs/products-and-categories.md)
+- [Theme foundation](docs/theme.md)
+- [SEO foundation](docs/seo.md)

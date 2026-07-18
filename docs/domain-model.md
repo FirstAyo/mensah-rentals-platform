@@ -34,6 +34,8 @@ Images and specifications may be separate records. Public product projections
 contain descriptive information only and never expose operational inventory
 quantities.
 
+Phase 4 implements `Category`, `Product`, `ProductImage`, and `ProductSpecification`. Categories and products use stable unique slugs and non-destructive active/inactive publication state. Images and specifications are ordered child records; image metadata includes alt text and one primary marker. Product remains descriptive and has no inventory quantity, price, reservation, cart, request, quote, or order fields. Future inventory will reference `Product.id` through a separate operational model.
+
 ## Inventory
 
 Inventory is separate from products. Future records will represent bulk

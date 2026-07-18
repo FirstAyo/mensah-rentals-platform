@@ -10,7 +10,9 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@mensah-rentals/types": "workspace:*",
     "@mensah-rentals/ui": "workspace:*",
+    "@mensah-rentals/validation": "workspace:*",
     "next": "16.2.10",
     "react": "19.1.1",
     "react-dom": "19.1.1"

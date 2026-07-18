@@ -83,3 +83,63 @@ model RolePermission {
   @@id([roleId, permissionId])
   @@index([permissionId])
 }
+
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String    @unique
+  description String?   @db.Text
+  isActive    Boolean   @default(true)
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now()) @db.Timestamptz(3)
+  updatedAt   DateTime  @updatedAt @db.Timestamptz(3)
+  products    Product[]
+
+  @@index([isActive, sortOrder, name, id])
+}
+
+model Product {
+  id               String                 @id @default(cuid())
+  name             String
+  slug             String                 @unique
+  shortDescription String
+  description      String?                @db.Text
+  rentalUnit       String                 @default("each")
+  categoryId       String
+  isActive         Boolean                @default(true)
+  isFeatured       Boolean                @default(false)
+  createdAt        DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime               @updatedAt @db.Timestamptz(3)
+  category         Category               @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  images           ProductImage[]
+  specifications   ProductSpecification[]
+
+  @@index([categoryId, isActive, name, id])
+  @@index([isActive, isFeatured, updatedAt, id])
+}
+
+model ProductImage {
+  id        String   @id @default(cuid())
+  productId String
+  url       String   @db.Text
+  altText   String
+  sortOrder Int      @default(0)
+  isPrimary Boolean  @default(false)
+  createdAt DateTime @default(now()) @db.Timestamptz(3)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, sortOrder])
+  @@index([productId, sortOrder, id])
+}
+
+model ProductSpecification {
+  id        String   @id @default(cuid())
+  productId String
+  label     String
+  value     String
+  sortOrder Int      @default(0)
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([productId, sortOrder])
+  @@index([productId, sortOrder, id])
+}

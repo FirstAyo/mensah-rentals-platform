@@ -8,6 +8,7 @@ import { DatabaseService } from './database/database.service';
 import { AuthModule } from './auth/auth.module';
 import { HealthController } from './health/health.controller';
 import { HealthService } from './health/health.service';
+import { CatalogueModule } from './catalogue/catalogue.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { HealthService } from './health/health.service';
       validate: (configuration) => apiEnvironmentSchema.parse(configuration),
     }),
     AuthModule,
+    CatalogueModule,
   ],
   controllers: [HealthController],
   providers: [DatabaseService, HealthService],

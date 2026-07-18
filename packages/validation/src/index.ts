@@ -115,3 +115,138 @@ export const apiEnvironmentSchema = z
   });
 
 export type ApiEnvironment = z.infer<typeof apiEnvironmentSchema>;
+
+export const catalogueSlugSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(120)
+  .regex(
+    /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+    'Use lowercase words separated by hyphens.',
+  );
+
+const boundedPage = z.preprocess(
+  (value) => (value === undefined ? 1 : value),
+  z.coerce.number().int().min(1),
+);
+const boundedPageSize = z.preprocess(
+  (value) => (value === undefined ? 20 : value),
+  z.coerce.number().int().min(1).max(100),
+);
+const optionalBooleanQuery = z
+  .enum(['true', 'false'])
+  .transform((value) => value === 'true')
+  .optional();
+
+export const categoryListQuerySchema = z
+  .object({
+    isActive: optionalBooleanQuery,
+    page: boundedPage,
+    pageSize: boundedPageSize,
+    search: z.string().trim().max(100).optional(),
+    sortBy: z
+      .enum(['name', 'sortOrder', 'createdAt', 'updatedAt'])
+      .default('sortOrder'),
+    sortDirection: z.enum(['asc', 'desc']).default('asc'),
+  })
+  .strict();
+
+export const productListQuerySchema = z
+  .object({
+    categoryId: cuidParamSchema.optional(),
+    categorySlug: catalogueSlugSchema.optional(),
+    isActive: optionalBooleanQuery,
+    isFeatured: optionalBooleanQuery,
+    page: boundedPage,
+    pageSize: boundedPageSize,
+    search: z.string().trim().max(100).optional(),
+    sortBy: z.enum(['name', 'createdAt', 'updatedAt']).default('name'),
+    sortDirection: z.enum(['asc', 'desc']).default('asc'),
+  })
+  .strict();
+
+const categoryMutableFields = {
+  description: z.string().trim().max(4000).nullable().optional(),
+  name: z.string().trim().min(1).max(160),
+  sortOrder: z.number().int().min(0).max(1_000_000).default(0),
+};
+
+export const createCategorySchema = z
+  .object({
+    ...categoryMutableFields,
+    slug: catalogueSlugSchema,
+    isActive: z.boolean().default(true),
+  })
+  .strict();
+export const updateCategorySchema = z.object(categoryMutableFields).strict();
+
+const productImageInputSchema = z
+  .object({
+    altText: z.string().trim().min(1).max(300),
+    isPrimary: z.boolean().default(false),
+    url: z
+      .string()
+      .trim()
+      .min(1)
+      .max(2048)
+      .refine(
+        (value) => value.startsWith('/media/') || /^https:\/\//i.test(value),
+        {
+          message: 'Use an HTTPS URL or a managed /media/ path.',
+        },
+      ),
+  })
+  .strict();
+
+const productSpecificationInputSchema = z
+  .object({
+    label: z.string().trim().min(1).max(100),
+    value: z.string().trim().min(1).max(500),
+  })
+  .strict();
+
+const productMutableFields = {
+  categoryId: cuidParamSchema,
+  description: z.string().trim().max(20_000).nullable().optional(),
+  images: z
+    .array(productImageInputSchema)
+    .max(20)
+    .default([])
+    .superRefine((images, context) => {
+      const primaryCount = images.filter(({ isPrimary }) => isPrimary).length;
+      if (images.length > 0 && primaryCount !== 1) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Select exactly one primary image.',
+        });
+      }
+      if (images.length === 0 && primaryCount !== 0) {
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'An empty image list cannot have a primary image.',
+        });
+      }
+    }),
+  isFeatured: z.boolean().default(false),
+  name: z.string().trim().min(1).max(160),
+  rentalUnit: z.string().trim().min(1).max(50).default('each'),
+  shortDescription: z.string().trim().min(1).max(300),
+  specifications: z.array(productSpecificationInputSchema).max(50).default([]),
+};
+
+export const createProductSchema = z
+  .object({
+    ...productMutableFields,
+    slug: catalogueSlugSchema,
+    isActive: z.boolean().default(true),
+  })
+  .strict();
+export const updateProductSchema = z.object(productMutableFields).strict();
+
+export type CategoryListQuery = z.infer<typeof categoryListQuerySchema>;
+export type ProductListQuery = z.infer<typeof productListQuerySchema>;
+export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
+export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
+export type CreateProductInput = z.infer<typeof createProductSchema>;
+export type UpdateProductInput = z.infer<typeof updateProductSchema>;

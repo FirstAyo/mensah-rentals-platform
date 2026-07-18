@@ -108,3 +108,11 @@ export async function requireCurrentStaffUser(): Promise<StaffUserResponse> {
 
   return user;
 }
+
+export async function requireStaffPermission(
+  permission: string,
+): Promise<StaffUserResponse> {
+  const user = await requireCurrentStaffUser();
+  if (!user.permissionKeys.includes(permission)) redirect('/forbidden');
+  return user;
+}

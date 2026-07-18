@@ -7,6 +7,16 @@ const nextConfig: NextConfig = {
   turbopack: {
     root: resolve(process.cwd(), '../..'),
   },
+  async headers() {
+    return [
+      {
+        source: '/(.*)',
+        headers: [
+          { key: 'X-Robots-Tag', value: 'noindex, nofollow, noarchive' },
+        ],
+      },
+    ];
+  },
 };
 
 export default nextConfig;

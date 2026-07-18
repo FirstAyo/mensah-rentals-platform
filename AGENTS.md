@@ -776,6 +776,538 @@ Hiding a frontend button is not sufficient authorization.
 
 ---
 
+# Theme and Appearance Requirements
+
+The platform must support both light and dark themes.
+
+This requirement applies to:
+
+* Customer website.
+* Administrative dashboard.
+* Authentication screens.
+* Future customer account areas.
+* Future React Native mobile application where practical.
+
+## Default Theme
+
+When a user has not manually selected a theme, the application should follow the user's current operating-system or device theme preference.
+
+For example:
+
+* A user whose system is using dark mode should initially see the dark theme.
+* A user whose system is using light mode should initially see the light theme.
+
+Do not permanently default every user to light mode or dark mode when a system preference is available.
+
+## Manual Theme Selection
+
+Users must be able to manually switch between:
+
+* Light theme.
+* Dark theme.
+
+Provide a clear and accessible theme toggle or theme selector.
+
+The theme control should use appropriate icons and accessible labels.
+
+Use Lucide icons where appropriate.
+
+## Theme Persistence
+
+When a user manually selects a theme, preserve that preference across future visits where practical.
+
+A manually selected theme should take precedence over the current system preference until the user changes their selection again.
+
+The implementation should avoid visible theme flashing during page load where practical.
+
+## Styling Requirements
+
+All major UI components must be designed and tested in both light and dark modes.
+
+This includes:
+
+* Navigation.
+* Sidebars.
+* Cards.
+* Tables.
+* Forms.
+* Dialogs.
+* Dropdowns.
+* Tooltips.
+* Charts.
+* Status badges.
+* Empty states.
+* Loading skeletons.
+* Toast notifications.
+* Authentication screens.
+* Dashboard metrics.
+
+Do not create components that are readable only in one theme.
+
+Maintain accessible contrast in both themes.
+
+Do not use hard-coded colors that break theme switching when Tailwind theme tokens or CSS variables are more appropriate.
+
+Prefer semantic design tokens and CSS variables compatible with Tailwind CSS and shadcn/ui.
+
+Recharts visualizations must also remain readable in both light and dark modes.
+
+## Administrative Dashboard
+
+The admin dashboard must provide an easily accessible light/dark theme toggle.
+
+The selected theme should apply consistently across all administrative pages.
+
+## Customer Website
+
+The customer website must support both themes.
+
+A theme toggle should be available from an appropriate global interface location, such as the website header or navigation menu.
+
+## Future Mobile Application
+
+The future React Native application should follow the device theme by default and provide manual light/dark theme selection where appropriate.
+
+## Development and Testing
+
+New user-facing components must be checked in both:
+
+* Light mode.
+* Dark mode.
+
+Theme support should be treated as part of normal UI development rather than added only after the entire application is complete.
+
+---
+
+# Layout Width and Responsive Shell Requirements
+
+The platform should make effective use of available screen width.
+
+Avoid unnecessarily narrow centered layouts that leave excessive empty space on large laptop and desktop monitors.
+
+## Admin Dashboard
+
+The administrative dashboard should use a wide application shell.
+
+Recommended behavior:
+
+- The main application should use nearly the full viewport width.
+- Use responsive horizontal padding rather than a narrow fixed container.
+- Allow the primary content area to expand after accounting for the sidebar.
+- Use a practical maximum width only when necessary for readability.
+- Large desktop and monitor layouts should not appear compressed in the center of the screen.
+- Tables, dashboards, inventory views, order lists, and analytics should take advantage of wide displays.
+
+A suitable general maximum width for large application shells may be approximately 1600px to 1800px, depending on the page.
+
+Do not apply a narrow marketing-page max-width to the admin dashboard.
+
+## Customer Website
+
+The public website may use narrower readable content containers for text-heavy sections, but major layout sections, product grids, hero areas, galleries, and category pages should use more of the viewport where appropriate.
+
+Use different container widths according to content type rather than forcing the entire website into one fixed width.
+
+## Responsive Behavior
+
+Layouts must adapt across:
+
+- Mobile.
+- Tablet.
+- Laptop.
+- Desktop.
+- Large desktop monitors.
+
+Use responsive Tailwind utilities and fluid layouts.
+
+Avoid excessive unused horizontal space on large screens.
+
+---
+
+# SEO and Search Engine Requirements
+
+The public customer website must be built with technical SEO as a core requirement.
+
+The administrative dashboard must not be publicly indexed.
+
+## Metadata
+
+Every public indexable page should support appropriate metadata.
+
+Include where relevant:
+
+- Unique page title.
+- Meta description.
+- Canonical URL.
+- Open Graph title.
+- Open Graph description.
+- Open Graph image.
+- Twitter card metadata.
+
+Avoid duplicate titles and descriptions across important pages.
+
+Use the Next.js metadata APIs where appropriate.
+
+## Sitemap
+
+Implement a sitemap for public indexable pages.
+
+The sitemap should eventually include:
+
+- Homepage.
+- Rental catalogue pages.
+- Product pages.
+- Category pages.
+- Service pages.
+- Industry pages.
+- About page.
+- Project or gallery pages where indexable.
+- Other appropriate public content.
+
+Dynamic products and categories should be included when published and indexable.
+
+Do not include:
+
+- Admin pages.
+- Login pages.
+- Private customer account pages.
+- Internal tracking pages when they contain private information.
+- Draft or unpublished content.
+
+Use Next.js sitemap support where appropriate.
+
+## robots.txt
+
+Implement a proper robots.txt configuration.
+
+Allow crawling of appropriate public content.
+
+Disallow or otherwise prevent indexing of:
+
+- Admin routes.
+- Authentication routes.
+- Private account areas.
+- Internal application pages.
+- Other non-public system areas.
+
+robots.txt must not be treated as a security mechanism.
+
+Protected content must still require authentication and authorization.
+
+## Structured Data
+
+Use Schema.org structured data where appropriate.
+
+Potential structured data types include:
+
+- Organization.
+- LocalBusiness where appropriate.
+- Product for rental catalogue items where semantically appropriate.
+- BreadcrumbList.
+- FAQPage.
+- WebSite.
+- WebPage.
+
+Do not generate misleading structured data.
+
+Do not include fake reviews, fake ratings, or inaccurate price information.
+
+Because the platform does not publicly calculate rental prices, structured data must not invent prices.
+
+## Canonical URLs
+
+Public pages should define correct canonical URLs where appropriate.
+
+Avoid duplicate indexable URLs for the same content.
+
+Filtering and query parameters should be handled carefully to prevent unnecessary duplicate indexing.
+
+## URL Structure
+
+Use clean, readable, stable URLs.
+
+Examples:
+
+/rentals
+/rentals/tents
+/rentals/tents/10x10-frame-tent
+/services
+/industries/film-production
+
+Use descriptive slugs.
+
+Avoid exposing database IDs in public URLs unless there is a clear reason.
+
+## Image SEO
+
+Public content images should use:
+
+- Descriptive alt text.
+- Appropriate dimensions.
+- Optimized formats where practical.
+- Lazy loading where appropriate.
+- Next.js Image optimization where appropriate.
+
+Do not use meaningless alt text.
+
+Decorative images should be marked appropriately.
+
+## Performance and Core Web Vitals
+
+SEO implementation should consider:
+
+- Largest Contentful Paint.
+- Cumulative Layout Shift.
+- Interaction responsiveness.
+- Image optimization.
+- Font loading.
+- JavaScript bundle size.
+- Caching.
+
+Do not sacrifice usability for SEO.
+
+## Indexing Rules
+
+Only published public content should be indexable.
+
+Draft, private, administrative, and authenticated content should not be indexed.
+
+Where appropriate, use:
+
+- noindex.
+- nofollow.
+- canonical URLs.
+
+## Redirects and Missing Pages
+
+Use appropriate permanent redirects when public URLs change.
+
+Provide a useful custom 404 page.
+
+Avoid broken internal links.
+
+## Breadcrumbs
+
+Use visible breadcrumbs on appropriate catalogue and content pages.
+
+Where appropriate, also provide BreadcrumbList structured data.
+
+## SEO Testing
+
+Before production deployment, verify:
+
+- Metadata.
+- Canonical URLs.
+- Sitemap.
+- robots.txt.
+- Structured data.
+- Public indexing rules.
+- Admin no-indexing.
+- Broken links.
+- Mobile usability.
+- Basic Core Web Vitals.
+
+## Image size limits, optimization, and compression
+
+Product image uploads must be optimized for storage efficiency and website performance.
+
+The system must not store unnecessarily large original images by default.
+
+### Upload limits
+
+Use the following initial limits unless implementation constraints justify a documented adjustment:
+
+- Maximum selected source image size: 10 MB per image.
+- Maximum images per product: 4.
+- Maximum processed image dimensions: approximately 2400 pixels on the longest side.
+- Target processed upload size: preferably 2 MB or less per image.
+- Preferred optimized format: WebP where reliably supported.
+- Recommended compression quality: approximately 80–85%.
+
+The exact compression algorithm and output may be adjusted when needed to preserve acceptable visual quality.
+
+Do not aggressively compress images until they visibly degrade.
+
+### Client-side image optimization
+
+Before uploading, process selected images in the admin application where technically practical.
+
+The client-side flow should:
+
+1. Validate the selected source file.
+2. Reject unsupported formats.
+3. Reject files larger than the allowed source-file limit.
+4. Decode the image safely.
+5. Preserve aspect ratio.
+6. Resize images that exceed the maximum dimensions.
+7. Compress the image to a reasonable quality.
+8. Convert to an optimized web format such as WebP where appropriate.
+9. Show the processed image in the preview.
+10. Upload the processed file rather than the unnecessarily large source file.
+
+The user should not have to manually resize or compress images before uploading.
+
+The preview should represent the processed image that will actually be uploaded where practical.
+
+### Compression behavior
+
+Do not enlarge small images.
+
+For example:
+
+- A 1200 × 800 image should not be enlarged to 2400 pixels.
+- A 6000 × 4000 image should be resized while preserving its aspect ratio.
+
+If an optimized image still exceeds the configured processed-size limit:
+
+- Attempt reasonable additional compression when practical.
+- If the file remains too large, reject it with a clear message.
+
+Example:
+
+"This image is still too large after optimization. Please choose a different image."
+
+Do not silently upload files that exceed server limits.
+
+### Server-side validation
+
+Client-side compression is an optimization only.
+
+The server must independently enforce:
+
+- Maximum file size.
+- Allowed file formats.
+- Maximum file count.
+- Valid image content.
+- Safe file handling.
+
+Do not trust:
+
+- Browser MIME type alone.
+- File extension alone.
+- Client-provided dimensions.
+- Client-side compression results.
+
+Inspect uploaded file content using an appropriate image-processing library.
+
+Reject invalid or disguised files.
+
+### Server-side normalization
+
+Evaluate using a reliable server-side image-processing library such as Sharp.
+
+After upload, the server should normalize the image where appropriate.
+
+Responsibilities may include:
+
+- Reading verified image metadata.
+- Correcting image orientation using metadata.
+- Removing unnecessary metadata.
+- Enforcing maximum dimensions.
+- Re-encoding to the chosen optimized format.
+- Applying a consistent compression policy.
+
+Do not preserve unnecessary EXIF metadata such as GPS information in publicly served product images.
+
+### Storage policy
+
+Store the normalized optimized image as the primary stored asset.
+
+Do not keep the large source original by default unless there is a documented future business need.
+
+This significantly reduces:
+
+- Storage usage.
+- Backup size.
+- Upload bandwidth.
+- CDN bandwidth.
+- Page load times.
+
+The architecture may later support original archival storage if the business requires it, but this is not required for the current product catalogue.
+
+### Image variants
+
+Evaluate whether the storage service should generate multiple image variants.
+
+A reasonable architecture may support:
+
+- Thumbnail.
+- Standard catalogue image.
+- Large product-detail image.
+
+However, do not over-engineer image variants if Next.js image optimization can reliably handle the display requirements from one properly optimized source image.
+
+Document the chosen approach.
+
+### Duplicate uploads
+
+Consider generating a content hash for processed images.
+
+This may later be used to:
+
+- Detect duplicate uploads.
+- Prevent accidental duplicate storage.
+- Improve media management.
+
+Do not block the current implementation if full duplicate detection would significantly increase scope.
+
+### Upload UI feedback
+
+The admin upload interface should clearly show:
+
+- Original filename.
+- Processing state.
+- Upload state.
+- Preview.
+- Validation errors.
+
+Where practical, show useful information such as the optimized file size.
+
+For example:
+
+Original: 7.4 MB
+Optimized: 620 KB
+
+Do not expose technical complexity unnecessarily to normal users.
+
+### Configuration
+
+Do not scatter upload limits throughout the codebase.
+
+Define centralized configuration for values such as:
+
+- Maximum source upload bytes.
+- Maximum processed upload bytes.
+- Maximum image count.
+- Maximum dimensions.
+- Compression quality.
+- Allowed formats.
+
+Use shared constants or validated environment configuration where appropriate.
+
+Server-side limits are authoritative.
+
+### Tests
+
+Add tests covering:
+
+1. A large valid image is resized and compressed.
+2. A small image is not unnecessarily enlarged.
+3. The optimized output respects the maximum dimensions.
+4. Oversized original input is rejected.
+5. Oversized processed output is rejected when it cannot be reasonably compressed.
+6. Unsupported formats are rejected.
+7. File extension spoofing does not bypass server validation.
+8. Invalid image content is rejected.
+9. EXIF orientation is handled appropriately.
+10. Unnecessary metadata is not retained where testable.
+11. The server enforces limits even when client-side processing is bypassed.
+12. Four optimized images can be associated with a product.
+13. A fifth image is rejected.
+14. Public image responses never expose internal storage paths.
+
+---
+
 # Admin Dashboard
 
 The administrative dashboard should eventually support the following major areas:

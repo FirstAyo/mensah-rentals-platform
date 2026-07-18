@@ -325,3 +325,40 @@ For manual API checks, sign in at `http://localhost:3001/login`, then use the se
 - Logout returns 204; the old cookie then receives 401 and refreshing admin redirects to `/login`.
 
 Common failures: 401 means the session is absent/expired, 403 means insufficient permission, 404 means a role/user/permission ID does not exist, 409 means a protected super-admin invariant was triggered, and 400 means strict validation rejected the payload.
+
+## Phase 4 catalogue, theme, and SEO verification
+
+```powershell
+docker compose up -d postgres
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm staff:bootstrap
+pnpm catalogue:seed
+pnpm catalogue:seed
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+Success means the Phase 4 migration is applied, the second catalogue seed creates zero records, and every quality command exits 0. Tests cover strict input validation, real-PostgreSQL seed/slug behavior, public confidentiality, 401/403/authorized routes, and auth/RBAC regressions.
+
+With `pnpm dev` running, verify:
+
+```powershell
+Invoke-RestMethod http://localhost:4000/public/categories
+Invoke-RestMethod http://localhost:4000/public/products
+(Invoke-WebRequest http://localhost:3000/rentals).StatusCode
+(Invoke-WebRequest http://localhost:3000/rentals/seating).StatusCode
+(Invoke-WebRequest http://localhost:3000/rentals/seating/folding-chair).StatusCode
+(Invoke-WebRequest http://localhost:3000/sitemap.xml).StatusCode
+(Invoke-WebRequest http://localhost:3000/robots.txt).StatusCode
+```
+
+All return 200 after the development seed. Search, pagination, active/category filters, and allowlisted sorting execute on the API. Inactive content is absent publicly; a nested category/product mismatch is 404. Public JSON must contain none of the documented inventory quantity keys, and JSON-LD must contain no Offer, price, availability, rating, or review.
+
+In a private browser, admin pages redirect to login. After login, test exact role permissions, create/edit/deactivate confirmation, empty/error/loading states, and logout. Test both apps at about 390, 768, 1024, and 1440 pixels, in system-light, system-dark, manual light, and manual dark. The admin/login routes must be noindex; local public robots disallows all while `SITE_INDEXING_ENABLED=false`.

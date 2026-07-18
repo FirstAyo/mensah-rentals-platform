@@ -48,7 +48,7 @@ export function LoginForm() {
           aria-describedby={errors.email ? 'email-error' : undefined}
           aria-invalid={Boolean(errors.email)}
           autoComplete="username"
-          className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-50 outline-none transition placeholder:text-slate-600 focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20"
+          className="w-full rounded-xl border border-border bg-background px-4 py-3 text-foreground outline-none transition focus:ring-2 focus:ring-ring"
           id="email"
           placeholder="staff@example.com"
           type="email"
@@ -69,7 +69,7 @@ export function LoginForm() {
           aria-describedby={errors.password ? 'password-error' : undefined}
           aria-invalid={Boolean(errors.password)}
           autoComplete="current-password"
-          className="w-full rounded-xl border border-slate-700 bg-slate-950 px-4 py-3 text-slate-50 outline-none transition focus:border-amber-400 focus:ring-2 focus:ring-amber-400/20"
+          className="w-full rounded-xl border border-border bg-background px-4 py-3 text-foreground outline-none transition focus:ring-2 focus:ring-ring"
           id="password"
           type="password"
           {...register('password')}

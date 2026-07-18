@@ -410,6 +410,38 @@ Use only `localhost` consistently; mixing `127.0.0.1` and `localhost` changes
 cookie hosts. Clear cookies for localhost, confirm the cookie name matches in
 the API and admin environment, and restart both applications.
 
+## 22. Apply and test Phase 4 products and categories
+
+Open Docker Desktop, then run from the repository root:
+
+```powershell
+pnpm install
+docker compose up -d postgres
+docker compose ps
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm staff:bootstrap
+pnpm catalogue:seed
+pnpm catalogue:seed
+```
+
+Migration status should include `20260718130000_product_category_foundation`. The first catalogue seed creates missing samples; the second creates zero. Start everything with `pnpm dev`.
+
+Sign in at `http://localhost:3001/login` using credentials stored only in the ignored `.env`. `SUPER_ADMIN` and `EDITOR` can manage `/products` and `/categories`; `SALES_PERSON` can view them but cannot mutate them by default. Public pages require no login: `/rentals`, `/rentals/seating`, and `/rentals/seating/folding-chair`.
+
+```powershell
+Invoke-RestMethod http://localhost:4000/public/categories
+Invoke-RestMethod http://localhost:4000/public/products
+(Invoke-WebRequest http://localhost:3000/rentals).StatusCode
+(Invoke-WebRequest http://localhost:3000/sitemap.xml).StatusCode
+(Invoke-WebRequest http://localhost:3000/robots.txt).Content
+```
+
+Use the header sun/moon buttons. With no saved preference, the apps follow Windows; a manual choice persists per application. Local `SITE_INDEXING_ENABLED=false` intentionally disallows crawling. A 409 while deactivating a category means its active products must be deactivated first. Product upload is deferred; this phase stores validated media metadata only.
+
 ## 21. Apply and seed Phase 3 RBAC
 
 From the repository root, with Docker Desktop open and PostgreSQL healthy:

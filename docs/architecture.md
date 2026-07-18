@@ -183,3 +183,11 @@ absent from all public and customer responses. Permission tests will verify 401,
 - Treat uploads as untrusted when file handling is introduced.
 - Create audit records for sensitive administrative and inventory operations.
 - Apply least privilege to users, services, networks, and database access.
+
+## Phase 4 catalogue, theme, and SEO architecture
+
+The API now owns a catalogue module with physically separate administrative and public controllers, Prisma projections, and response mappers. Administrative `/admin/categories` and `/admin/products` routes require the existing category/product permissions. Public `/public/categories` and `/public/products` routes are GET-only and select active descriptive fields; they never join a future inventory model.
+
+The admin browser uses fixed same-origin catalogue BFF handlers. They allow only the categories/products paths, exact methods, bounded query names, and the named staff session cookie. The API repeats authentication, live permission checks, Origin checks, validation, and transactional rules.
+
+Both Next.js apps use shared theme primitives and app-level semantic tokens. The public app uses server-only public API access, nested slug routes, no-store catalogue reads, and Next metadata/sitemap/robots mechanisms. Production media storage remains deferred until a validated upload and managed-object-storage design exists.

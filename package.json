@@ -36,7 +36,8 @@
     "db:reset": "pnpm --filter @mensah-rentals/database db:reset",
     "rbac:seed": "turbo run build --filter=@mensah-rentals/database && pnpm --filter @mensah-rentals/database rbac:seed",
     "rbac:verify": "turbo run build --filter=@mensah-rentals/database && pnpm --filter @mensah-rentals/database rbac:verify",
-    "staff:bootstrap": "pnpm rbac:seed && pnpm --filter @mensah-rentals/database staff:bootstrap"
+    "staff:bootstrap": "pnpm rbac:seed && pnpm --filter @mensah-rentals/database staff:bootstrap",
+    "catalogue:seed": "turbo run build --filter=@mensah-rentals/database && pnpm --filter @mensah-rentals/database catalogue:seed"
   },
   "devDependencies": {
     "@eslint/js": "9.35.0",

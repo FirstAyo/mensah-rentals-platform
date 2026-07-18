@@ -14,6 +14,8 @@
     "@mensah-rentals/types": "workspace:*",
     "@mensah-rentals/ui": "workspace:*",
     "@mensah-rentals/validation": "workspace:*",
+    "@tanstack/react-query": "5.87.1",
+    "@tanstack/react-table": "8.21.3",
     "lucide-react": "0.544.0",
     "next": "16.2.10",
     "react": "19.1.1",

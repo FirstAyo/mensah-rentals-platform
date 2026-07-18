@@ -10,20 +10,20 @@ stored `tokenHash`, or cookie values. Authentication alone does not authorize
 future administrative inventory responses; those will also require the
 explicit internal permission documented below.
 
-## Public product responses
+## Public product responses (implemented)
 
 Future public product responses may contain:
 
 ```json
 {
-  "id": "product-id",
   "name": "Folding Chair",
   "slug": "folding-chair",
   "description": "Product description",
-  "category": { "id": "category-id", "name": "Seating" },
+  "category": { "name": "Seating", "slug": "seating" },
   "images": [],
   "specifications": [],
-  "rentalUnit": "each"
+  "rentalUnit": "each",
+  "isFeatured": true
 }
 ```
 
@@ -42,6 +42,8 @@ Authenticated staff product responses may contain internal catalogue-management
 metadata permitted for that user. Product permissions do not automatically
 grant inventory-quantity access. Product and inventory contracts remain
 separate so an editor can manage descriptions without receiving inventory data.
+
+Phase 4 admin catalogue responses contain only catalogue identifiers, descriptions, status/featured metadata, ordered image/specification metadata, category information, and timestamps. They also omit every inventory quantity because `product.view` is not `inventory.quantity.view`.
 
 ## Administrative inventory responses
 
