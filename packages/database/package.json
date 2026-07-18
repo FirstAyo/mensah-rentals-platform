@@ -1,0 +1,35 @@
+{
+  "name": "@mensah-rentals/database",
+  "version": "0.1.0",
+  "private": true,
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "pnpm db:generate && tsc -p tsconfig.json",
+    "typecheck": "pnpm db:generate && tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "db:validate": "dotenv -e ../../.env -- prisma validate --schema=prisma/schema.prisma",
+    "db:generate": "dotenv -e ../../.env -- prisma generate --schema=prisma/schema.prisma",
+    "db:migrate": "dotenv -e ../../.env -- prisma migrate deploy --schema=prisma/schema.prisma",
+    "db:migrate:dev": "dotenv -e ../../.env -- prisma migrate dev --schema=prisma/schema.prisma",
+    "db:status": "dotenv -e ../../.env -- prisma migrate status --schema=prisma/schema.prisma",
+    "db:reset": "dotenv -e ../../.env -- prisma migrate reset --schema=prisma/schema.prisma"
+  },
+  "dependencies": {
+    "@prisma/client": "6.15.0"
+  },
+  "devDependencies": {
+    "@mensah-rentals/config": "workspace:*",
+    "@types/node": "22.18.1",
+    "dotenv-cli": "10.0.0",
+    "prisma": "6.15.0",
+    "typescript": "5.9.2",
+    "vitest": "3.2.4"
+  }
+}

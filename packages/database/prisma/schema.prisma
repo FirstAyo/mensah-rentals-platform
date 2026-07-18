@@ -1,0 +1,12 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Phase 1 intentionally contains no business models. Domain tables will be
+// introduced through reviewed Prisma migrations in later vertical slices.
+

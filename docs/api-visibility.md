@@ -1,0 +1,64 @@
+# API Data Visibility
+
+API responses are designed for their audience. Prisma records and universal
+product entities must never be serialized directly to the network. Queries use
+allowlisted `select` projections and response mappers construct dedicated DTOs.
+
+## Public product responses
+
+Future public product responses may contain:
+
+```json
+{
+  "id": "product-id",
+  "name": "Folding Chair",
+  "slug": "folding-chair",
+  "description": "Product description",
+  "category": { "id": "category-id", "name": "Seating" },
+  "images": [],
+  "specifications": [],
+  "rentalUnit": "each"
+}
+```
+
+They must not contain inventory quantities or calculated availability.
+
+## Customer account responses
+
+Customer responses may include that customer's profile and customer-safe
+request, quote, and rental statuses. They must not contain staff-only notes,
+other customers' records, internal rejection details, or internal inventory
+quantities. Customer authentication never grants administrative access.
+
+## Administrative product responses
+
+Authenticated staff product responses may contain internal catalogue-management
+metadata permitted for that user. Product permissions do not automatically
+grant inventory-quantity access. Product and inventory contracts remain
+separate so an editor can manage descriptions without receiving inventory data.
+
+## Administrative inventory responses
+
+Administrative inventory routes require staff authentication and an explicit
+permission such as `inventory.quantity.view`. Only these authorized responses
+may include operational values such as total, available, reserved, rented,
+damaged, maintenance, lost, and date-range availability.
+
+## Permanently forbidden public/customer fields
+
+Public and customer responses must never expose fields representing:
+
+- `totalQuantity`
+- `availableQuantity`
+- `remainingQuantity`
+- `reservedQuantity`
+- `rentedQuantity`
+- `damagedQuantity`
+- `maintenanceQuantity`
+- `lostQuantity`
+- Any equivalent alias or calculated availability for a rental date range
+
+This is enforced in database projections, response DTOs/mappers, backend
+authorization, and recursive response-contract tests. Removing fields in the
+browser or spreading a database object and deleting fields afterward is not an
+acceptable control.

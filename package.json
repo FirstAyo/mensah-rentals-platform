@@ -1,0 +1,48 @@
+{
+  "name": "mensah-rentals-platform",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.15.1",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@nestjs/core",
+      "@prisma/client",
+      "@prisma/engines",
+      "esbuild",
+      "prisma",
+      "sharp"
+    ]
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "dev:web": "turbo run dev --filter=@mensah-rentals/web",
+    "dev:admin": "turbo run dev --filter=@mensah-rentals/admin",
+    "dev:api": "turbo run dev --filter=@mensah-rentals/api",
+    "build": "turbo run build",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "db:validate": "pnpm --filter @mensah-rentals/database db:validate",
+    "db:generate": "pnpm --filter @mensah-rentals/database db:generate",
+    "db:migrate": "pnpm --filter @mensah-rentals/database db:migrate",
+    "db:migrate:dev": "pnpm --filter @mensah-rentals/database db:migrate:dev",
+    "db:status": "pnpm --filter @mensah-rentals/database db:status",
+    "db:reset": "pnpm --filter @mensah-rentals/database db:reset"
+  },
+  "devDependencies": {
+    "@eslint/js": "9.35.0",
+    "@next/eslint-plugin-next": "16.2.10",
+    "eslint": "9.35.0",
+    "eslint-plugin-react-hooks": "5.2.0",
+    "globals": "16.3.0",
+    "prettier": "3.6.2",
+    "turbo": "2.5.6",
+    "typescript": "5.9.2",
+    "typescript-eslint": "8.42.0"
+  }
+}

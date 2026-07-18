@@ -1,0 +1,30 @@
+{
+  "name": "@mensah-rentals/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3000",
+    "build": "next build",
+    "start": "next start --port 3000",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@mensah-rentals/ui": "workspace:*",
+    "next": "16.2.10",
+    "react": "19.1.1",
+    "react-dom": "19.1.1"
+  },
+  "devDependencies": {
+    "@mensah-rentals/config": "workspace:*",
+    "@tailwindcss/typography": "0.5.16",
+    "@types/node": "22.18.1",
+    "@types/react": "19.1.12",
+    "@types/react-dom": "19.1.9",
+    "autoprefixer": "10.4.21",
+    "postcss": "8.5.6",
+    "tailwindcss": "3.4.17",
+    "typescript": "5.9.2",
+    "vitest": "3.2.4"
+  }
+}

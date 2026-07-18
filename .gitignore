@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+
+# Build and test output
+.next/
+dist/
+coverage/
+.turbo/
+*.tsbuildinfo
+
+# Generated Prisma client artifacts
+packages/database/generated/
+
+# Local environment files (examples remain tracked)
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# Logs and local tooling
+*.log
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+

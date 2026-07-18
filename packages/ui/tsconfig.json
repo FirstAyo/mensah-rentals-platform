@@ -1,0 +1,12 @@
+{
+  "extends": "@mensah-rentals/config/typescript/base.json",
+  "compilerOptions": {
+    "declaration": true,
+    "jsx": "react-jsx",
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src/**/*.ts", "src/**/*.tsx"]
+}

@@ -1,0 +1,89 @@
+# Mensah Rentals Platform
+
+Mensah Rentals Platform is the new digital foundation for Mensah Rentals &
+Services. It will support equipment rental requests for events, film
+productions, and other projects.
+
+This is a **rental-request platform**, not an automatic-price e-commerce
+checkout. Customers will request equipment and quantities without seeing
+internal availability or an automatically calculated final price. Authorized
+staff will review each request and prepare a custom quote in a later phase.
+
+Phase 1 contains only the monorepo, local infrastructure, documentation, two
+temporary Next.js pages, and a NestJS health API. It does not contain business
+features.
+
+## Architecture
+
+This pnpm and Turborepo monorepo contains:
+
+- `apps/web` — public customer website, port 3000.
+- `apps/admin` — internal administration application, port 3001.
+- `apps/api` — NestJS REST API and the only application allowed to access the database, port 4000.
+- `packages/database` — Prisma schema, generated client, and database boundary.
+- `packages/ui` — narrowly shared React UI primitives.
+- `packages/types` — runtime-free shared TypeScript contracts.
+- `packages/validation` — shared Zod validation schemas.
+- `packages/config` — shared build-time TypeScript conventions.
+
+PostgreSQL runs locally in Docker. Redis is intentionally deferred until a
+concrete requirement exists.
+
+## Prerequisites
+
+- Windows 10 or 11
+- Node.js 22 LTS or newer compatible LTS release
+- Corepack and pnpm 10.15.1
+- Git
+- Docker Desktop using Linux containers/WSL 2
+
+See [Local development](docs/local-development.md) for beginner-friendly
+installation and troubleshooting steps.
+
+## Quick start
+
+Run these commands in PowerShell from the repository root:
+
+```powershell
+corepack enable
+corepack prepare pnpm@10.15.1 --activate
+Copy-Item .env.example .env
+pnpm install
+docker compose up -d postgres
+docker compose ps
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm dev
+```
+
+Then open:
+
+- Customer website: http://localhost:3000
+- Admin dashboard: http://localhost:3001
+- API liveness: http://localhost:4000/health
+- PostgreSQL readiness: http://localhost:4000/health/database
+
+## Common commands
+
+```powershell
+pnpm dev          # Start all applications
+pnpm dev:web      # Start only the customer website
+pnpm dev:admin    # Start only the admin dashboard
+pnpm dev:api      # Start only the API
+pnpm build        # Create production builds
+pnpm lint         # Run ESLint
+pnpm typecheck    # Run TypeScript checks
+pnpm test         # Run unit tests
+pnpm format:check # Check formatting
+```
+
+## Documentation
+
+- [Architecture](docs/architecture.md)
+- [Planned domain model](docs/domain-model.md)
+- [Permissions](docs/permissions.md)
+- [API data visibility](docs/api-visibility.md)
+- [Roadmap](docs/roadmap.md)
+- [Local development](docs/local-development.md)
+- [Testing guide](docs/testing-guide.md)

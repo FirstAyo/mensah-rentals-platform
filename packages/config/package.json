@@ -1,0 +1,13 @@
+{
+  "name": "@mensah-rentals/config",
+  "version": "0.1.0",
+  "private": true,
+  "files": [
+    "typescript"
+  ],
+  "exports": {
+    "./typescript/base.json": "./typescript/base.json",
+    "./typescript/nextjs.json": "./typescript/nextjs.json",
+    "./typescript/nestjs.json": "./typescript/nestjs.json"
+  }
+}
