@@ -5,8 +5,8 @@ database, API, authorization, UI, documentation, and tests where applicable.
 
 1. **Foundation (complete):** monorepo, local environment, architecture docs, Prisma boundary, temporary web/admin pages, API health, PostgreSQL, repeatable commands.
 2. **Staff authentication foundation (complete):** staff identity, Argon2id passwords, database sessions, secure cookies, admin BFF, protected admin foundation, bootstrap, and auth tests. Customer authentication remains deferred; guest support remains required.
-3. **Permission-based RBAC (recommended next):** roles, permissions, assignments, backend authorization guards, initial role seeds, permission-aware admin foundation, and permission tests.
-4. **Product and category foundation:** admin management contracts, public-safe DTOs, media direction, indexes, validation.
+3. **Permission-based RBAC (complete):** roles, permissions, assignments, live backend authorization, protected system-role seed, permission-aware admin shell, and authorization tests.
+4. **Product and category foundation (recommended next):** admin management contracts, public-safe DTOs, media direction, indexes, validation, and inventory-field privacy contract tests.
 5. **Inventory foundation:** bulk and serialized models, confidential admin APIs, append-only transactions, permission and privacy tests.
 6. **Customer website and catalogue:** public design system, catalogue search/filter/pagination, product details, accessibility and responsive testing.
 7. **Rental cart:** client/server cart design with explicit proof that cart actions do not reserve inventory.

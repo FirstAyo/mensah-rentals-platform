@@ -18,6 +18,35 @@ export const staffLoginSchema = z
 
 export type StaffLoginInput = z.infer<typeof staffLoginSchema>;
 
+export const cuidParamSchema = z.string().cuid();
+
+export const replaceUserRolesSchema = z
+  .object({
+    roleIds: z
+      .array(cuidParamSchema)
+      .max(50)
+      .refine((ids) => new Set(ids).size === ids.length, {
+        message: 'Role IDs must be unique.',
+      }),
+  })
+  .strict();
+
+export const replaceRolePermissionsSchema = z
+  .object({
+    permissionIds: z
+      .array(cuidParamSchema)
+      .max(250)
+      .refine((ids) => new Set(ids).size === ids.length, {
+        message: 'Permission IDs must be unique.',
+      }),
+  })
+  .strict();
+
+export type ReplaceUserRolesInput = z.infer<typeof replaceUserRolesSchema>;
+export type ReplaceRolePermissionsInput = z.infer<
+  typeof replaceRolePermissionsSchema
+>;
+
 export const staffBootstrapEnvironmentSchema = z.object({
   NODE_ENV: z.literal('development'),
   STAFF_BOOTSTRAP_EMAIL: z

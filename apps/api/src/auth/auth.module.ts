@@ -11,6 +11,8 @@ import { OriginGuard } from './origin.guard';
 import { PasswordService } from './password.service';
 import { StaffAuthGuard } from './staff-auth.guard';
 import { StaffSessionCookieService } from './staff-session-cookie.service';
+import { AuthorizationModule } from '../authorization/authorization.module';
+import { PermissionGuard } from '../authorization/permission.guard';
 
 @Module({
   imports: [
@@ -25,6 +27,7 @@ import { StaffSessionCookieService } from './staff-session-cookie.service';
         },
       ],
     }),
+    AuthorizationModule,
   ],
   controllers: [AuthController],
   providers: [
@@ -34,6 +37,7 @@ import { StaffSessionCookieService } from './staff-session-cookie.service';
     StaffSessionCookieService,
     { provide: APP_GUARD, useClass: OriginGuard },
     { provide: APP_GUARD, useClass: StaffAuthGuard },
+    { provide: APP_GUARD, useClass: PermissionGuard },
   ],
   exports: [AuthService, StaffSessionCookieService],
 })

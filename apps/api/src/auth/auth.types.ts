@@ -9,8 +9,18 @@ export interface StaffCredentialRecord {
   lastLoginAt: Date | null;
   lastName: string;
   passwordHash: string;
+  roles: SafeUserRoleRecord[];
   status: StaffUserStatus;
   updatedAt: Date;
+}
+
+export interface SafeUserRoleRecord {
+  role: {
+    displayName: string;
+    id: string;
+    name: string;
+    permissions: Array<{ permission: { key: string } }>;
+  };
 }
 
 export interface ValidStaffSession {

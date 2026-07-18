@@ -12,6 +12,7 @@
   "dependencies": {
     "@mensah-rentals/auth": "workspace:*",
     "@mensah-rentals/database": "workspace:*",
+    "@mensah-rentals/rbac": "workspace:*",
     "@mensah-rentals/types": "workspace:*",
     "@mensah-rentals/validation": "workspace:*",
     "@nestjs/common": "11.1.6",

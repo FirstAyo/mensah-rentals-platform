@@ -24,8 +24,17 @@ describe('server-side staff session validation', () => {
     const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
       Response.json({
         user: {
+          createdAt: '2026-07-18T00:00:00.000Z',
           email: 'staff@example.com',
+          firstName: 'Staff',
           id: 'staff-id',
+          lastLoginAt: null,
+          lastName: 'Member',
+          passwordHash: 'must-not-pass-through',
+          permissionKeys: ['role.view'],
+          roles: [{ displayName: 'Admin', id: 'role-id', name: 'ADMIN' }],
+          status: 'ACTIVE',
+          updatedAt: '2026-07-18T00:00:00.000Z',
         },
       }),
     );
@@ -35,6 +44,7 @@ describe('server-side staff session validation', () => {
     );
 
     expect(user?.email).toBe('staff@example.com');
+    expect(user).not.toHaveProperty('passwordHash');
     expect(fetcher).toHaveBeenCalledWith(
       'http://localhost:4000/auth/me',
       expect.objectContaining({ cache: 'no-store' }),

@@ -282,3 +282,46 @@ Expected results are HTTP 200 from the customer website and admin login page,
 an API `ok` response, and a database `connected` response. Complete the staff
 login, `/auth/me`, logout, and protected-admin checks above before calling the
 authentication flow verified.
+
+## Phase 3 RBAC verification
+
+Run the complete automated and database-aware sequence from the repository root:
+
+```powershell
+pnpm install
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:seed
+pnpm staff:bootstrap
+pnpm rbac:verify
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+Successful database behavior:
+
+- Migration `20260718090000_role_based_access_control` is applied and status is up to date.
+- Both seed runs report four system roles and 45 unique permissions; counts do not grow.
+- `rbac:verify` confirms the seed is idempotent and `SUPER_ADMIN` has the complete catalogue.
+- Bootstrap reports created, assigned, or unchanged without making a duplicate assignment.
+
+Successful automated behavior includes catalogue/mapping checks, duplicate/invalid payload rejection, authentication 401 versus authorization 403, permitted request success, disabled-session rejection, response-field safety, logout invalidation, and permission-aware navigation visibility.
+
+For manual API checks, sign in at `http://localhost:3001/login`, then use the session cookie in an API client. Browser state-changing requests must include `Origin: http://localhost:3001`.
+
+- Without a cookie, `GET /admin/roles` returns 401.
+- A signed-in user without `role.view` receives 403.
+- A user with `role.view` receives 200 and safe role summaries.
+- `GET /auth/me` lists safe role summaries and sorted effective permission keys; its JSON contains none of `passwordHash`, `tokenHash`, or a raw session token.
+- An `EDITOR` lacks `inventory.quantity.view`; a `SALES_PERSON` lacks `user.role.manage`; `SUPER_ADMIN` has all 45 keys.
+- Removing a non-protected role changes `/auth/me` and admin navigation on the next request; restoring it reverses the change.
+- Trying to edit `SUPER_ADMIN` permissions or remove the last active super administrator returns 409.
+- Logout returns 204; the old cookie then receives 401 and refreshing admin redirects to `/login`.
+
+Common failures: 401 means the session is absent/expired, 403 means insufficient permission, 404 means a role/user/permission ID does not exist, 409 means a protected super-admin invariant was triggered, and 400 means strict validation rejected the payload.

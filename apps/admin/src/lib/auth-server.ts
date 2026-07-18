@@ -9,22 +9,68 @@ import { redirect } from 'next/navigation';
 
 import { getApiInternalUrl, getStaffSessionCookieName } from './auth-config';
 
-function isStaffAuthResponse(value: unknown): value is StaffAuthResponse {
+function parseStaffAuthResponse(value: unknown): StaffAuthResponse | null {
   if (!value || typeof value !== 'object' || !('user' in value)) {
-    return false;
+    return null;
   }
 
   const user = value.user;
   if (!user || typeof user !== 'object') {
-    return false;
+    return null;
   }
+  const record = user as Record<string, unknown>;
 
-  return (
-    'id' in user &&
-    typeof user.id === 'string' &&
-    'email' in user &&
-    typeof user.email === 'string'
-  );
+  const requiredStrings = [
+    'id',
+    'email',
+    'firstName',
+    'lastName',
+    'status',
+    'createdAt',
+    'updatedAt',
+  ] as const;
+  if (!requiredStrings.every((field) => typeof record[field] === 'string'))
+    return null;
+  if (record.lastLoginAt !== null && typeof record.lastLoginAt !== 'string')
+    return null;
+  if (
+    !Array.isArray(record.permissionKeys) ||
+    !record.permissionKeys.every((key) => typeof key === 'string')
+  )
+    return null;
+  if (!Array.isArray(record.roles)) return null;
+  const roles = record.roles.flatMap((role) => {
+    if (!role || typeof role !== 'object') return [];
+    if (
+      !('id' in role) ||
+      typeof role.id !== 'string' ||
+      !('name' in role) ||
+      typeof role.name !== 'string' ||
+      !('displayName' in role) ||
+      typeof role.displayName !== 'string'
+    )
+      return [];
+    return [{ displayName: role.displayName, id: role.id, name: role.name }];
+  });
+  if (
+    roles.length !== record.roles.length ||
+    (record.status !== 'ACTIVE' && record.status !== 'DISABLED')
+  )
+    return null;
+  return {
+    user: {
+      createdAt: record.createdAt as string,
+      email: record.email as string,
+      firstName: record.firstName as string,
+      id: record.id as string,
+      lastLoginAt: record.lastLoginAt as string | null,
+      lastName: record.lastName as string,
+      permissionKeys: [...new Set(record.permissionKeys as string[])].sort(),
+      roles,
+      status: record.status,
+      updatedAt: record.updatedAt as string,
+    },
+  };
 }
 
 export async function requestCurrentStaffUser(
@@ -44,7 +90,7 @@ export async function requestCurrentStaffUser(
   }
 
   const body: unknown = await response.json();
-  return isStaffAuthResponse(body) ? body.user : null;
+  return parseStaffAuthResponse(body)?.user ?? null;
 }
 
 export async function getCurrentStaffUser(): Promise<StaffUserResponse | null> {

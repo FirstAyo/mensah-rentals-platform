@@ -4,6 +4,21 @@ import { prisma, UserStatus } from '@mensah-rentals/database';
 import type { StaffCredentialRecord, ValidStaffSession } from './auth.types';
 import { mapStaffUser } from './staff-user.mapper';
 
+const rolesSelect = {
+  select: {
+    role: {
+      select: {
+        displayName: true,
+        id: true,
+        name: true,
+        permissions: {
+          select: { permission: { select: { key: true } } },
+        },
+      },
+    },
+  },
+} as const;
+
 @Injectable()
 export class AuthRepository {
   findUserForLogin(email: string): Promise<StaffCredentialRecord | null> {
@@ -16,6 +31,7 @@ export class AuthRepository {
         lastLoginAt: true,
         lastName: true,
         passwordHash: true,
+        roles: rolesSelect,
         status: true,
         updatedAt: true,
       },
@@ -46,6 +62,7 @@ export class AuthRepository {
           id: true,
           lastLoginAt: true,
           lastName: true,
+          roles: rolesSelect,
           status: true,
           updatedAt: true,
         },
@@ -82,6 +99,7 @@ export class AuthRepository {
             id: true,
             lastLoginAt: true,
             lastName: true,
+            roles: rolesSelect,
             status: true,
             updatedAt: true,
           },

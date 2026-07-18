@@ -18,6 +18,7 @@ const credential: StaffCredentialRecord = {
   lastLoginAt: null,
   lastName: 'Member',
   passwordHash: 'stored-password-hash',
+  roles: [],
   status: 'ACTIVE',
   updatedAt: now,
 };
@@ -29,6 +30,8 @@ const safeUser: StaffUserResponse = {
   id: credential.id,
   lastLoginAt: null,
   lastName: credential.lastName,
+  permissionKeys: [],
+  roles: [],
   status: credential.status,
   updatedAt: credential.updatedAt.toISOString(),
 };

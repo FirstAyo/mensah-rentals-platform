@@ -13,17 +13,20 @@
   "scripts": {
     "build": "pnpm db:generate && tsc -p tsconfig.json",
     "typecheck": "pnpm db:generate && tsc -p tsconfig.json --noEmit",
-    "test": "vitest run --passWithNoTests",
+    "test": "dotenv -e ../../.env -- vitest run",
     "db:validate": "dotenv -e ../../.env -- prisma validate --schema=prisma/schema.prisma",
     "db:generate": "dotenv -e ../../.env -- prisma generate --schema=prisma/schema.prisma",
     "db:migrate": "dotenv -e ../../.env -- prisma migrate deploy --schema=prisma/schema.prisma",
     "db:migrate:dev": "dotenv -e ../../.env -- prisma migrate dev --schema=prisma/schema.prisma",
     "db:status": "dotenv -e ../../.env -- prisma migrate status --schema=prisma/schema.prisma",
     "db:reset": "dotenv -e ../../.env -- prisma migrate reset --schema=prisma/schema.prisma",
-    "staff:bootstrap": "dotenv -e ../../.env -- node dist/scripts/bootstrap-staff.js"
+    "staff:bootstrap": "dotenv -e ../../.env -- node dist/scripts/bootstrap-staff.js",
+    "rbac:seed": "dotenv -e ../../.env -- node dist/scripts/seed-rbac.js",
+    "rbac:verify": "dotenv -e ../../.env -- node dist/scripts/verify-rbac.js"
   },
   "dependencies": {
     "@mensah-rentals/auth": "workspace:*",
+    "@mensah-rentals/rbac": "workspace:*",
     "@mensah-rentals/validation": "workspace:*",
     "@prisma/client": "6.15.0"
   },

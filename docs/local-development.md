@@ -409,3 +409,53 @@ Confirm the API is running on port 4000 and
 Use only `localhost` consistently; mixing `127.0.0.1` and `localhost` changes
 cookie hosts. Clear cookies for localhost, confirm the cookie name matches in
 the API and admin environment, and restart both applications.
+
+## 21. Apply and seed Phase 3 RBAC
+
+From the repository root, with Docker Desktop open and PostgreSQL healthy:
+
+```powershell
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+```
+
+Successful migration status says the database schema is up to date. The seed reports `4 system roles` and `45 permissions`. Verification reports an idempotent seed.
+
+To create the first staff user and ensure that the local development account has `SUPER_ADMIN`, set the existing `STAFF_BOOTSTRAP_*` values in `.env`, then run:
+
+```powershell
+pnpm staff:bootstrap
+pnpm rbac:verify
+```
+
+Credentials come only from your ignored `.env`; never put the actual password in a command, document, test, or committed file. Bootstrap is repeatable. A missing user is created with `SUPER_ADMIN`; an active existing user receives it only when that user has zero roles; users with any role and disabled users are unchanged.
+
+Start the API and admin application:
+
+```powershell
+pnpm dev:api
+```
+
+In a second PowerShell window:
+
+```powershell
+pnpm dev:admin
+```
+
+Open `http://localhost:3001/login`, sign in with `STAFF_BOOTSTRAP_EMAIL` and `STAFF_BOOTSTRAP_PASSWORD`, and confirm the page shows `Super Admin`, `45 effective permissions`, and all development navigation placeholders.
+
+To test another role without a role-management UI, create a second disposable local account safely:
+
+1. Keep the first bootstrap account signed in as `SUPER_ADMIN`.
+2. Temporarily change the four `STAFF_BOOTSTRAP_*` values in your ignored `.env` to a second local-only identity and password.
+3. Run `pnpm staff:bootstrap`. Because the account is new, it receives `SUPER_ADMIN`; the first account remains the other active super administrator.
+4. Sign in as the second account and call `GET http://localhost:4000/auth/me` to copy its user ID. Sign back in as the first account.
+5. Call `GET http://localhost:4000/admin/roles` to copy the desired role ID.
+6. Send `PUT http://localhost:4000/admin/users/<secondUserId>/roles` with JSON `{ "roleIds": ["<roleId>"] }`, the first account's staff cookie, `Content-Type: application/json`, and `Origin: http://localhost:3001`.
+7. Sign in as the second account and refresh the admin page. Its role, permission count, and placeholder navigation must reflect the assigned role.
+8. Restore your original `STAFF_BOOTSTRAP_*` values in `.env`. Keep local credentials out of source control.
+
+Do not remove `SUPER_ADMIN` from the last active super administrator; the API returns 409. If the seed fails, first confirm the Phase 3 migration is applied. If an RBAC request returns 401, sign in again. A 403 means the current user is authenticated but lacks the required permission. A 400 usually means an invalid/duplicate ID or unknown payload field.

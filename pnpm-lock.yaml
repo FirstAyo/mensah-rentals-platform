@@ -105,6 +105,9 @@ importers:
       '@mensah-rentals/database':
         specifier: workspace:*
         version: link:../../packages/database
+      '@mensah-rentals/rbac':
+        specifier: workspace:*
+        version: link:../../packages/rbac
       '@mensah-rentals/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -242,6 +245,9 @@ importers:
       '@mensah-rentals/auth':
         specifier: workspace:*
         version: link:../auth
+      '@mensah-rentals/rbac':
+        specifier: workspace:*
+        version: link:../rbac
       '@mensah-rentals/validation':
         specifier: workspace:*
         version: link:../validation
@@ -261,6 +267,18 @@ importers:
       prisma:
         specifier: 6.15.0
         version: 6.15.0(typescript@5.9.2)
+      typescript:
+        specifier: 5.9.2
+        version: 5.9.2
+      vitest:
+        specifier: 3.2.4
+        version: 3.2.4(@types/node@22.18.1)(jiti@2.7.0)(terser@5.49.0)(yaml@2.9.0)
+
+  packages/rbac:
+    devDependencies:
+      '@mensah-rentals/config':
+        specifier: workspace:*
+        version: link:../config
       typescript:
         specifier: 5.9.2
         version: 5.9.2

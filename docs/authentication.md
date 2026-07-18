@@ -1,8 +1,8 @@
 # Staff authentication
 
-Phase 2 authenticates internal staff only. It does not implement customer
-accounts, roles, permissions, or business features. Guest customer rental
-requests remain an explicit future requirement.
+Authentication is for internal staff only. Phase 3 layers staff roles and
+permissions onto it, but does not implement customer accounts or business
+features. Guest customer rental requests remain an explicit future requirement.
 
 ## Architecture
 
@@ -145,10 +145,13 @@ The script normalizes the email and creates one `ACTIVE` staff user. Repeating
 it does not duplicate, overwrite, reactivate, or change an existing account.
 Never put real production credentials in `.env.example` or source control.
 
-## Future RBAC integration
+## RBAC integration
 
-The `User` identity is intentionally compatible with later `Role`,
-`Permission`, `UserRole`, and `RolePermission` models. The authentication guard
-will continue to establish identity. A separate authorization guard will then
-check named permissions at protected backend actions. No role or permission
-table, hard-coded role check, or customer identity has been added in Phase 2.
+Phase 3 now implements this integration. Session validation loads the active user with current roles and permissions on each request. `/auth/me` safely includes role summaries and effective permission keys, but never password hashes, session IDs, token hashes, or raw tokens. The permission guard runs after authentication, returning 401 for no valid session and 403 for an authenticated principal lacking a required permission.
+
+RBAC mutation services re-check the actor inside their database transaction, so an authorization change between initial session validation and mutation cannot authorize stale privilege. No permission cache is used.
+
+The `User` identity relates to implemented `Role`, `Permission`, `UserRole`, and
+`RolePermission` models. The authentication guard establishes current identity;
+the authorization guard checks named permissions at protected backend actions.
+No customer identity has been added.

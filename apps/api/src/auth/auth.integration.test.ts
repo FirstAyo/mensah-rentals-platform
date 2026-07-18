@@ -12,12 +12,19 @@ import { AuthModule } from './auth.module';
 import { AuthRepository } from './auth.repository';
 import type { StaffCredentialRecord, ValidStaffSession } from './auth.types';
 import { Public } from './public.decorator';
+import { RequirePermissions } from '../authorization/require-permissions.decorator';
 
 @Controller('test-protected')
 class ProtectedTestController {
   @Get()
   getProtected(): { status: string } {
     return { status: 'authenticated' };
+  }
+
+  @Get('permission')
+  @RequirePermissions('role.view')
+  getPermissionProtected(): { status: string } {
+    return { status: 'authorized' };
   }
 }
 
@@ -95,6 +102,18 @@ class InMemoryAuthRepository extends AuthRepository {
       id: user.id,
       lastLoginAt: user.lastLoginAt?.toISOString() ?? null,
       lastName: user.lastName,
+      permissionKeys: [
+        ...new Set(
+          user.roles.flatMap(({ role }) =>
+            role.permissions.map(({ permission }) => permission.key),
+          ),
+        ),
+      ],
+      roles: user.roles.map(({ role }) => ({
+        displayName: role.displayName,
+        id: role.id,
+        name: role.name,
+      })),
       status: user.status,
       updatedAt: user.updatedAt.toISOString(),
     };
@@ -141,7 +160,10 @@ describe('staff authentication HTTP flow', () => {
     await app.close();
   });
 
-  function setUser(status: 'ACTIVE' | 'DISABLED' = 'ACTIVE') {
+  function setUser(
+    status: 'ACTIVE' | 'DISABLED' = 'ACTIVE',
+    permissionKeys: string[] = [],
+  ) {
     repository.user = {
       createdAt: new Date('2026-07-18T00:00:00.000Z'),
       email: 'staff@example.com',
@@ -150,6 +172,21 @@ describe('staff authentication HTTP flow', () => {
       lastLoginAt: null,
       lastName: 'Member',
       passwordHash,
+      roles:
+        permissionKeys.length === 0
+          ? []
+          : [
+              {
+                role: {
+                  displayName: 'Test Role',
+                  id: 'role-id',
+                  name: 'TEST_ROLE',
+                  permissions: permissionKeys.map((key) => ({
+                    permission: { key },
+                  })),
+                },
+              },
+            ],
       status,
       updatedAt: new Date('2026-07-18T00:00:00.000Z'),
     };
@@ -162,6 +199,58 @@ describe('staff authentication HTTP flow', () => {
       .send({})
       .expect(201);
     await request(app.getHttpServer()).get('/test-protected').expect(401);
+  });
+
+  it('returns 401, 403, and 200 at the authentication/permission boundaries', async () => {
+    await request(app.getHttpServer())
+      .get('/test-protected/permission')
+      .expect(401);
+
+    setUser();
+    const noPermissionAgent = request.agent(app.getHttpServer());
+    await noPermissionAgent
+      .post('/auth/login')
+      .set('Origin', 'http://localhost:3001')
+      .send({
+        email: 'staff@example.com',
+        password: 'correct-development-password',
+      })
+      .expect(200);
+    await noPermissionAgent.get('/test-protected/permission').expect(403);
+
+    setUser('ACTIVE', ['role.view']);
+    const authorizedAgent = request.agent(app.getHttpServer());
+    await authorizedAgent
+      .post('/auth/login')
+      .set('Origin', 'http://localhost:3001')
+      .send({
+        email: 'staff@example.com',
+        password: 'correct-development-password',
+      })
+      .expect(200);
+    await authorizedAgent
+      .get('/test-protected/permission')
+      .expect(200, { status: 'authorized' });
+  });
+
+  it('applies permission revocation and restoration on the next request without relogin', async () => {
+    setUser('ACTIVE', ['role.view']);
+    const agent = request.agent(app.getHttpServer());
+    await agent
+      .post('/auth/login')
+      .set('Origin', 'http://localhost:3001')
+      .send({
+        email: 'staff@example.com',
+        password: 'correct-development-password',
+      })
+      .expect(200);
+    await agent.get('/test-protected/permission').expect(200);
+
+    setUser('ACTIVE', []);
+    await agent.get('/test-protected/permission').expect(403);
+
+    setUser('ACTIVE', ['role.view']);
+    await agent.get('/test-protected/permission').expect(200);
   });
 
   it('logs in, reads the current user, logs out, and rejects replay', async () => {

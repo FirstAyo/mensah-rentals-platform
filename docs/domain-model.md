@@ -6,6 +6,10 @@ Prisma migration.
 
 ## Identity and access
 
+Phase 3 implements `Role`, `Permission`, `UserRole`, and `RolePermission`. Both join models use composite primary keys, so a user cannot receive the same role twice and a role cannot receive the same permission twice. `UserRole.assignedById` optionally identifies the assigning staff user. System roles are marked with `isSystem`; future custom roles use the same model.
+
+Effective permissions are calculated as the de-duplicated union of permissions on all current roles. They are loaded from PostgreSQL during authenticated requests rather than stored in a long-lived token.
+
 - **User (implemented)** represents an internal staff identity. It stores a canonical unique email, Argon2id password hash, name, `ACTIVE`/`DISABLED` status, optional last-login time, and timestamps. Password hashes are never response fields.
 - **StaffSession (implemented)** stores a unique hash of an opaque browser token, its staff user, creation time, and expiry. Cascading user deletion removes sessions; logout removes the matching session. Only active-user, unexpired sessions authenticate.
 - **Role** groups permissions and supports both initial and future custom roles.

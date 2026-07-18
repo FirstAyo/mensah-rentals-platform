@@ -59,9 +59,8 @@ versions.
 
 PostgreSQL is the authoritative datastore and Prisma is the ORM. Schema changes
 are made through reviewed Prisma migrations, not manual production edits. Phase
-2 contains only the staff `User`, `UserStatus`, and database-backed
-`StaffSession` identity foundation. It has no rental business tables or RBAC
-tables.
+3 contains staff `User`, `UserStatus`, database-backed `StaffSession`, and the
+four RBAC models. It has no rental business tables.
 
 Money will use PostgreSQL decimal types. Important entities will use keys,
 constraints, indexes, and timestamps. Historical business records will be
@@ -88,11 +87,15 @@ token hash is stored. Unsafe requests require the exact admin Origin and auth
 POSTs require JSON. Protected admin Server Components validate the session
 with the API before rendering. See [Staff authentication](authentication.md).
 
-This establishes identity, not permission. Customer authentication remains
-separate and unimplemented, and future guest requests cannot require an
-account.
+This establishes staff identity and works with the permission layer below.
+Customer authentication remains separate and unimplemented, and future guest
+requests cannot require an account.
 
 ## RBAC direction
+
+The implemented authorization chain is `OriginGuard -> StaffAuthGuard -> PermissionGuard`. Controllers declare explicit requirements with `@RequirePermissions('permission.key')`. The authenticated principal is derived from live database joins, and mutation transactions repeat actor authorization before writing. Public controllers remain explicitly marked and never expose RBAC administration data.
+
+The shared `packages/rbac` package owns the runtime-free permission catalogue, four system-role definitions, and default mappings. `packages/types` owns safe response shapes; `packages/validation` owns strict assignment payload validation. Prisma remains isolated behind the database/API boundaries.
 
 Authorization is permission-based and deny-by-default. Roles are editable
 permission bundles implemented through User, Role, Permission, UserRole, and

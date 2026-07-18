@@ -9,9 +9,10 @@ checkout. Customers will request equipment and quantities without seeing
 internal availability or an automatically calculated final price. Authorized
 staff will review each request and prepare a custom quote in a later phase.
 
-Phase 2 adds secure internal staff authentication and a protected development
-landing page. It does not contain customer authentication, RBAC, or rental
-business features. Future guest rental requests will not require an account.
+Phase 3 adds secure internal staff authentication, permission-based RBAC,
+protected role administration APIs, and a permission-aware development shell.
+It does not contain customer authentication or rental business features. Future
+guest rental requests will not require an account.
 
 ## Architecture
 
@@ -22,6 +23,7 @@ This pnpm and Turborepo monorepo contains:
 - `apps/api` — NestJS REST API and the only application allowed to access the database, port 4000.
 - `packages/database` — Prisma schema, generated client, and database boundary.
 - `packages/auth` — server-side password and opaque-session cryptography.
+- `packages/rbac` — shared permission catalogue and default role mappings.
 - `packages/ui` — narrowly shared React UI primitives.
 - `packages/types` — runtime-free shared TypeScript contracts.
 - `packages/validation` — shared Zod validation schemas.
@@ -62,7 +64,9 @@ docker compose ps
 pnpm db:validate
 pnpm db:generate
 pnpm db:migrate
+pnpm rbac:seed
 pnpm staff:bootstrap
+pnpm rbac:verify
 pnpm dev
 ```
 
@@ -86,6 +90,8 @@ pnpm typecheck    # Run TypeScript checks
 pnpm test         # Run unit tests
 pnpm format:check # Check formatting
 pnpm staff:bootstrap # Idempotently create the local development staff user
+pnpm rbac:seed       # Idempotently seed roles, permissions, and defaults
+pnpm rbac:verify     # Verify seed, uniqueness, and bootstrap SUPER_ADMIN
 ```
 
 ## Documentation
@@ -94,6 +100,7 @@ pnpm staff:bootstrap # Idempotently create the local development staff user
 - [Staff authentication](docs/authentication.md)
 - [Planned domain model](docs/domain-model.md)
 - [Permissions](docs/permissions.md)
+- [RBAC implementation](docs/rbac.md)
 - [API data visibility](docs/api-visibility.md)
 - [Roadmap](docs/roadmap.md)
 - [Local development](docs/local-development.md)

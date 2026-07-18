@@ -18,6 +18,8 @@ describe('authenticated admin landing page', () => {
           id: 'staff-id',
           lastLoginAt: '2026-07-18T00:00:00.000Z',
           lastName: 'Member',
+          permissionKeys: ['product.view', 'role.view'],
+          roles: [{ displayName: 'Editor', id: 'role-editor', name: 'EDITOR' }],
           status: 'ACTIVE',
           updatedAt: '2026-07-18T00:00:00.000Z',
         }}
@@ -28,6 +30,11 @@ describe('authenticated admin landing page', () => {
     expect(html).toContain('Authenticated Development Environment');
     expect(html).toContain('Staff Member');
     expect(html).toContain('staff@example.com');
+    expect(html).toContain('Editor');
+    expect(html).toContain('2 effective permissions');
+    expect(html).toContain('Products');
+    expect(html).toContain('Roles');
+    expect(html).not.toContain('Inventory');
     expect(html).not.toContain('passwordHash');
   });
 });
