@@ -161,8 +161,7 @@ pnpm db:generate
 
 Success reports a valid Prisma schema and a generated Prisma Client.
 `db:validate` and `db:generate` do not themselves prove network connectivity.
-Run `pnpm db:status` to confirm the committed staff-authentication migration is
-applied and no migrations are pending against the running database.
+Run `pnpm db:status` to confirm all committed migrations through `20260723133000_inventory_creation_operation_required` are applied and none are pending.
 
 ## Staff authentication tests
 
@@ -360,5 +359,35 @@ Invoke-RestMethod http://localhost:4000/public/products
 ```
 
 All return 200 after the development seed. Search, pagination, active/category filters, and allowlisted sorting execute on the API. Inactive content is absent publicly; a nested category/product mismatch is 404. Public JSON must contain none of the documented inventory quantity keys, and JSON-LD must contain no Offer, price, availability, rating, or review.
+
+## Phase 5 media and inventory verification
+
+Run:
+
+```powershell
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+Success means the inventory migration is current and every quality command exits 0. Automated tests cover Sharp resizing/compression and content inspection, source/processed limits, EXIF normalization, four-image enforcement, public media URLs, real catalogue queries, inventory authorization, nonnegative concurrency-safe bulk movements, serialized state transitions, idempotency, append-only database triggers, and public catalogue confidentiality after inventory exists.
+
+Manual checks:
+
+1. Sign in at `http://localhost:3001/login` as the local bootstrap user.
+2. Edit a product, upload a large valid image, and verify the processed preview and size appear before upload.
+3. Confirm the image renders publicly without exposing a disk path.
+4. Open `/inventory`, create a BULK record, and move part of the rentable quantity to maintenance.
+5. Confirm totals change and history retains the original event.
+6. Create SERIALIZED inventory for another product, add an asset, and verify its current state.
+7. Confirm public catalogue/API/HTML contains no quantities, asset numbers, serial numbers, stock wording, or availability claims.
+
+Common failures are Docker Desktop not running, a pending migration, missing `MEDIA_STORAGE_ROOT`, insufficient staff permissions, or a selected image exceeding the 10 MB source or 2 MB processed limits.
 
 In a private browser, admin pages redirect to login. After login, test exact role permissions, create/edit/deactivate confirmation, empty/error/loading states, and logout. Test both apps at about 390, 768, 1024, and 1440 pixels, in system-light, system-dark, manual light, and manual dark. The admin/login routes must be noindex; local public robots disallows all while `SITE_INDEXING_ENABLED=false`.

@@ -57,3 +57,5 @@ The schema supports future custom roles (`isSystem = false`). The idempotent see
 ## Inventory confidentiality
 
 `inventory.quantity.view` is required for operational quantities. Customers, guest users, customer accounts, public APIs, and future customer mobile clients must never receive total, available, remaining, reserved, rented, damaged, maintenance, or lost quantities. Frontend hiding is not a security boundary.
+
+Phase 5 uses cumulative checks: metadata requires `inventory.view`; quantities and serialized assets also require `inventory.quantity.view`; mutations additionally require `inventory.adjust`; append-only history additionally requires `inventory.transaction.view`. ADMIN and SUPER_ADMIN have all four. SALES_PERSON has metadata and quantity access only. EDITOR has none.

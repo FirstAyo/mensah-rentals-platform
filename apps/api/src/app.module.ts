@@ -9,6 +9,8 @@ import { AuthModule } from './auth/auth.module';
 import { HealthController } from './health/health.controller';
 import { HealthService } from './health/health.service';
 import { CatalogueModule } from './catalogue/catalogue.module';
+import { ProductMediaModule } from './media/product-media.module';
+import { InventoryModule } from './inventory/inventory.module';
 
 @Module({
   imports: [
@@ -19,6 +21,8 @@ import { CatalogueModule } from './catalogue/catalogue.module';
     }),
     AuthModule,
     CatalogueModule,
+    ProductMediaModule,
+    InventoryModule,
   ],
   controllers: [HealthController],
   providers: [DatabaseService, HealthService],

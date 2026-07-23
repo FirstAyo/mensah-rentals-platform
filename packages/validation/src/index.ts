@@ -77,6 +77,7 @@ export const apiEnvironmentSchema = z
       .max(3600)
       .default(60),
     DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
+    MEDIA_STORAGE_ROOT: z.string().trim().min(1).default('storage/media'),
     NODE_ENV: z
       .enum(['development', 'test', 'production'])
       .default('development'),
@@ -181,22 +182,26 @@ export const createCategorySchema = z
   .strict();
 export const updateCategorySchema = z.object(categoryMutableFields).strict();
 
-const productImageInputSchema = z
+export const PRODUCT_IMAGE_LIMITS = {
+  allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
+  compressionQuality: 82,
+  maxDimension: 2400,
+  maxImages: 4,
+  maxProcessedBytes: 2 * 1024 * 1024,
+  maxSourceBytes: 10 * 1024 * 1024,
+} as const;
+
+export const updateProductImageSchema = z
   .object({
     altText: z.string().trim().min(1).max(300),
-    isPrimary: z.boolean().default(false),
-    url: z
-      .string()
-      .trim()
-      .min(1)
-      .max(2048)
-      .refine(
-        (value) => value.startsWith('/media/') || /^https:\/\//i.test(value),
-        {
-          message: 'Use an HTTPS URL or a managed /media/ path.',
-        },
-      ),
+    isPrimary: z.boolean(),
   })
+  .strict();
+
+export type UpdateProductImageInput = z.infer<typeof updateProductImageSchema>;
+
+export const productImageUploadMetadataSchema = z
+  .object({ altText: z.string().trim().min(1).max(300) })
   .strict();
 
 const productSpecificationInputSchema = z
@@ -209,25 +214,6 @@ const productSpecificationInputSchema = z
 const productMutableFields = {
   categoryId: cuidParamSchema,
   description: z.string().trim().max(20_000).nullable().optional(),
-  images: z
-    .array(productImageInputSchema)
-    .max(20)
-    .default([])
-    .superRefine((images, context) => {
-      const primaryCount = images.filter(({ isPrimary }) => isPrimary).length;
-      if (images.length > 0 && primaryCount !== 1) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'Select exactly one primary image.',
-        });
-      }
-      if (images.length === 0 && primaryCount !== 0) {
-        context.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: 'An empty image list cannot have a primary image.',
-        });
-      }
-    }),
   isFeatured: z.boolean().default(false),
   name: z.string().trim().min(1).max(160),
   rentalUnit: z.string().trim().min(1).max(50).default('each'),
@@ -250,3 +236,111 @@ export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
 export type CreateProductInput = z.infer<typeof createProductSchema>;
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;
+
+export const inventoryTrackingModeSchema = z.enum(['BULK', 'SERIALIZED']);
+export const inventoryStateSchema = z.enum([
+  'RENTABLE',
+  'RENTED',
+  'MAINTENANCE',
+  'DAMAGED',
+  'LOST',
+  'RETIRED',
+]);
+const inventoryOperationIdSchema = z.string().uuid();
+const inventoryReasonSchema = z.string().trim().min(1).max(1000);
+const inventoryQuantitySchema = z.number().int().min(1).max(1_000_000);
+
+export const inventoryListQuerySchema = z
+  .object({
+    page: boundedPage,
+    pageSize: boundedPageSize,
+    search: z.string().trim().max(100).optional(),
+    trackingMode: inventoryTrackingModeSchema.optional(),
+    sortBy: z
+      .enum(['productName', 'createdAt', 'updatedAt'])
+      .default('productName'),
+    sortDirection: z.enum(['asc', 'desc']).default('asc'),
+  })
+  .strict();
+
+export const inventoryPageQuerySchema = z
+  .object({ page: boundedPage, pageSize: boundedPageSize })
+  .strict();
+
+export const createInventorySchema = z
+  .object({
+    productId: cuidParamSchema,
+    trackingMode: inventoryTrackingModeSchema,
+    initialQuantity: inventoryQuantitySchema.optional(),
+    initialState: inventoryStateSchema.default('RENTABLE'),
+    operationId: inventoryOperationIdSchema,
+    reason: inventoryReasonSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (value.trackingMode === 'BULK' && value.initialQuantity === undefined)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['initialQuantity'],
+        message: 'Bulk inventory requires an initial quantity.',
+      });
+    if (
+      value.trackingMode === 'SERIALIZED' &&
+      value.initialQuantity !== undefined
+    )
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['initialQuantity'],
+        message: 'Serialized inventory is built from individual assets.',
+      });
+  });
+
+export const bulkInventoryMovementSchema = z
+  .object({
+    fromState: inventoryStateSchema,
+    toState: inventoryStateSchema,
+    quantity: inventoryQuantitySchema,
+    operationId: inventoryOperationIdSchema,
+    reason: inventoryReasonSchema,
+  })
+  .strict()
+  .refine((value) => value.fromState !== value.toState, {
+    message: 'Source and destination states must differ.',
+    path: ['toState'],
+  });
+
+export const createInventoryItemSchema = z
+  .object({
+    assetNumber: z
+      .string()
+      .trim()
+      .min(1)
+      .max(100)
+      .transform((value) => value.toUpperCase()),
+    serialNumber: z.string().trim().min(1).max(160).nullable().optional(),
+    initialState: inventoryStateSchema.default('RENTABLE'),
+    operationId: inventoryOperationIdSchema,
+    reason: inventoryReasonSchema,
+  })
+  .strict();
+
+export const transitionInventoryItemSchema = z
+  .object({
+    toState: inventoryStateSchema,
+    operationId: inventoryOperationIdSchema,
+    reason: inventoryReasonSchema,
+  })
+  .strict();
+
+export type InventoryListQuery = z.infer<typeof inventoryListQuerySchema>;
+export type InventoryPageQuery = z.infer<typeof inventoryPageQuerySchema>;
+export type CreateInventoryInput = z.infer<typeof createInventorySchema>;
+export type BulkInventoryMovementInput = z.infer<
+  typeof bulkInventoryMovementSchema
+>;
+export type CreateInventoryItemInput = z.infer<
+  typeof createInventoryItemSchema
+>;
+export type TransitionInventoryItemInput = z.infer<
+  typeof transitionInventoryItemSchema
+>;

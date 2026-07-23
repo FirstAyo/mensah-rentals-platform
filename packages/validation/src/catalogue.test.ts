@@ -7,7 +7,7 @@ import {
 } from './index';
 
 describe('catalogue validation', () => {
-  it('accepts a safe product and enforces exactly one primary image', () => {
+  it('accepts safe product metadata without media mutations', () => {
     const base = {
       categoryId: 'cm00000000000000000000000',
       name: 'Chair',
@@ -16,28 +16,14 @@ describe('catalogue validation', () => {
       description: null,
       rentalUnit: 'each',
       isFeatured: false,
-      images: [
-        {
-          url: '/media/chair.jpg',
-          altText: 'Black folding chair',
-          isPrimary: true,
-        },
-      ],
       specifications: [],
     };
     expect(
       createProductSchema.safeParse({ ...base, isActive: true }).success,
     ).toBe(true);
-    expect(
-      createProductSchema.safeParse({
-        ...base,
-        isActive: true,
-        images: [{ ...base.images[0], isPrimary: false }],
-      }).success,
-    ).toBe(false);
   });
 
-  it('rejects unsafe slugs, arbitrary image schemes, and mass assignment', () => {
+  it('rejects unsafe slugs, media association, and mass assignment', () => {
     expect(
       createCategorySchema.safeParse({
         name: 'Chairs',
@@ -54,9 +40,7 @@ describe('catalogue validation', () => {
         shortDescription: 'Chair',
         rentalUnit: 'each',
         isFeatured: false,
-        images: [
-          { url: 'javascript:alert(1)', altText: 'Chair', isPrimary: true },
-        ],
+        images: [],
         specifications: [],
         isActive: true,
       }).success,
@@ -92,4 +76,19 @@ describe('catalogue validation', () => {
         .success,
     ).toBe(false);
   });
+});
+
+it('keeps image association exclusive to the validated media API', () => {
+  const result = createProductSchema.safeParse({
+    categoryId: 'cm00000000000000000000000',
+    name: 'Chair',
+    slug: 'chair',
+    shortDescription: 'Chair',
+    rentalUnit: 'each',
+    isFeatured: false,
+    isActive: true,
+    specifications: [],
+    images: [],
+  });
+  expect(result.success).toBe(false);
 });

@@ -3,6 +3,7 @@ import {
   Inject,
   Injectable,
   UnsupportedMediaTypeException,
+  SetMetadata,
   type CanActivate,
   type ExecutionContext,
 } from '@nestjs/common';
@@ -14,6 +15,8 @@ import type { Request } from 'express';
 import { IS_PUBLIC_ROUTE } from './public.decorator';
 
 const UNSAFE_METHODS = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
+const ALLOW_MULTIPART = Symbol('allow-multipart');
+export const AllowMultipart = () => SetMetadata(ALLOW_MULTIPART, true);
 
 @Injectable()
 export class OriginGuard implements CanActivate {
@@ -45,11 +48,21 @@ export class OriginGuard implements CanActivate {
       }
     }
 
-    if (
-      requiresAdminOrigin &&
-      !request.headers['content-type']?.startsWith('application/json')
-    ) {
-      throw new UnsupportedMediaTypeException('JSON requests are required');
+    if (requiresAdminOrigin) {
+      const contentType = request.headers['content-type'] ?? '';
+      const multipartAllowed = this.reflector.getAllAndOverride<boolean>(
+        ALLOW_MULTIPART,
+        [context.getHandler(), context.getClass()],
+      );
+      const valid =
+        contentType.startsWith('application/json') ||
+        (multipartAllowed && contentType.startsWith('multipart/form-data;'));
+      if (!valid)
+        throw new UnsupportedMediaTypeException(
+          multipartAllowed
+            ? 'JSON or multipart image data is required'
+            : 'JSON requests are required',
+        );
     }
 
     return true;

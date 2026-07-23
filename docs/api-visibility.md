@@ -47,10 +47,9 @@ Phase 4 admin catalogue responses contain only catalogue identifiers, descriptio
 
 ## Administrative inventory responses
 
-Administrative inventory routes require staff authentication and an explicit
-permission such as `inventory.quantity.view`. Only these authorized responses
-may include operational values such as total, available, reserved, rented,
-damaged, maintenance, lost, and date-range availability.
+Phase 5 administrative inventory routes require staff authentication. Metadata requires `inventory.view`; quantities and assets additionally require `inventory.quantity.view`; adjustments require `inventory.adjust`; history requires `inventory.transaction.view`. Responses are private/no-store. There is no public inventory controller.
+
+Implemented state totals describe the present operational ledger only. They do not claim requested-period availability, and no reservation quantities or date-range availability are implemented.
 
 ## Permanently forbidden public/customer fields
 

@@ -122,7 +122,6 @@ describe('catalogue HTTP visibility and authorization', () => {
       shortDescription: 'Chair',
       rentalUnit: 'each',
       isFeatured: false,
-      images: [],
       specifications: [],
       isActive: true,
     };

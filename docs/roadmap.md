@@ -6,9 +6,9 @@ database, API, authorization, UI, documentation, and tests where applicable.
 1. **Foundation (complete):** monorepo, local environment, architecture docs, Prisma boundary, temporary web/admin pages, API health, PostgreSQL, repeatable commands.
 2. **Staff authentication foundation (complete):** staff identity, Argon2id passwords, database sessions, secure cookies, admin BFF, protected admin foundation, bootstrap, and auth tests. Customer authentication remains deferred; guest support remains required.
 3. **Permission-based RBAC (complete):** roles, permissions, assignments, live backend authorization, protected system-role seed, permission-aware admin shell, and authorization tests.
-4. **Product and category foundation (complete):** admin management contracts/UI, public-safe APIs/catalogue, media metadata, theme, technical SEO, indexes, validation, and inventory-field privacy tests.
-5. **Inventory foundation:** bulk and serialized models, confidential admin APIs, append-only transactions, permission and privacy tests.
-6. **Customer website and catalogue expansion:** refine public visual design, advanced filters/pagination, media pipeline, and deeper accessibility/responsive automation.
+4. **Product and category foundation (complete):** admin management contracts/UI, public-safe APIs/catalogue, optimized four-image upload pipeline, theme, technical SEO, indexes, validation, and privacy tests.
+5. **Inventory foundation (complete):** bulk and serialized models, confidential admin APIs/UI, concurrency-safe append-only transactions, permission and privacy tests.
+6. **Customer website and catalogue expansion:** refine public visual design, advanced filters/pagination, media presentation, and deeper accessibility/responsive automation.
 7. **Rental cart:** client/server cart design with explicit proof that cart actions do not reserve inventory.
 8. **Rental requests:** guest and account submission, reference numbers, preserved requested quantities, customer-safe tracking.
 9. **Admin dashboard and request review:** assignment, internal availability, conflicts, notes, permission-aware metrics.

@@ -14,5 +14,12 @@ if (process.env.NODE_ENV !== 'production') {
   globalForPrisma.mensahPrisma = prisma;
 }
 
-export { UserStatus } from '@prisma/client';
+export { runRbacSeed } from './rbac-seed';
+
+export {
+  InventoryState,
+  InventoryTrackingMode,
+  InventoryTransactionKind,
+  UserStatus,
+} from '@prisma/client';
 export type { Prisma, PrismaClient } from '@prisma/client';

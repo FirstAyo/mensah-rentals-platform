@@ -38,10 +38,9 @@ Phase 4 implements `Category`, `Product`, `ProductImage`, and `ProductSpecificat
 
 ## Inventory
 
-Inventory is separate from products. Future records will represent bulk
-capacity, serialized assets, operational state, and append-only inventory
-transactions. Internal quantities and availability calculations are
-confidential.
+Phase 5 implements `Inventory`, `InventoryItem`, and `InventoryTransaction` separately from descriptive products. An inventory definition is uniquely linked to one product and has immutable `BULK` or `SERIALIZED` tracking after activity begins. Bulk balances derive from the append-only movement ledger. Serialized assets have a unique normalized asset number and a current operational state, updated atomically with their history event. Database triggers reject transaction updates/deletes and mode-invalid records.
+
+This current operational state is not date-based rental availability. Reservations, requested-period calculations, cart/request/order links, and double-booking controls remain separate future work. All inventory data is confidential.
 
 ## Rental workflow concepts
 

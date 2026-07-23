@@ -136,3 +136,52 @@ export interface PublicProductDetailResponse
   description: string | null;
   specifications: Array<{ label: string; value: string }>;
 }
+
+export type InventoryTrackingModeResponse = 'BULK' | 'SERIALIZED';
+export type InventoryStateResponse =
+  | 'RENTABLE'
+  | 'RENTED'
+  | 'MAINTENANCE'
+  | 'DAMAGED'
+  | 'LOST'
+  | 'RETIRED';
+
+export interface AdminInventoryMetadataResponse {
+  createdAt: string;
+  id: string;
+  product: { id: string; name: string; slug: string };
+  trackingMode: InventoryTrackingModeResponse;
+  updatedAt: string;
+}
+
+export interface AdminInventoryQuantityResponse {
+  inventoryId: string;
+  states: Record<InventoryStateResponse, number>;
+  totalQuantity: number;
+}
+
+export interface AdminInventoryItemResponse {
+  assetNumber: string;
+  createdAt: string;
+  id: string;
+  serialNumber: string | null;
+  status: InventoryStateResponse;
+  updatedAt: string;
+}
+
+export interface AdminInventoryTransactionResponse {
+  actor: { firstName: string; id: string; lastName: string };
+  createdAt: string;
+  fromState: InventoryStateResponse | null;
+  id: string;
+  inventoryItemId: string | null;
+  kind:
+    | 'INITIAL_STOCK'
+    | 'BULK_MOVEMENT'
+    | 'SERIALIZED_ITEM_CREATED'
+    | 'SERIALIZED_ITEM_STATE_CHANGED';
+  operationId: string;
+  quantity: number;
+  reason: string;
+  toState: InventoryStateResponse | null;
+}

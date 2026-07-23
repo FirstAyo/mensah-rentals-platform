@@ -151,11 +151,9 @@ pnpm db:generate
 pnpm db:migrate
 ```
 
-The committed `20260718074428_staff_authentication` migration creates only the
-staff identity/session foundation. `db:migrate` should report that migration as
-applied or that no pending migrations exist.
+Committed migrations currently cover staff authentication, RBAC, products/categories, and the Phase 5 inventory foundation. `db:migrate` should apply any missing committed migration and `db:status` should report that the schema is up to date.
 
-When a later development phase intentionally adds a schema migration, use:
+Only when intentionally authoring a new development migration, use:
 
 ```powershell
 pnpm db:migrate:dev -- --name descriptive_migration_name
@@ -410,7 +408,7 @@ Use only `localhost` consistently; mixing `127.0.0.1` and `localhost` changes
 cookie hosts. Clear cookies for localhost, confirm the cookie name matches in
 the API and admin environment, and restart both applications.
 
-## 22. Apply and test Phase 4 products and categories
+## 21. Apply and test Phase 4 products and categories
 
 Open Docker Desktop, then run from the repository root:
 
@@ -440,9 +438,11 @@ Invoke-RestMethod http://localhost:4000/public/products
 (Invoke-WebRequest http://localhost:3000/robots.txt).Content
 ```
 
-Use the header sun/moon buttons. With no saved preference, the apps follow Windows; a manual choice persists per application. Local `SITE_INDEXING_ENABLED=false` intentionally disallows crawling. A 409 while deactivating a category means its active products must be deactivated first. Product upload is deferred; this phase stores validated media metadata only.
+Use the header sun/moon buttons. With no saved preference, the apps follow Windows; a manual choice persists per application. Local `SITE_INDEXING_ENABLED=false` intentionally disallows crawling. A 409 while deactivating a category means its active products must be deactivated first.
 
-## 21. Apply and seed Phase 3 RBAC
+On a product edit page, choose a JPEG, PNG, or WebP image of at most 10 MB and add descriptive alt text. The browser shows original and optimized sizes, then uploads the optimized WebP. The API validates and normalizes it again. Up to four images are allowed. Local files are written below `MEDIA_STORAGE_ROOT=storage/media`, which is ignored by Git.
+
+## 22. Apply and seed Phase 3 RBAC
 
 From the repository root, with Docker Desktop open and PostgreSQL healthy:
 
@@ -491,3 +491,26 @@ To test another role without a role-management UI, create a second disposable lo
 8. Restore your original `STAFF_BOOTSTRAP_*` values in `.env`. Keep local credentials out of source control.
 
 Do not remove `SUPER_ADMIN` from the last active super administrator; the API returns 409. If the seed fails, first confirm the Phase 3 migration is applied. If an RBAC request returns 401, sign in again. A 403 means the current user is authenticated but lacks the required permission. A 400 usually means an invalid/duplicate ID or unknown payload field.
+
+## 23. Apply and test Phase 5 inventory
+
+With Docker Desktop running:
+
+```powershell
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm dev
+```
+
+Open `http://localhost:3001/inventory`. `SUPER_ADMIN` and `ADMIN` can create BULK or SERIALIZED inventory. BULK setup requires a positive initial quantity. SERIALIZED setup starts empty and assets are added individually. State movements require a reason and create append-only history.
+
+Expected permission behavior:
+
+- `EDITOR` has no inventory access.
+- `SALES_PERSON` can view metadata and confidential quantities but cannot adjust or view transaction history by default.
+- `ADMIN` and `SUPER_ADMIN` have all four inventory permissions.
+
+The values shown are current operational states, not availability for requested rental dates. No reservation is created.

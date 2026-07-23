@@ -19,12 +19,11 @@ import {
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { ProductImageManager } from './product-image-manager';
 
 interface Values {
   categoryId: string;
   description: string;
-  imageAlt: string;
-  imageUrl: string;
   isActive: boolean;
   isFeatured: boolean;
   name: string;
@@ -37,8 +36,6 @@ interface Values {
 const defaults: Values = {
   categoryId: '',
   description: '',
-  imageAlt: '',
-  imageUrl: '',
   isActive: true,
   isFeatured: false,
   name: '',
@@ -101,8 +98,6 @@ function FormBody({
       ...('categoryId' in record
         ? {
             categoryId: record.categoryId,
-            imageAlt: record.images[0]?.altText ?? '',
-            imageUrl: record.images[0]?.url ?? '',
             isFeatured: record.isFeatured,
             rentalUnit: record.rentalUnit,
             shortDescription: record.shortDescription,
@@ -152,15 +147,6 @@ function FormBody({
         description: values.description || null,
         rentalUnit: values.rentalUnit,
         isFeatured: values.isFeatured,
-        images: values.imageUrl
-          ? [
-              {
-                url: values.imageUrl,
-                altText: values.imageAlt,
-                isPrimary: true,
-              },
-            ]
-          : [],
         specifications,
         ...(id ? {} : { isActive: values.isActive }),
       };
@@ -200,122 +186,126 @@ function FormBody({
   const field =
     'w-full rounded-lg border border-border bg-background px-3 py-2 focus:ring-2 focus:ring-ring';
   return (
-    <form
-      className="max-w-4xl space-y-5 rounded-2xl border border-border bg-card p-6"
-      noValidate
-      onSubmit={submit}
-    >
-      {error ? (
-        <div
-          className="rounded-lg border border-red-500/30 bg-red-500/10 p-3"
-          role="alert"
-        >
-          {error}
-        </div>
-      ) : null}
-      <div className="grid gap-5 md:grid-cols-2">
-        <label className="space-y-2">
-          <span>Name</span>
-          <input className={field} {...register('name')} />
-        </label>
-        <label className="space-y-2">
-          <span>Slug</span>
-          <input
-            className={field}
-            readOnly={Boolean(id)}
-            {...register('slug')}
-          />
-        </label>
-      </div>
-      {resource === 'categories' ? (
-        <label className="block space-y-2">
-          <span>Sort order</span>
-          <input
-            className={field}
-            min="0"
-            type="number"
-            {...register('sortOrder', { valueAsNumber: true })}
-          />
-        </label>
-      ) : (
-        <>
-          <div className="grid gap-5 md:grid-cols-2">
-            <label className="space-y-2">
-              <span>Category</span>
-              <select className={field} {...register('categoryId')}>
-                <option value="">Select a category</option>
-                {categories.data?.items.map((category) => (
-                  <option key={category.id} value={category.id}>
-                    {category.name}
-                    {category.isActive ? '' : ' (inactive)'}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="space-y-2">
-              <span>Rental unit</span>
-              <input className={field} {...register('rentalUnit')} />
-            </label>
+    <div className="max-w-4xl space-y-6">
+      <form
+        className="max-w-4xl space-y-5 rounded-2xl border border-border bg-card p-6"
+        noValidate
+        onSubmit={submit}
+      >
+        {error ? (
+          <div
+            className="rounded-lg border border-red-500/30 bg-red-500/10 p-3"
+            role="alert"
+          >
+            {error}
           </div>
-          <label className="block space-y-2">
-            <span>Short description</span>
-            <input className={field} {...register('shortDescription')} />
+        ) : null}
+        <div className="grid gap-5 md:grid-cols-2">
+          <label className="space-y-2">
+            <span>Name</span>
+            <input className={field} {...register('name')} />
           </label>
-          <div className="grid gap-5 md:grid-cols-2">
-            <label className="space-y-2">
-              <span>Primary image URL</span>
-              <input
-                className={field}
-                placeholder="/media/... or https://..."
-                {...register('imageUrl')}
-              />
-            </label>
-            <label className="space-y-2">
-              <span>Image alt text</span>
-              <input className={field} {...register('imageAlt')} />
-            </label>
-          </div>
-          <label className="block space-y-2">
-            <span>Specifications (one “Label: Value” per line)</span>
-            <textarea
+          <label className="space-y-2">
+            <span>Slug</span>
+            <input
               className={field}
-              rows={5}
-              {...register('specifications')}
+              readOnly={Boolean(id)}
+              {...register('slug')}
             />
           </label>
-          <label className="flex items-center gap-2">
-            <input type="checkbox" {...register('isFeatured')} /> Featured
-            product
+        </div>
+        {resource === 'categories' ? (
+          <label className="block space-y-2">
+            <span>Sort order</span>
+            <input
+              className={field}
+              min="0"
+              type="number"
+              {...register('sortOrder', { valueAsNumber: true })}
+            />
           </label>
-        </>
-      )}
-      <label className="block space-y-2">
-        <span>Description</span>
-        <textarea className={field} rows={7} {...register('description')} />
-      </label>
-      {!id ? (
-        <label className="flex items-center gap-2">
-          <input type="checkbox" {...register('isActive')} /> Active and visible
-          publicly
+        ) : (
+          <>
+            <div className="grid gap-5 md:grid-cols-2">
+              <label className="space-y-2">
+                <span>Category</span>
+                <select className={field} {...register('categoryId')}>
+                  <option value="">Select a category</option>
+                  {categories.data?.items.map((category) => (
+                    <option key={category.id} value={category.id}>
+                      {category.name}
+                      {category.isActive ? '' : ' (inactive)'}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="space-y-2">
+                <span>Rental unit</span>
+                <input className={field} {...register('rentalUnit')} />
+              </label>
+            </div>
+            <label className="block space-y-2">
+              <span>Short description</span>
+              <input className={field} {...register('shortDescription')} />
+            </label>
+            {!id ? (
+              <p className="rounded-lg border border-border bg-muted/50 p-3 text-sm text-muted-foreground">
+                Save the product first, then upload and optimize up to four
+                images from its edit page.
+              </p>
+            ) : null}
+            <label className="block space-y-2">
+              <span>Specifications (one “Label: Value” per line)</span>
+              <textarea
+                className={field}
+                rows={5}
+                {...register('specifications')}
+              />
+            </label>
+            <label className="flex items-center gap-2">
+              <input type="checkbox" {...register('isFeatured')} /> Featured
+              product
+            </label>
+          </>
+        )}
+        <label className="block space-y-2">
+          <span>Description</span>
+          <textarea className={field} rows={7} {...register('description')} />
         </label>
+        {!id ? (
+          <label className="flex items-center gap-2">
+            <input type="checkbox" {...register('isActive')} /> Active and
+            visible publicly
+          </label>
+        ) : null}
+        <div className="flex gap-3">
+          <button
+            className="rounded-lg bg-primary px-5 py-2.5 font-semibold text-white disabled:opacity-50"
+            disabled={isSubmitting}
+            type="submit"
+          >
+            {isSubmitting ? 'Saving…' : 'Save'}
+          </button>
+          <button
+            className="rounded-lg border border-border px-5 py-2.5"
+            onClick={() => router.back()}
+            type="button"
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+      {resource === 'products' &&
+      id &&
+      detail.data &&
+      'images' in detail.data ? (
+        <ProductImageManager
+          images={detail.data.images}
+          productId={id}
+          refresh={() => detail.refetch()}
+        />
       ) : null}
-      <div className="flex gap-3">
-        <button
-          className="rounded-lg bg-primary px-5 py-2.5 font-semibold text-white disabled:opacity-50"
-          disabled={isSubmitting}
-          type="submit"
-        >
-          {isSubmitting ? 'Saving…' : 'Save'}
-        </button>
-        <button
-          className="rounded-lg border border-border px-5 py-2.5"
-          onClick={() => router.back()}
-          type="button"
-        >
-          Cancel
-        </button>
-      </div>
-    </form>
+    </div>
   );
 }
 

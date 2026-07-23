@@ -15,9 +15,13 @@ It does not contain customer authentication or rental business features. Future
 guest rental requests will not require an account.
 
 Phase 4 adds product/category data, protected management APIs and admin pages,
-public-safe catalogue APIs and slug routes, shared light/dark theming, and the
-technical SEO foundation. It still contains no inventory quantities, prices,
-cart, rental request, quote, or order workflow.
+public-safe catalogue APIs and slug routes, a secure optimized image pipeline,
+shared light/dark theming, and the technical SEO foundation.
+
+Phase 5 adds confidential bulk and serialized inventory, append-only
+operational history, permission-separated administrative APIs, and an inventory
+admin foundation. It still contains no reservations, date-based availability,
+prices, cart, rental request, quote, or order workflow.
 
 ## Architecture
 

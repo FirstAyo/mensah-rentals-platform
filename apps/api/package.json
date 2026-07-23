@@ -7,7 +7,7 @@
     "build": "nest build",
     "start": "node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run"
+    "test": "dotenv -e ../../.env -- vitest run"
   },
   "dependencies": {
     "@mensah-rentals/auth": "workspace:*",
@@ -21,8 +21,10 @@
     "@nestjs/platform-express": "11.1.6",
     "@nestjs/throttler": "6.4.0",
     "cookie-parser": "1.4.7",
+    "multer": "^2.2.0",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
+    "sharp": "^0.35.3",
     "zod": "3.25.76"
   },
   "devDependencies": {
@@ -31,8 +33,10 @@
     "@nestjs/testing": "11.1.6",
     "@types/cookie-parser": "1.4.9",
     "@types/express": "5.0.3",
+    "@types/multer": "^2.2.0",
     "@types/node": "22.18.1",
     "@types/supertest": "6.0.3",
+    "dotenv-cli": "10.0.0",
     "supertest": "7.1.4",
     "typescript": "5.9.2",
     "vitest": "3.2.4"

@@ -190,4 +190,12 @@ The API now owns a catalogue module with physically separate administrative and 
 
 The admin browser uses fixed same-origin catalogue BFF handlers. They allow only the categories/products paths, exact methods, bounded query names, and the named staff session cookie. The API repeats authentication, live permission checks, Origin checks, validation, and transactional rules.
 
-Both Next.js apps use shared theme primitives and app-level semantic tokens. The public app uses server-only public API access, nested slug routes, no-store catalogue reads, and Next metadata/sitemap/robots mechanisms. Production media storage remains deferred until a validated upload and managed-object-storage design exists.
+Both Next.js apps use shared theme primitives and app-level semantic tokens. The public app uses server-only public API access, nested slug routes, no-store catalogue reads, and Next metadata/sitemap/robots mechanisms. Durable production object storage remains deferred until deployment design; local development uses the validated media pipeline described below.
+
+The validated media pipeline now performs best-effort browser resizing/compression and authoritative Sharp inspection, rotation, metadata stripping, resizing, WebP normalization, size enforcement, and four-image enforcement. Local normalized files are behind public content-hash URLs; durable production object storage remains the deployment direction.
+
+## Phase 5 inventory architecture
+
+The API inventory module is administrative-only. `Inventory` uniquely identifies a product's BULK or SERIALIZED tracking mode. Bulk state balances are derived from append-only `InventoryTransaction` movements; serialized current state is projected on `InventoryItem` and changed atomically with a transaction. A transaction-scoped creation lock and per-inventory row locks serialize mutations, required operation UUIDs make retries idempotent, and database triggers reject ledger edits, cross-mode items/events, and tracking-mode changes after activity.
+
+Metadata, quantities, adjustments, and history have separate cumulative permissions. The admin BFF allowlists inventory paths, methods, queries, Origin, content type, and the named session cookie, and marks responses private/no-store. No inventory relation is selected by public catalogue queries. Date-based reservations and rental-period availability remain deferred.

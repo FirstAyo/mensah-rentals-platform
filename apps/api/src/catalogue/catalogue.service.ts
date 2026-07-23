@@ -301,7 +301,6 @@ export class CatalogueService {
           throw new ConflictException(
             'An active product requires an active category',
           );
-        await tx.productImage.deleteMany({ where: { productId: id } });
         await tx.productSpecification.deleteMany({ where: { productId: id } });
         await tx.product.update({
           where: { id },
@@ -449,12 +448,6 @@ export class CatalogueService {
 
   private productChildren(input: CreateProductInput | UpdateProductInput) {
     return {
-      images: {
-        create: input.images.map((image, sortOrder) => ({
-          ...image,
-          sortOrder,
-        })),
-      },
       specifications: {
         create: input.specifications.map((specification, sortOrder) => ({
           ...specification,
