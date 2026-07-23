@@ -9,3 +9,5 @@ The home, rentals, category, and product pages define truthful titles, descripti
 Structured data includes truthful BreadcrumbList data and descriptive Product data. It never contains Offer, price, currency, availability, stock, ratings, reviews, or invented organization details. JSON-LD escapes `<` before insertion. Visible breadcrumbs mirror structured breadcrumbs.
 
 Public server fetches use `cache: no-store` in Phase 4 so deactivation is reflected immediately. A future publication cache may use tagged revalidation only after every catalogue mutation invalidates the relevant paths safely.
+
+Phase 6 treats unfiltered page 2 and later as distinct self-canonical catalogue pages. Descriptive search, featured, and sorting query variants use `noindex,follow` and canonicalize to their clean catalogue/category route. Category filters remain slug paths. Product social metadata uses a managed primary image when present. Related product data is not added to structured Product offers, and sitemap URLs remain query-free.

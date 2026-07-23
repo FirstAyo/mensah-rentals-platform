@@ -39,4 +39,33 @@ describe('public catalogue server boundary', () => {
       meta: { total: 0 },
     });
   });
+  it('rejects administrative fields and internal media paths', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json({
+          items: [
+            {
+              category: { description: null, name: 'Seating', slug: 'seating' },
+              images: [
+                {
+                  altText: 'Chair',
+                  isPrimary: true,
+                  url: 'C:\\private\\storage\\chair.webp',
+                },
+              ],
+              isActive: true,
+              isFeatured: false,
+              name: 'Chair',
+              rentalUnit: 'each',
+              shortDescription: 'Chair',
+              slug: 'chair',
+            },
+          ],
+          meta: { page: 1, pageSize: 20, total: 1, totalPages: 1 },
+        }),
+      ),
+    );
+    await expect(listProducts()).rejects.toThrow(/Unsafe public/);
+  });
 });

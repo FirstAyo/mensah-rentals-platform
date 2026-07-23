@@ -26,6 +26,7 @@
     "lint": "eslint . --max-warnings 0",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
+    "test:e2e": "pnpm --filter @mensah-rentals/web test:e2e",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:validate": "pnpm --filter @mensah-rentals/database db:validate",

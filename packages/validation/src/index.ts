@@ -129,7 +129,7 @@ export const catalogueSlugSchema = z
 
 const boundedPage = z.preprocess(
   (value) => (value === undefined ? 1 : value),
-  z.coerce.number().int().min(1),
+  z.coerce.number().int().min(1).max(10_000),
 );
 const boundedPageSize = z.preprocess(
   (value) => (value === undefined ? 20 : value),
@@ -164,6 +164,30 @@ export const productListQuerySchema = z
     search: z.string().trim().max(100).optional(),
     sortBy: z.enum(['name', 'createdAt', 'updatedAt']).default('name'),
     sortDirection: z.enum(['asc', 'desc']).default('asc'),
+  })
+  .strict();
+
+export const publicCategoryListQuerySchema = z
+  .object({
+    page: boundedPage,
+    pageSize: boundedPageSize,
+    search: z.string().trim().max(100).optional(),
+  })
+  .strict();
+
+export const publicProductListQuerySchema = z
+  .object({
+    categorySlug: catalogueSlugSchema.optional(),
+    isFeatured: z
+      .enum(['true'])
+      .transform(() => true as const)
+      .optional(),
+    page: boundedPage,
+    pageSize: boundedPageSize,
+    search: z.string().trim().max(100).optional(),
+    sort: z
+      .enum(['featured', 'name-asc', 'name-desc', 'newest'])
+      .default('featured'),
   })
   .strict();
 
@@ -232,6 +256,12 @@ export const updateProductSchema = z.object(productMutableFields).strict();
 
 export type CategoryListQuery = z.infer<typeof categoryListQuerySchema>;
 export type ProductListQuery = z.infer<typeof productListQuerySchema>;
+export type PublicCategoryListQuery = z.infer<
+  typeof publicCategoryListQuerySchema
+>;
+export type PublicProductListQuery = z.infer<
+  typeof publicProductListQuerySchema
+>;
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
 export type CreateProductInput = z.infer<typeof createProductSchema>;

@@ -134,6 +134,7 @@ export interface PublicProductSummaryResponse {
 export interface PublicProductDetailResponse
   extends PublicProductSummaryResponse {
   description: string | null;
+  relatedProducts: PublicProductSummaryResponse[];
   specifications: Array<{ label: string; value: string }>;
 }
 

@@ -89,6 +89,20 @@ describe('catalogue HTTP visibility and authorization', () => {
       /totalQuantity|availableQuantity|reservedQuantity|passwordHash|tokenHash/i,
     );
   });
+  it('rejects administrative and malformed filters on public routes', async () => {
+    await request(app.getHttpServer())
+      .get('/public/products?isActive=false')
+      .expect(400);
+    await request(app.getHttpServer())
+      .get('/public/products?categoryId=cm00000000000000000000000')
+      .expect(400);
+    await request(app.getHttpServer())
+      .get('/public/products?sort=updatedAt')
+      .expect(400);
+    await request(app.getHttpServer())
+      .get('/public/products?page=10001')
+      .expect(400);
+  });
   it('returns 401 without a session and 403 without product.view', async () => {
     current = null;
     await request(app.getHttpServer()).get('/admin/products').expect(401);

@@ -390,4 +390,38 @@ Manual checks:
 
 Common failures are Docker Desktop not running, a pending migration, missing `MEDIA_STORAGE_ROOT`, insufficient staff permissions, or a selected image exceeding the 10 MB source or 2 MB processed limits.
 
+## Phase 6 customer catalogue verification
+
+Prepare the database and browser once:
+
+```powershell
+docker compose up -d postgres
+pnpm db:migrate
+pnpm catalogue:seed
+pnpm --filter @mensah-rentals/web exec playwright install chromium
+```
+
+Run the complete automated gate:
+
+```powershell
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm test:e2e
+```
+
+`test:e2e` succeeds when all Chromium projects pass at 320, 390, 768, 1024, 1440, and 1920-pixel widths. It checks horizontal reflow, serious/critical axe violations, skip-link and labelled-control access, combined filter URL state, manual theme persistence, product gallery semantics, and absence of customer-visible inventory claims. Common failures are Chromium not installed, PostgreSQL/API unavailable, seed data missing, or ports 3000/3001/4000 already used by unrelated applications.
+
+Manually confirm:
+
+1. Search, category, featured, and sort filters execute together and reset to page 1.
+2. Pagination retains active filters and marks the current page.
+3. Invalid page/sort values do not crash the website; the API rejects unknown/admin query fields with 400.
+4. Product detail shows up to four ordered images with keyboard-operable thumbnails and related same-category products.
+5. Theme selection remains after reload and controls remain readable in both modes.
+6. Filtered variants are noindex with clean canonicals; unfiltered page 2 self-canonicalizes.
+7. Public API, HTML, and JSON-LD contain no inventory, quantity, asset, serial, price, Offer, rating, review, or availability data.
+
 In a private browser, admin pages redirect to login. After login, test exact role permissions, create/edit/deactivate confirmation, empty/error/loading states, and logout. Test both apps at about 390, 768, 1024, and 1440 pixels, in system-light, system-dark, manual light, and manual dark. The admin/login routes must be noindex; local public robots disallows all while `SITE_INDEXING_ENABLED=false`.

@@ -3,6 +3,7 @@ import {
   createCategorySchema,
   createProductSchema,
   productListQuerySchema,
+  publicProductListQuerySchema,
   updateProductSchema,
 } from './index';
 
@@ -74,6 +75,27 @@ describe('catalogue validation', () => {
     expect(
       productListQuerySchema.safeParse({ sortBy: 'DROP TABLE Product' })
         .success,
+    ).toBe(false);
+  });
+
+  it('keeps public product filters semantic and rejects administrative controls', () => {
+    expect(
+      publicProductListQuerySchema.parse({
+        isFeatured: 'true',
+        page: '2',
+        sort: 'name-desc',
+      }),
+    ).toMatchObject({ isFeatured: true, page: 2, sort: 'name-desc' });
+    expect(
+      publicProductListQuerySchema.safeParse({ isActive: 'false' }).success,
+    ).toBe(false);
+    expect(
+      publicProductListQuerySchema.safeParse({
+        categoryId: 'cm00000000000000000000000',
+      }).success,
+    ).toBe(false);
+    expect(
+      publicProductListQuerySchema.safeParse({ page: '10001' }).success,
     ).toBe(false);
   });
 });

@@ -1,10 +1,10 @@
 import { Controller, Get, Inject, Param, Query } from '@nestjs/common';
 import {
   catalogueSlugSchema,
-  categoryListQuerySchema,
-  productListQuerySchema,
-  type CategoryListQuery,
-  type ProductListQuery,
+  publicCategoryListQuerySchema,
+  publicProductListQuerySchema,
+  type PublicCategoryListQuery,
+  type PublicProductListQuery,
 } from '@mensah-rentals/validation';
 
 import { Public } from '../auth/public.decorator';
@@ -20,7 +20,8 @@ export class PublicCategoriesController {
 
   @Get()
   list(
-    @Query(new ZodBodyPipe(categoryListQuerySchema)) query: CategoryListQuery,
+    @Query(new ZodBodyPipe(publicCategoryListQuerySchema))
+    query: PublicCategoryListQuery,
   ) {
     return this.catalogue.listPublicCategories(query);
   }
@@ -40,7 +41,8 @@ export class PublicProductsController {
 
   @Get()
   list(
-    @Query(new ZodBodyPipe(productListQuerySchema)) query: ProductListQuery,
+    @Query(new ZodBodyPipe(publicProductListQuerySchema))
+    query: PublicProductListQuery,
   ) {
     return this.catalogue.listPublicProducts(query);
   }

@@ -199,3 +199,9 @@ The validated media pipeline now performs best-effort browser resizing/compressi
 The API inventory module is administrative-only. `Inventory` uniquely identifies a product's BULK or SERIALIZED tracking mode. Bulk state balances are derived from append-only `InventoryTransaction` movements; serialized current state is projected on `InventoryItem` and changed atomically with a transaction. A transaction-scoped creation lock and per-inventory row locks serialize mutations, required operation UUIDs make retries idempotent, and database triggers reject ledger edits, cross-mode items/events, and tracking-mode changes after activity.
 
 Metadata, quantities, adjustments, and history have separate cumulative permissions. The admin BFF allowlists inventory paths, methods, queries, Origin, content type, and the named session cookie, and marks responses private/no-store. No inventory relation is selected by public catalogue queries. Date-based reservations and rental-period availability remain deferred.
+
+## Phase 6 customer catalogue architecture
+
+Public catalogue controllers use public-only Zod query schemas and least-privilege Prisma projections. Public filters are descriptive only, product lists return one display image, details return at most four images plus four deterministic same-category related products, and no inventory relationship participates in public selection, filtering, or ranking.
+
+The customer Next.js application parses allowlisted URL state, sends filters to the API for server-side execution, and keeps categories on canonical slug routes. Runtime response guards enforce exact public DTO keys and managed media URLs. Search/filter variants are noindex with clean canonicals; unfiltered pages self-canonicalize. Playwright and axe provide browser-level reflow, keyboard, theme, and accessibility verification across six viewport sizes.

@@ -1,4 +1,5 @@
 'use client';
+import { RefreshCw } from 'lucide-react';
 export default function RentalsError({
   reset,
 }: {
@@ -14,10 +15,11 @@ export default function RentalsError({
         Please try again. No rental request has been affected.
       </p>
       <button
-        className="mt-6 rounded-lg bg-primary px-5 py-3 font-semibold text-white"
+        className="mt-6 inline-flex items-center gap-2 rounded-lg bg-primary px-5 py-3 font-semibold text-primary-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         onClick={reset}
         type="button"
       >
+        <RefreshCw aria-hidden="true" className="h-4 w-4" />
         Try again
       </button>
     </div>

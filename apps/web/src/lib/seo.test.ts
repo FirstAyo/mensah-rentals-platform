@@ -64,6 +64,7 @@ describe('SEO contracts', () => {
         description: null,
         rentalUnit: 'each',
         isFeatured: false,
+        relatedProducts: [],
         specifications: [],
       },
       'https://mensahrentals.com',

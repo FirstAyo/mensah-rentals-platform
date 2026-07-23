@@ -120,3 +120,4 @@ pnpm catalogue:seed  # Create missing development-only catalogue samples
 - [Products and categories](docs/products-and-categories.md)
 - [Theme foundation](docs/theme.md)
 - [SEO foundation](docs/seo.md)
+- [Customer website and catalogue](docs/customer-catalogue.md)

@@ -29,6 +29,8 @@ Future public product responses may contain:
 
 They must not contain inventory quantities or calculated availability.
 
+Phase 6 public endpoints accept only public descriptive query fields. Administrative controls such as `categoryId`, `isActive`, and timestamp field names are rejected. Lists select one public image; details select up to four and may include up to four active same-category related products. Every object is mapped through an explicit public allowlist, and the customer server boundary rejects unknown keys and non-managed media paths.
+
 ## Customer account responses
 
 Customer responses may include that customer's profile and customer-safe

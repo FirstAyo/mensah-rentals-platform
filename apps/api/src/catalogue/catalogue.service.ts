@@ -17,6 +17,8 @@ import type {
   CreateCategoryInput,
   CreateProductInput,
   ProductListQuery,
+  PublicCategoryListQuery,
+  PublicProductListQuery,
   UpdateCategoryInput,
   UpdateProductInput,
 } from '@mensah-rentals/validation';
@@ -56,11 +58,53 @@ const productSelect = {
   updatedAt: true,
 } satisfies Prisma.ProductSelect;
 
+const publicProductSummarySelect = {
+  category: { select: { description: true, name: true, slug: true } },
+  images: {
+    select: { altText: true, isPrimary: true, url: true },
+    orderBy: [
+      { isPrimary: 'desc' as const },
+      { sortOrder: 'asc' as const },
+      { id: 'asc' as const },
+    ],
+    take: 1,
+  },
+  isFeatured: true,
+  name: true,
+  rentalUnit: true,
+  shortDescription: true,
+  slug: true,
+} satisfies Prisma.ProductSelect;
+
+const publicProductDetailSelect = {
+  ...publicProductSummarySelect,
+  description: true,
+  images: {
+    select: { altText: true, isPrimary: true, url: true },
+    orderBy: [
+      { isPrimary: 'desc' as const },
+      { sortOrder: 'asc' as const },
+      { id: 'asc' as const },
+    ],
+    take: 4,
+  },
+  specifications: {
+    select: { label: true, value: true },
+    orderBy: [{ sortOrder: 'asc' as const }, { id: 'asc' as const }],
+  },
+} satisfies Prisma.ProductSelect;
+
 type SelectedCategory = Prisma.CategoryGetPayload<{
   select: typeof categorySelect;
 }>;
 type SelectedProduct = Prisma.ProductGetPayload<{
   select: typeof productSelect;
+}>;
+type PublicSelectedSummary = Prisma.ProductGetPayload<{
+  select: typeof publicProductSummarySelect;
+}>;
+type PublicSelectedDetail = Prisma.ProductGetPayload<{
+  select: typeof publicProductDetailSelect;
 }>;
 
 function mapAdminCategory(category: SelectedCategory): AdminCategoryResponse {
@@ -118,7 +162,7 @@ function mapPublicCategory(category: {
 }
 
 function mapPublicSummary(
-  product: SelectedProduct,
+  product: PublicSelectedSummary | PublicSelectedDetail,
 ): PublicProductSummaryResponse {
   return {
     category: mapPublicCategory(product.category),
@@ -232,7 +276,7 @@ export class CatalogueService {
   async listAdminProducts(
     query: ProductListQuery,
   ): Promise<PaginatedResponse<AdminProductResponse>> {
-    const where = this.productWhere(query, false);
+    const where = this.productWhere(query);
     const orderBy = [
       { [query.sortBy]: query.sortDirection },
       { id: 'asc' },
@@ -325,7 +369,7 @@ export class CatalogueService {
   }
 
   async listPublicCategories(
-    query: CategoryListQuery,
+    query: PublicCategoryListQuery,
   ): Promise<PaginatedResponse<PublicCategoryResponse>> {
     const where: Prisma.CategoryWhereInput = {
       isActive: true,
@@ -361,15 +405,15 @@ export class CatalogueService {
   }
 
   async listPublicProducts(
-    query: ProductListQuery,
+    query: PublicProductListQuery,
   ): Promise<PaginatedResponse<PublicProductSummaryResponse>> {
-    const where = this.productWhere(query, true);
+    const where = this.publicProductWhere(query);
     const [total, items] = await this.repository.prisma.$transaction([
       this.repository.prisma.product.count({ where }),
       this.repository.prisma.product.findMany({
-        select: productSelect,
+        select: publicProductSummarySelect,
         where,
-        orderBy: [{ [query.sortBy]: query.sortDirection }, { id: 'asc' }],
+        orderBy: this.publicProductOrder(query.sort),
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
       }),
@@ -387,7 +431,7 @@ export class CatalogueService {
     productSlug: string,
   ): Promise<PublicProductDetailResponse> {
     const product = await this.repository.prisma.product.findFirst({
-      select: productSelect,
+      select: publicProductDetailSelect,
       where: {
         slug: productSlug,
         isActive: true,
@@ -395,9 +439,20 @@ export class CatalogueService {
       },
     });
     if (!product) throw new NotFoundException('Product not found');
+    const related = await this.repository.prisma.product.findMany({
+      select: publicProductSummarySelect,
+      where: {
+        slug: { not: product.slug },
+        isActive: true,
+        category: { slug: product.category.slug, isActive: true },
+      },
+      orderBy: [{ isFeatured: 'desc' }, { name: 'asc' }, { id: 'asc' }],
+      take: 4,
+    });
     return {
       ...mapPublicSummary(product),
       description: product.description,
+      relatedProducts: related.map(mapPublicSummary),
       specifications: product.specifications.map(({ label, value }) => ({
         label,
         value,
@@ -405,27 +460,10 @@ export class CatalogueService {
     };
   }
 
-  private productWhere(
-    query: ProductListQuery,
-    publicOnly: boolean,
-  ): Prisma.ProductWhereInput {
+  private productWhere(query: ProductListQuery): Prisma.ProductWhereInput {
     return {
-      ...(publicOnly
-        ? {
-            isActive: true,
-            category: {
-              isActive: true,
-              ...(query.categorySlug ? { slug: query.categorySlug } : {}),
-            },
-          }
-        : {
-            ...(query.isActive === undefined
-              ? {}
-              : { isActive: query.isActive }),
-            ...(query.categorySlug
-              ? { category: { slug: query.categorySlug } }
-              : {}),
-          }),
+      ...(query.isActive === undefined ? {} : { isActive: query.isActive }),
+      ...(query.categorySlug ? { category: { slug: query.categorySlug } } : {}),
       ...(query.categoryId ? { categoryId: query.categoryId } : {}),
       ...(query.isFeatured === undefined
         ? {}
@@ -444,6 +482,53 @@ export class CatalogueService {
           }
         : {}),
     };
+  }
+
+  private publicProductWhere(
+    query: PublicProductListQuery,
+  ): Prisma.ProductWhereInput {
+    return {
+      isActive: true,
+      category: {
+        isActive: true,
+        ...(query.categorySlug ? { slug: query.categorySlug } : {}),
+      },
+      ...(query.isFeatured ? { isFeatured: true } : {}),
+      ...(query.search
+        ? {
+            OR: [
+              { name: { contains: query.search, mode: 'insensitive' } },
+              {
+                shortDescription: {
+                  contains: query.search,
+                  mode: 'insensitive',
+                },
+              },
+              {
+                description: {
+                  contains: query.search,
+                  mode: 'insensitive',
+                },
+              },
+              {
+                category: {
+                  name: { contains: query.search, mode: 'insensitive' },
+                },
+              },
+            ],
+          }
+        : {}),
+    };
+  }
+
+  private publicProductOrder(
+    sort: PublicProductListQuery['sort'],
+  ): Prisma.ProductOrderByWithRelationInput[] {
+    if (sort === 'name-asc') return [{ name: 'asc' }, { id: 'asc' }];
+    if (sort === 'name-desc') return [{ name: 'desc' }, { id: 'asc' }];
+    if (sort === 'newest')
+      return [{ createdAt: 'desc' }, { name: 'asc' }, { id: 'asc' }];
+    return [{ isFeatured: 'desc' }, { name: 'asc' }, { id: 'asc' }];
   }
 
   private productChildren(input: CreateProductInput | UpdateProductInput) {

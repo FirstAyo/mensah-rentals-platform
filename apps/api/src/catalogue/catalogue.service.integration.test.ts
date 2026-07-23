@@ -39,6 +39,12 @@ describe('catalogue service against PostgreSQL', () => {
           isActive: false,
         },
         {
+          categoryId: active.id,
+          name: `Gamma ${suffix}`,
+          slug: `gamma-${suffix}`,
+          shortDescription: 'Related result',
+        },
+        {
           categoryId: inactive.id,
           name: `Hidden ${suffix}`,
           slug: `hidden-${suffix}`,
@@ -63,7 +69,7 @@ describe('catalogue service against PostgreSQL', () => {
       sortBy: 'name',
       sortDirection: 'asc',
     });
-    expect(page.meta.total).toBe(3);
+    expect(page.meta.total).toBe(4);
     expect(page.items).toHaveLength(1);
     const search = await service.listAdminProducts({
       page: 1,
@@ -79,13 +85,39 @@ describe('catalogue service against PostgreSQL', () => {
     const page = await service.listPublicProducts({
       page: 1,
       pageSize: 100,
-      search: suffix,
-      sortBy: 'name',
-      sortDirection: 'asc',
+      search: 'needle',
+      sort: 'name-asc',
     });
     expect(page.items.map(({ name }) => name)).toEqual([`Alpha ${suffix}`]);
     expect(JSON.stringify(page)).not.toMatch(
       /inventory|totalQuantity|availableQuantity|assetNumber/i,
+    );
+  });
+
+  it('returns bounded active related products through the public allowlist', async () => {
+    const detail = await service.getPublicProduct(
+      `active-${suffix}`,
+      `alpha-${suffix}`,
+    );
+    expect(detail.relatedProducts.map(({ name }) => name)).toEqual([
+      `Gamma ${suffix}`,
+    ]);
+    expect(Object.keys(detail).sort()).toEqual(
+      [
+        'category',
+        'description',
+        'images',
+        'isFeatured',
+        'name',
+        'relatedProducts',
+        'rentalUnit',
+        'shortDescription',
+        'slug',
+        'specifications',
+      ].sort(),
+    );
+    expect(JSON.stringify(detail)).not.toMatch(
+      /inventory|quantity|asset|serial|isActive|createdAt|categoryId/i,
     );
   });
 
@@ -94,8 +126,6 @@ describe('catalogue service against PostgreSQL', () => {
       page: 1,
       pageSize: 1,
       search: suffix,
-      sortBy: 'name',
-      sortDirection: 'asc',
     });
     expect(page.meta.total).toBe(1);
     expect(page.items[0]?.name).toBe(`Active ${suffix}`);

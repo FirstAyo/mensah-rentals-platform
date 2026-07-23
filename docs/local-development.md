@@ -514,3 +514,36 @@ Expected permission behavior:
 - `ADMIN` and `SUPER_ADMIN` have all four inventory permissions.
 
 The values shown are current operational states, not availability for requested rental dates. No reservation is created.
+
+## 24. Test the Phase 6 customer catalogue
+
+Install dependencies and the browser used by the responsive/accessibility suite:
+
+```powershell
+pnpm install
+pnpm --filter @mensah-rentals/web exec playwright install chromium
+```
+
+With Docker Desktop open, prepare the existing database and public samples:
+
+```powershell
+docker compose up -d postgres
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm catalogue:seed
+pnpm dev
+```
+
+Open `http://localhost:3000`, `/rentals`, `/rentals/seating`, and `/rentals/seating/folding-chair`. Test search, category selection, featured-only filtering, all four sort options, clear filters, numbered pagination when enough products exist, light/dark theme persistence, and keyboard focus beginning with the skip link.
+
+In another PowerShell window, run:
+
+```powershell
+pnpm test:e2e
+```
+
+The suite uses Chromium at 320, 390, 768, 1024, 1440, and 1920 pixels. It starts the applications automatically unless they are already running. PostgreSQL must be running and migrations/sample data must already be prepared. On the first local checkout, the separate Playwright install command is required because browser binaries are not stored in Git.
+
+Public pages must never show equipment quantities, asset/serial numbers, internal availability, or automatic pricing. Search/filter query variants should be noindex; clean catalogue and unfiltered page URLs keep their documented canonicals.

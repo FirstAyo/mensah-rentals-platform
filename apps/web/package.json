@@ -7,18 +7,22 @@
     "build": "next build",
     "start": "next start --port 3000",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@mensah-rentals/types": "workspace:*",
     "@mensah-rentals/ui": "workspace:*",
     "@mensah-rentals/validation": "workspace:*",
+    "lucide-react": "0.544.0",
     "next": "16.2.10",
     "react": "19.1.1",
     "react-dom": "19.1.1"
   },
   "devDependencies": {
     "@mensah-rentals/config": "workspace:*",
+    "@axe-core/playwright": "4.10.2",
+    "@playwright/test": "1.55.0",
     "@tailwindcss/typography": "0.5.16",
     "@types/node": "22.18.1",
     "@types/react": "19.1.12",
