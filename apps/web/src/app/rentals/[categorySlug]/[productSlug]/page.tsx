@@ -8,6 +8,7 @@ import { ProductGallery } from '@/components/product-gallery';
 import { getProduct, PublicCatalogueNotFound } from '@/lib/public-catalogue';
 import { siteOrigin } from '@/lib/site-config';
 import { productJsonLd } from '@/lib/structured-data';
+import { AddToCartForm } from '@/components/add-to-cart-form';
 
 export const dynamic = 'force-dynamic';
 
@@ -136,6 +137,11 @@ export default async function ProductPage({
             </div>
           </aside>
 
+          <AddToCartForm
+            productName={product.name}
+            productSlug={product.slug}
+          />
+
           {product.specifications.length ? (
             <section className="mt-8">
               <h2 className="text-2xl font-semibold">Specifications</h2>
@@ -166,7 +172,7 @@ export default async function ProductPage({
                 aria-hidden="true"
                 className="h-4 w-4 text-primary"
               />
-              Online rental requests will be introduced in a later phase
+              Cart selections do not reserve inventory
             </span>
           </div>
         </article>

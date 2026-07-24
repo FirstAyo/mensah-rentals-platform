@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import type { ReactNode } from 'react';
 import { ThemeProvider } from '@mensah-rentals/ui';
 import { PublicShell } from '@/components/public-shell';
+import { AppProviders } from '@/components/app-providers';
 import { indexingEnabled, siteOrigin } from '@/lib/site-config';
 
 import './globals.css';
@@ -26,7 +27,9 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body>
         <ThemeProvider>
-          <PublicShell>{children}</PublicShell>
+          <AppProviders>
+            <PublicShell>{children}</PublicShell>
+          </AppProviders>
         </ThemeProvider>
       </body>
     </html>

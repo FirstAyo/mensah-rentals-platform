@@ -140,6 +140,7 @@ describe('staff authentication HTTP flow', () => {
               AUTH_LOGIN_RATE_WINDOW_SECONDS: 60,
               STAFF_SESSION_COOKIE_NAME: 'mensah_staff_session',
               STAFF_SESSION_TTL_HOURS: 12,
+              WEB_ORIGIN: 'http://localhost:3000',
             }),
           ],
         }),
@@ -196,6 +197,8 @@ describe('staff authentication HTTP flow', () => {
     await request(app.getHttpServer()).get('/test-public').expect(200);
     await request(app.getHttpServer())
       .post('/test-public')
+      .set('Origin', 'http://localhost:3000')
+      .set('Content-Type', 'application/json')
       .send({})
       .expect(201);
     await request(app.getHttpServer()).get('/test-protected').expect(401);

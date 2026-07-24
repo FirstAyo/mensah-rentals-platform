@@ -121,3 +121,4 @@ pnpm catalogue:seed  # Create missing development-only catalogue samples
 - [Theme foundation](docs/theme.md)
 - [SEO foundation](docs/seo.md)
 - [Customer website and catalogue](docs/customer-catalogue.md)
+- [Rental cart foundation](docs/rental-cart.md)

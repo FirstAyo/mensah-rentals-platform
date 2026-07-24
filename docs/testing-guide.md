@@ -425,3 +425,64 @@ Manually confirm:
 7. Public API, HTML, and JSON-LD contain no inventory, quantity, asset, serial, price, Offer, rating, review, or availability data.
 
 In a private browser, admin pages redirect to login. After login, test exact role permissions, create/edit/deactivate confirmation, empty/error/loading states, and logout. Test both apps at about 390, 768, 1024, and 1440 pixels, in system-light, system-dark, manual light, and manual dark. The admin/login routes must be noindex; local public robots disallows all while `SITE_INDEXING_ENABLED=false`.
+
+## Phase 7 rental cart verification
+
+Prepare the real local database:
+
+```powershell
+docker compose up -d postgres
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm catalogue:seed
+```
+
+Success means migration `20260723170000_rental_cart_foundation` is applied and
+Prisma reports no pending migrations.
+
+Run the complete automated gate:
+
+```powershell
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm test:e2e
+```
+
+Unit and integration success includes strict quantity validation, fixed BFF
+paths, foreign-Origin and non-JSON rejection, HttpOnly cookie handling, exact
+response allowlists, guest-token isolation, expiry, inactive catalogue items,
+idempotent absolute updates, database constraints, remove/clear, and the real
+PostgreSQL non-reservation proof. That proof creates inventory with capacity 2,
+saves desired quantity 100, and confirms Inventory, InventoryItem, and
+InventoryTransaction remain unchanged.
+
+The Playwright gate adds `/cart` reflow and serious/critical axe checks at 320,
+390, 768, 1024, 1440, and 1920 pixels. The desktop workflow adds a real product,
+saves quantity 100, checks the distinct-line badge, reloads the page, and proves
+customer-visible text contains no stock claim.
+
+Manual browser test:
+
+1. Start everything with `pnpm dev`.
+2. Open `http://localhost:3000/rentals` in a private browser window.
+3. Open a product, set quantity 100, and add it to the cart.
+4. Confirm the header badge says one equipment type and `/cart` shows 100.
+5. Refresh and confirm the same cart remains.
+6. Change quantity with keyboard and pointer controls.
+7. Remove a line, then test cancel and confirm in the clear-cart dialog.
+8. Confirm the empty state links back to the catalogue.
+9. Repeat in light and dark modes and at narrow mobile width.
+10. Confirm `/cart` is noindex, excluded from sitemap, and disallowed by
+    production robots rules.
+11. Search API JSON and rendered text for internal quantities, availability,
+    stock, asset/serial identity, price, and reservation; none may appear.
+12. Confirm no request form, customer login, quote, price, reservation, or
+    checkout was introduced.
+
+The cart's 1–1000 range is a technical abuse boundary, not an inventory limit.
+Cart state never proves availability and never reserves equipment.

@@ -136,9 +136,34 @@ model Product {
   images           ProductImage[]
   specifications   ProductSpecification[]
   inventory        Inventory?
+  cartItems        CartItem[]
 
   @@index([categoryId, isActive, name, id])
   @@index([isActive, isFeatured, updatedAt, id])
+}
+
+model Cart {
+  id        String     @id @default(cuid())
+  tokenHash String     @unique @db.Char(64)
+  expiresAt DateTime   @db.Timestamptz(3)
+  createdAt DateTime   @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime   @updatedAt @db.Timestamptz(3)
+  items     CartItem[]
+
+  @@index([expiresAt, id])
+}
+
+model CartItem {
+  cartId          String
+  productId       String
+  desiredQuantity Int
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime @updatedAt @db.Timestamptz(3)
+  cart            Cart     @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product         Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@id([cartId, productId])
+  @@index([productId])
 }
 
 model Inventory {

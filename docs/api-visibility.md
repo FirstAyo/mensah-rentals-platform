@@ -31,6 +31,20 @@ They must not contain inventory quantities or calculated availability.
 
 Phase 6 public endpoints accept only public descriptive query fields. Administrative controls such as `categoryId`, `isActive`, and timestamp field names are rejected. Lists select one public image; details select up to four and may include up to four active same-category related products. Every object is mapped through an explicit public allowlist, and the customer server boundary rejects unknown keys and non-managed media paths.
 
+## Public rental cart responses (implemented)
+
+`GET/PUT/DELETE /public/cart` routes require no staff session and return only
+customer-safe product descriptions, one managed image, the customer's own
+`desiredQuantity`, a non-inventory `requestable` catalogue state, and aggregate
+counts of customer intent. They never contain a cart ID, capability token/hash,
+price, inventory relationship, operational quantity, asset/serial identity,
+availability, reservation, staff, authentication, or RBAC data.
+
+Cart mutations require exact `WEB_ORIGIN` and JSON. The browser uses a fixed
+same-origin BFF and an HttpOnly capability cookie; the capability is never a
+JSON response field. An internal inventory quantity cannot influence whether a
+customer may save a desired quantity.
+
 ## Customer account responses
 
 Customer responses may include that customer's profile and customer-safe

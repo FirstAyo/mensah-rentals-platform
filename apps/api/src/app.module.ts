@@ -11,6 +11,7 @@ import { HealthService } from './health/health.service';
 import { CatalogueModule } from './catalogue/catalogue.module';
 import { ProductMediaModule } from './media/product-media.module';
 import { InventoryModule } from './inventory/inventory.module';
+import { CartModule } from './cart/cart.module';
 
 @Module({
   imports: [
@@ -23,6 +24,7 @@ import { InventoryModule } from './inventory/inventory.module';
     CatalogueModule,
     ProductMediaModule,
     InventoryModule,
+    CartModule,
   ],
   controllers: [HealthController],
   providers: [DatabaseService, HealthService],

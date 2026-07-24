@@ -44,7 +44,12 @@ This current operational state is not date-based rental availability. Reservatio
 
 ## Rental workflow concepts
 
-- **Cart** is temporary customer intent. It does not reserve inventory.
+- **Cart (implemented)** is temporary anonymous customer intent identified by
+  a hashed opaque capability and an absolute expiry. It does not reserve
+  inventory and has no customer/staff identity relationship.
+- **CartItem (implemented)** uniquely pairs one Cart and Product and stores the
+  customer's bounded `desiredQuantity`. This is not an available, approved, or
+  reserved quantity. Rental dates and request snapshots remain Phase 8 work.
 - **Rental Request** preserves what the customer asked for, requested dates, and project/contact details. Submission does not reserve inventory.
 - **Quote** contains staff-approved quantities and staff-entered pricing. Revisions preserve history.
 - **Rental Order** represents a confirmed operational rental after the appropriate acceptance workflow.

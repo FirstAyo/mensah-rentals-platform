@@ -81,6 +81,12 @@ export const apiEnvironmentSchema = z
     NODE_ENV: z
       .enum(['development', 'test', 'production'])
       .default('development'),
+    PUBLIC_CART_COOKIE_NAME: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]+$/)
+      .default('mensah_rental_cart'),
+    PUBLIC_CART_COOKIE_SECURE: environmentBoolean.default('false'),
+    PUBLIC_CART_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(30),
     STAFF_SESSION_COOKIE_NAME: z
       .string()
       .regex(/^[A-Za-z0-9_-]+$/)
@@ -103,6 +109,22 @@ export const apiEnvironmentSchema = z
         code: z.ZodIssueCode.custom,
         message: 'AUTH_COOKIE_SECURE must be true in production',
         path: ['AUTH_COOKIE_SECURE'],
+      });
+    }
+
+    if (!environment.PUBLIC_CART_COOKIE_SECURE) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'PUBLIC_CART_COOKIE_SECURE must be true in production',
+        path: ['PUBLIC_CART_COOKIE_SECURE'],
+      });
+    }
+
+    if (!environment.PUBLIC_CART_COOKIE_NAME.startsWith('__Host-')) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Production cart cookies must use the __Host- prefix',
+        path: ['PUBLIC_CART_COOKIE_NAME'],
       });
     }
 
@@ -262,6 +284,14 @@ export type PublicCategoryListQuery = z.infer<
 export type PublicProductListQuery = z.infer<
   typeof publicProductListQuerySchema
 >;
+
+export const setCartItemSchema = z
+  .object({
+    desiredQuantity: z.number().int().min(1).max(1000),
+  })
+  .strict();
+
+export type SetCartItemInput = z.infer<typeof setCartItemSchema>;
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
 export type CreateProductInput = z.infer<typeof createProductSchema>;

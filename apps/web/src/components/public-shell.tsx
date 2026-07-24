@@ -2,6 +2,7 @@ import { ThemeToggle } from '@mensah-rentals/ui';
 import { ArrowRight, Menu, PackageOpen } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import { CartHeaderLink } from './cart-header-link';
 
 const navLink =
   'rounded-lg px-3 py-2 text-sm font-medium outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring';
@@ -46,6 +47,7 @@ export function PublicShell({ children }: { children: ReactNode }) {
               </Link>
             </nav>
             <ThemeToggle />
+            <CartHeaderLink />
             <Link
               className="hidden min-h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground outline-none transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:inline-flex"
               href="/rentals"

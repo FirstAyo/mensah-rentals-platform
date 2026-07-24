@@ -40,30 +40,28 @@ export class OriginGuard implements CanActivate {
       [context.getHandler(), context.getClass()],
     );
     const requiresAdminOrigin = isAuthenticationRequest || !isPublic;
-
-    if (requiresAdminOrigin) {
-      const allowedOrigin = this.config.get('ADMIN_ORIGIN', { infer: true });
-      if (request.headers.origin !== allowedOrigin) {
-        throw new ForbiddenException('Request origin is not allowed');
-      }
+    const allowedOrigin = this.config.get(
+      requiresAdminOrigin ? 'ADMIN_ORIGIN' : 'WEB_ORIGIN',
+      { infer: true },
+    );
+    if (request.headers.origin !== allowedOrigin) {
+      throw new ForbiddenException('Request origin is not allowed');
     }
 
-    if (requiresAdminOrigin) {
-      const contentType = request.headers['content-type'] ?? '';
-      const multipartAllowed = this.reflector.getAllAndOverride<boolean>(
-        ALLOW_MULTIPART,
-        [context.getHandler(), context.getClass()],
+    const contentType = request.headers['content-type'] ?? '';
+    const multipartAllowed = this.reflector.getAllAndOverride<boolean>(
+      ALLOW_MULTIPART,
+      [context.getHandler(), context.getClass()],
+    );
+    const valid =
+      contentType.startsWith('application/json') ||
+      (multipartAllowed && contentType.startsWith('multipart/form-data;'));
+    if (!valid)
+      throw new UnsupportedMediaTypeException(
+        multipartAllowed
+          ? 'JSON or multipart image data is required'
+          : 'JSON requests are required',
       );
-      const valid =
-        contentType.startsWith('application/json') ||
-        (multipartAllowed && contentType.startsWith('multipart/form-data;'));
-      if (!valid)
-        throw new UnsupportedMediaTypeException(
-          multipartAllowed
-            ? 'JSON or multipart image data is required'
-            : 'JSON requests are required',
-        );
-    }
 
     return true;
   }

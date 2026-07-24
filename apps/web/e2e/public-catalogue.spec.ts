@@ -122,3 +122,55 @@ test('product detail has a labelled media region and no public stock claims', as
   );
   expect(text).not.toMatch(/asset number|serial number|reserved quantity/i);
 });
+
+test('guest rental cart reflows and passes serious accessibility checks', async ({
+  page,
+}) => {
+  await page.goto('/cart');
+  await expect(
+    page.getByRole('heading', { name: /equipment your project needs/i }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+    ),
+  ).toBe(true);
+  const results = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+    .analyze();
+  expect(
+    results.violations.filter((violation) =>
+      ['critical', 'serious'].includes(violation.impact ?? ''),
+    ),
+  ).toEqual([]);
+});
+
+test('guest cart persists desired quantity without stock or reservation claims', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-1024');
+  await page.goto('/rentals');
+  const productHref = await page
+    .locator('article a[href^="/rentals/"]')
+    .first()
+    .getAttribute('href');
+  expect(productHref).toBeTruthy();
+  await page.goto(productHref!);
+  await page.getByLabel('Desired quantity').fill('100');
+  await page.getByRole('button', { name: 'Add to rental cart' }).click();
+  await expect(
+    page.getByText(/quantity saved in your rental cart/i),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Rental cart, 1 equipment type' }),
+  ).toBeVisible();
+  await page
+    .getByRole('link', { name: 'Rental cart, 1 equipment type' })
+    .click();
+  await expect(page.getByText('100', { exact: true })).toBeVisible();
+  await page.reload();
+  await expect(page.getByText('100', { exact: true })).toBeVisible();
+  const text = await page.locator('body').innerText();
+  expect(text).not.toMatch(/only \d+ left|\d+ available|remaining quantity/i);
+  expect(text).toContain('does not reserve equipment');
+});

@@ -9,7 +9,7 @@ database, API, authorization, UI, documentation, and tests where applicable.
 4. **Product and category foundation (complete):** admin management contracts/UI, public-safe APIs/catalogue, optimized four-image upload pipeline, theme, technical SEO, indexes, validation, and privacy tests.
 5. **Inventory foundation (complete):** bulk and serialized models, confidential admin APIs/UI, concurrency-safe append-only transactions, permission and privacy tests.
 6. **Customer website and catalogue expansion (complete):** refined public visual design, server-backed combined filters and numbered pagination, bounded related products, accessible media gallery, hardened public projections, and Playwright/axe responsive automation.
-7. **Rental cart:** client/server cart design with explicit proof that cart actions do not reserve inventory.
+7. **Rental cart (complete):** database-backed guest cart, opaque HttpOnly capability, fixed web BFF, idempotent desired quantities, responsive management UI, and explicit proof that cart actions do not inspect or reserve inventory.
 8. **Rental requests:** guest and account submission, reference numbers, preserved requested quantities, customer-safe tracking.
 9. **Admin dashboard and request review:** assignment, internal availability, conflicts, notes, permission-aware metrics.
 10. **Approval decisions:** approve, partially approve, reject, audit history, separate approved quantity, customer-safe explanations.

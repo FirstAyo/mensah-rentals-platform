@@ -4,6 +4,7 @@ import {
   apiEnvironmentSchema,
   staffBootstrapEnvironmentSchema,
   staffLoginSchema,
+  setCartItemSchema,
 } from './index';
 
 describe('staff login validation', () => {
@@ -26,6 +27,30 @@ describe('staff login validation', () => {
     { email: 'staff@example.com', password: 'test-password', unexpected: true },
   ])('rejects invalid or unexpected login input', (input) => {
     expect(staffLoginSchema.safeParse(input).success).toBe(false);
+  });
+});
+
+describe('public rental cart validation', () => {
+  it.each([1, 100, 1000])('accepts desired quantity %s', (desiredQuantity) => {
+    expect(setCartItemSchema.parse({ desiredQuantity })).toEqual({
+      desiredQuantity,
+    });
+  });
+
+  it.each([0, -1, 1.5, 1001, '5', null])(
+    'rejects invalid desired quantity %s',
+    (desiredQuantity) => {
+      expect(setCartItemSchema.safeParse({ desiredQuantity }).success).toBe(
+        false,
+      );
+    },
+  );
+
+  it('rejects unknown cart mutation fields', () => {
+    expect(
+      setCartItemSchema.safeParse({ desiredQuantity: 2, availableQuantity: 1 })
+        .success,
+    ).toBe(false);
   });
 });
 

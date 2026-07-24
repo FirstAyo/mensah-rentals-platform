@@ -138,6 +138,27 @@ export interface PublicProductDetailResponse
   specifications: Array<{ label: string; value: string }>;
 }
 
+export interface PublicCartProductResponse {
+  category: Pick<PublicCategoryResponse, 'name' | 'slug'>;
+  image: PublicProductImageResponse | null;
+  name: string;
+  rentalUnit: string;
+  requestable: boolean;
+  shortDescription: string;
+  slug: string;
+}
+
+export interface PublicCartItemResponse {
+  desiredQuantity: number;
+  product: PublicCartProductResponse;
+}
+
+export interface PublicCartResponse {
+  desiredUnitCount: number;
+  distinctItemCount: number;
+  items: PublicCartItemResponse[];
+}
+
 export type InventoryTrackingModeResponse = 'BULK' | 'SERIALIZED';
 export type InventoryStateResponse =
   | 'RENTABLE'

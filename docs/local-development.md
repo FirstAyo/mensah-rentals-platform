@@ -547,3 +547,55 @@ pnpm test:e2e
 The suite uses Chromium at 320, 390, 768, 1024, 1440, and 1920 pixels. It starts the applications automatically unless they are already running. PostgreSQL must be running and migrations/sample data must already be prepared. On the first local checkout, the separate Playwright install command is required because browser binaries are not stored in Git.
 
 Public pages must never show equipment quantities, asset/serial numbers, internal availability, or automatic pricing. Search/filter query variants should be noindex; clean catalogue and unfiltered page URLs keep their documented canonicals.
+
+## 25. Run the Phase 7 guest rental cart
+
+From the repository root in PowerShell, ensure Docker Desktop is open and run:
+
+```powershell
+docker compose up -d postgres
+pnpm install
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm catalogue:seed
+pnpm dev
+```
+
+Migration `20260723170000_rental_cart_foundation` must appear as applied. Keep
+`pnpm dev` running, then open `http://localhost:3000/rentals`. Open a product,
+enter a desired quantity, and select **Add to rental cart**. The header badge
+should become 1. Open `http://localhost:3000/cart`, change the quantity,
+refresh, navigate away and back, remove the item, and test the clear-cart
+confirmation. The cart is anonymous; do not sign in.
+
+The ignored `.env` should contain the values copied from `.env.example`:
+
+```text
+PUBLIC_CART_COOKIE_NAME=mensah_rental_cart
+PUBLIC_CART_TTL_DAYS=30
+PUBLIC_CART_COOKIE_SECURE=false
+```
+
+Use `Secure=false` only for local HTTP. Production requires HTTPS,
+`PUBLIC_CART_COOKIE_SECURE=true`, and a name beginning `__Host-`. Never place
+the cart capability in JavaScript, localStorage, a URL, source code, or logs.
+
+A first `GET` returns an empty cart without creating a database row. The first
+successful item mutation creates it. Desired quantity 100 must be accepted even
+when internal inventory is smaller; the screen must not show how much Mensah
+Rentals owns or has available.
+
+Common failures:
+
+- **403 on mutation:** use `http://localhost:3000`, not `127.0.0.1`, and ensure
+  `WEB_ORIGIN` matches exactly.
+- **415:** the BFF and API require JSON mutations.
+- **Cart becomes empty:** the cookie may have expired, been cleared, or changed
+  name after `.env` was edited.
+- **Cart service unavailable:** confirm API port 4000 and PostgreSQL are running.
+- **Product not listed:** seed the catalogue and use an active product in an
+  active category.
+- **Prisma DLL rename error:** stop leftover `pnpm dev` processes, then rerun
+  `pnpm db:generate`.

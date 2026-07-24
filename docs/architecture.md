@@ -205,3 +205,19 @@ Metadata, quantities, adjustments, and history have separate cumulative permissi
 Public catalogue controllers use public-only Zod query schemas and least-privilege Prisma projections. Public filters are descriptive only, product lists return one display image, details return at most four images plus four deterministic same-category related products, and no inventory relationship participates in public selection, filtering, or ranking.
 
 The customer Next.js application parses allowlisted URL state, sends filters to the API for server-side execution, and keeps categories on canonical slug routes. Runtime response guards enforce exact public DTO keys and managed media URLs. Search/filter variants are noindex with clean canonicals; unfiltered pages self-canonicalize. Playwright and axe provide browser-level reflow, keyboard, theme, and accessibility verification across six viewport sizes.
+
+## Phase 7 rental cart architecture
+
+The implemented guest cart is server-authoritative and independent of staff or
+customer authentication. PostgreSQL stores only a SHA-256 hash of a 256-bit
+opaque capability; the public web host keeps the raw capability in a separate
+host-only HttpOnly cookie. A fixed same-origin Next.js BFF validates exact web
+Origin, JSON content type, path, and method before forwarding only that
+capability to the NestJS public cart module. The API repeats Origin and input
+validation and returns private, no-store, allowlisted DTOs.
+
+`Cart` and `CartItem` represent mutable customer intent only. Absolute desired
+quantity updates are transactional and constrained, but never inspect or
+mutate Inventory, calculate availability, create inventory transactions, or
+reserve equipment. Rental dates and request conversion remain Phase 8 work.
+See [Rental cart foundation](rental-cart.md).
