@@ -486,3 +486,58 @@ Manual browser test:
 
 The cart's 1–1000 range is a technical abuse boundary, not an inventory limit.
 Cart state never proves availability and never reserves equipment.
+
+## Phase 8 rental request verification
+
+Prepare PostgreSQL and the schema:
+
+```powershell
+docker compose up -d postgres
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm catalogue:seed
+```
+
+Success means migration `20260724110000_rental_request_foundation` is current.
+Run the quality gate:
+
+```powershell
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm test:e2e
+```
+
+Unit/integration success covers strict contact/date/delivery validation,
+fixed-path and bounded BFF behavior, exact Origin/JSON enforcement, HttpOnly
+capability handling, capability/global rate-limit separation (including clients
+sharing one BFF address), idempotent cart conversion, immutable item snapshots,
+private tracking, customer-safe DTO allowlists, inactive-cart preservation, and
+a real PostgreSQL proof that desired quantity 100 succeeds against internal
+capacity 2 while all inventory records/history remain unchanged.
+
+Manual test:
+
+1. Start all apps with `pnpm dev`.
+2. Add an active product at `/rentals` and continue from `/cart`.
+3. Confirm invalid/reversed dates and delivery without an address are blocked.
+4. Review desired quantities; submit once, then verify the readable reference.
+5. Refresh status in the same browser; use `/track-request` with the reference.
+6. Try the reference in a private browser and expect the generic unavailable
+   state.
+7. Confirm the cart cleared only after success and a failed submission retains
+   it.
+8. Check light/dark modes and mobile/desktop widths.
+9. Confirm request pages are noindex, absent from sitemap, and disallowed by the
+   production robots rules.
+10. Search public JSON/HTML for contact data, notes, capability tokens, staff,
+    price, inventory, availability, stock, approved quantity, and reservation;
+    none should appear in tracking responses.
+
+The request remains `SUBMITTED`. Staff queues, availability, assignment,
+approval, partial approval, rejection, quotes, reservations, customer accounts,
+email notifications, and orders are deliberately not part of Phase 8.

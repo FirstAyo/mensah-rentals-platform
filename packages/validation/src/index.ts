@@ -87,6 +87,57 @@ export const apiEnvironmentSchema = z
       .default('mensah_rental_cart'),
     PUBLIC_CART_COOKIE_SECURE: environmentBoolean.default('false'),
     PUBLIC_CART_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(30),
+    PUBLIC_REQUEST_COOKIE_NAME: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]+$/)
+      .default('mensah_rental_request'),
+    PUBLIC_REQUEST_COOKIE_SECURE: environmentBoolean.default('false'),
+    PUBLIC_REQUEST_TRACKING_TTL_DAYS: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(365)
+      .default(180),
+    PUBLIC_REQUEST_TRACKING_SECRET: z
+      .string()
+      .min(32)
+      .default('development-only-change-this-tracking-secret'),
+    PUBLIC_REQUEST_SUBMIT_RATE_LIMIT: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(1000)
+      .default(5),
+    PUBLIC_REQUEST_SUBMIT_RATE_WINDOW_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(86400)
+      .default(3600),
+    PUBLIC_REQUEST_TRACK_RATE_LIMIT: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(10000)
+      .default(60),
+    PUBLIC_REQUEST_TRACK_RATE_WINDOW_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(3600)
+      .default(60),
+    PUBLIC_REQUEST_GLOBAL_RATE_LIMIT: z.coerce
+      .number()
+      .int()
+      .min(100)
+      .max(100000)
+      .default(10000),
+    PUBLIC_REQUEST_GLOBAL_RATE_WINDOW_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(3600)
+      .default(60),
     STAFF_SESSION_COOKIE_NAME: z
       .string()
       .regex(/^[A-Za-z0-9_-]+$/)
@@ -125,6 +176,32 @@ export const apiEnvironmentSchema = z
         code: z.ZodIssueCode.custom,
         message: 'Production cart cookies must use the __Host- prefix',
         path: ['PUBLIC_CART_COOKIE_NAME'],
+      });
+    }
+
+    if (!environment.PUBLIC_REQUEST_COOKIE_SECURE) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'PUBLIC_REQUEST_COOKIE_SECURE must be true in production',
+        path: ['PUBLIC_REQUEST_COOKIE_SECURE'],
+      });
+    }
+
+    if (!environment.PUBLIC_REQUEST_COOKIE_NAME.startsWith('__Host-')) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Production request cookies must use the __Host- prefix',
+        path: ['PUBLIC_REQUEST_COOKIE_NAME'],
+      });
+    }
+
+    if (
+      environment.PUBLIC_REQUEST_TRACKING_SECRET.startsWith('development-only')
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Production request tracking requires a unique secret',
+        path: ['PUBLIC_REQUEST_TRACKING_SECRET'],
       });
     }
 
@@ -292,6 +369,97 @@ export const setCartItemSchema = z
   .strict();
 
 export type SetCartItemInput = z.infer<typeof setCartItemSchema>;
+
+const rentalDateSchema = z
+  .string()
+  .regex(/^\d{4}-\d{2}-\d{2}$/, 'Use a date in YYYY-MM-DD format.')
+  .refine((value) => {
+    const parsed = new Date(`${value}T00:00:00.000Z`);
+    return (
+      !Number.isNaN(parsed.valueOf()) && parsed.toISOString().startsWith(value)
+    );
+  }, 'Enter a valid calendar date.');
+
+const nullableTrimmedText = (maximum: number) =>
+  z
+    .union([z.string().trim().max(maximum), z.null()])
+    .optional()
+    .transform((value) => (value ? value : null));
+
+export const rentalRequestReferenceSchema = z
+  .string()
+  .trim()
+  .toUpperCase()
+  .regex(/^MR-\d{4}-[A-Z0-9]{10}$/);
+
+export const submitRentalRequestSchema = z
+  .object({
+    submissionId: z.string().uuid(),
+    contactFirstName: z.string().trim().min(1).max(100),
+    contactLastName: z.string().trim().min(1).max(100),
+    contactEmail: z
+      .string()
+      .trim()
+      .email()
+      .max(254)
+      .transform((value) => value.toLowerCase()),
+    contactPhone: z
+      .string()
+      .trim()
+      .min(7)
+      .max(30)
+      .regex(/^[0-9+() .'-]+$/, 'Enter a valid phone number.'),
+    companyName: nullableTrimmedText(160),
+    projectName: z.string().trim().min(1).max(160),
+    projectType: z.string().trim().min(1).max(100),
+    projectLocation: z.string().trim().min(1).max(500),
+    fulfillmentMethod: z.enum(['PICKUP', 'DELIVERY', 'DELIVERY_AND_SETUP']),
+    deliveryAddress: nullableTrimmedText(500),
+    rentalStartDate: rentalDateSchema,
+    rentalEndDate: rentalDateSchema,
+    requestedTimeZone: z.string().trim().min(1).max(100),
+    customerNotes: nullableTrimmedText(3000),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    const start = new Date(`${value.rentalStartDate}T00:00:00.000Z`);
+    const end = new Date(`${value.rentalEndDate}T00:00:00.000Z`);
+    const durationDays = (end.valueOf() - start.valueOf()) / 86_400_000;
+    if (durationDays < 0)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['rentalEndDate'],
+        message: 'End date must be on or after the start date.',
+      });
+    if (durationDays > 366)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['rentalEndDate'],
+        message: 'Rental requests cannot span more than 366 days.',
+      });
+    if (value.fulfillmentMethod !== 'PICKUP' && !value.deliveryAddress)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['deliveryAddress'],
+        message: 'A delivery address is required for delivery.',
+      });
+    try {
+      new Intl.DateTimeFormat('en', { timeZone: value.requestedTimeZone });
+    } catch {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['requestedTimeZone'],
+        message: 'Enter a valid time zone.',
+      });
+    }
+  });
+
+export type SubmitRentalRequestInput = z.infer<
+  typeof submitRentalRequestSchema
+>;
+export type SubmitRentalRequestFormInput = z.input<
+  typeof submitRentalRequestSchema
+>;
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
 export type CreateProductInput = z.infer<typeof createProductSchema>;

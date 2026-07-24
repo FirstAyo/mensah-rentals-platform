@@ -11,6 +11,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@hookform/resolvers": "5.2.2",
     "@mensah-rentals/types": "workspace:*",
     "@mensah-rentals/ui": "workspace:*",
     "@mensah-rentals/validation": "workspace:*",
@@ -18,7 +19,8 @@
     "lucide-react": "0.544.0",
     "next": "16.2.10",
     "react": "19.1.1",
-    "react-dom": "19.1.1"
+    "react-dom": "19.1.1",
+    "react-hook-form": "7.62.0"
   },
   "devDependencies": {
     "@mensah-rentals/config": "workspace:*",

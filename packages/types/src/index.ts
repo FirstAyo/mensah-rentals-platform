@@ -159,6 +159,34 @@ export interface PublicCartResponse {
   items: PublicCartItemResponse[];
 }
 
+export type PublicRentalRequestFulfillmentMethod =
+  | 'PICKUP'
+  | 'DELIVERY'
+  | 'DELIVERY_AND_SETUP';
+
+export interface PublicRentalRequestItemResponse {
+  categoryName: string;
+  categorySlug: string;
+  productName: string;
+  productSlug: string;
+  rentalUnit: string;
+  requestedQuantity: number;
+}
+
+export interface PublicRentalRequestResponse {
+  fulfillmentMethod: PublicRentalRequestFulfillmentMethod;
+  items: PublicRentalRequestItemResponse[];
+  projectName: string;
+  referenceNumber: string;
+  rentalEndDate: string;
+  rentalStartDate: string;
+  status: {
+    key: 'REQUEST_SUBMITTED';
+    label: 'Request submitted';
+  };
+  submittedAt: string;
+}
+
 export type InventoryTrackingModeResponse = 'BULK' | 'SERIALIZED';
 export type InventoryStateResponse =
   | 'RENTABLE'

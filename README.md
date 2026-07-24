@@ -20,8 +20,9 @@ shared light/dark theming, and the technical SEO foundation.
 
 Phase 5 adds confidential bulk and serialized inventory, append-only
 operational history, permission-separated administrative APIs, and an inventory
-admin foundation. It still contains no reservations, date-based availability,
-prices, cart, rental request, quote, or order workflow.
+admin foundation. Phase 7 adds the anonymous rental cart. Phase 8 adds secure
+guest request submission and private customer-safe tracking while still creating
+no reservation, availability promise, automatic price, quote, or order.
 
 ## Architecture
 
@@ -84,6 +85,8 @@ Then open:
 
 - Customer website: http://localhost:3000
 - Public rentals: http://localhost:3000/rentals
+- Guest rental request: http://localhost:3000/rental-request
+- Private request tracking: http://localhost:3000/track-request
 - Admin staff login: http://localhost:3001/login
 - API liveness: http://localhost:4000/health
 - PostgreSQL readiness: http://localhost:4000/health/database
@@ -122,3 +125,4 @@ pnpm catalogue:seed  # Create missing development-only catalogue samples
 - [SEO foundation](docs/seo.md)
 - [Customer website and catalogue](docs/customer-catalogue.md)
 - [Rental cart foundation](docs/rental-cart.md)
+- [Rental request foundation](docs/rental-requests.md)

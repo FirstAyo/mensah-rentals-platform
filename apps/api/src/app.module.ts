@@ -12,6 +12,7 @@ import { CatalogueModule } from './catalogue/catalogue.module';
 import { ProductMediaModule } from './media/product-media.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { CartModule } from './cart/cart.module';
+import { RentalRequestModule } from './rental-request/rental-request.module';
 
 @Module({
   imports: [
@@ -25,6 +26,7 @@ import { CartModule } from './cart/cart.module';
     ProductMediaModule,
     InventoryModule,
     CartModule,
+    RentalRequestModule,
   ],
   controllers: [HealthController],
   providers: [DatabaseService, HealthService],

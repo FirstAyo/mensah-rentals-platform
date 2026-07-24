@@ -599,3 +599,60 @@ Common failures:
   active category.
 - **Prisma DLL rename error:** stop leftover `pnpm dev` processes, then rerun
   `pnpm db:generate`.
+
+## 26. Run the Phase 8 guest rental-request flow
+
+Open Docker Desktop. From the repository root in PowerShell, run:
+
+```powershell
+docker compose up -d postgres
+pnpm install
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm catalogue:seed
+pnpm dev
+```
+
+Migration `20260724110000_rental_request_foundation` must be applied. Copy the
+Phase 8 values from `.env.example` into your ignored `.env` if it predates this
+phase:
+
+```text
+PUBLIC_REQUEST_COOKIE_NAME=mensah_rental_request
+PUBLIC_REQUEST_COOKIE_SECURE=false
+PUBLIC_REQUEST_TRACKING_TTL_DAYS=180
+PUBLIC_REQUEST_TRACKING_SECRET=choose-a-long-local-development-secret
+PUBLIC_REQUEST_SUBMIT_RATE_LIMIT=5
+PUBLIC_REQUEST_SUBMIT_RATE_WINDOW_SECONDS=3600
+PUBLIC_REQUEST_TRACK_RATE_LIMIT=60
+PUBLIC_REQUEST_TRACK_RATE_WINDOW_SECONDS=60
+PUBLIC_REQUEST_GLOBAL_RATE_LIMIT=10000
+PUBLIC_REQUEST_GLOBAL_RATE_WINDOW_SECONDS=60
+```
+
+Do not reuse the example tracking secret outside local development. Keep
+`Secure=false` only for local HTTP. Production uses HTTPS, a strong secret,
+`PUBLIC_REQUEST_COOKIE_SECURE=true`, and an `__Host-` cookie name.
+
+Open `http://localhost:3000/rentals`, add a product, then open `/cart` and choose
+**Continue to rental request**. Enter contact/project/dates, select pickup or
+delivery, review, and submit. The confirmation must show an
+`MR-YYYY-XXXXXXXXXX` reference and “Request submitted.” It must also say that
+the request is not approved, reserved, or a final quote. Refreshing the status
+page in the same browser should work. Opening the same reference in a private
+browser should show the generic unavailable response.
+
+Common failures:
+
+- **403:** use `http://localhost:3000` and ensure `WEB_ORIGIN` exactly matches.
+- **415:** submit JSON through the website BFF.
+- **Cart unavailable:** the cart cookie expired/changed, the cart was already
+  consumed, or PostgreSQL/API is not running.
+- **Product no longer listed:** return to the cart and remove the inactive item.
+- **Request unavailable after copying the reference:** tracking also needs the
+  original browser's HttpOnly capability; the reference is intentionally not a
+  password.
+- **429:** the configured local attempt limit was reached; wait for its window
+  or restart the single local API process during development.

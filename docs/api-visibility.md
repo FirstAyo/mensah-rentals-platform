@@ -45,6 +45,20 @@ same-origin BFF and an HttpOnly capability cookie; the capability is never a
 JSON response field. An internal inventory quantity cannot influence whether a
 customer may save a desired quantity.
 
+## Public rental request responses (implemented)
+
+`POST /public/rental-requests` converts the owning guest cart atomically. The
+response contains only reference, customer-safe status, project name, rental
+dates, fulfillment method, and immutable requested item snapshots. Tracking at
+`GET /public/rental-requests/:referenceNumber` additionally requires the owning
+guest capability; the reference alone never grants access.
+
+Public request responses exclude contact details, email, phone, address, notes,
+database/session/cart identifiers, raw or hashed capabilities, staff/RBAC data,
+internal status/decisions, prices, inventory, availability, and reservations.
+The API uses a narrow Prisma select plus an explicit mapper; the web client
+recursively rejects unknown or confidential keys.
+
 ## Customer account responses
 
 Customer responses may include that customer's profile and customer-safe

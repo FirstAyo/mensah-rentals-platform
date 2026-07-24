@@ -5,7 +5,74 @@ import {
   staffBootstrapEnvironmentSchema,
   staffLoginSchema,
   setCartItemSchema,
+  submitRentalRequestSchema,
 } from './index';
+
+const validRentalRequest = {
+  submissionId: 'd62d2fd0-5574-4f75-af63-eec0eaf0e5d1',
+  contactFirstName: 'Ama',
+  contactLastName: 'Mensah',
+  contactEmail: ' AMA@example.com ',
+  contactPhone: '+233 20 123 4567',
+  companyName: '',
+  projectName: 'Community event',
+  projectType: 'Event',
+  projectLocation: 'Accra',
+  fulfillmentMethod: 'PICKUP' as const,
+  deliveryAddress: '',
+  rentalStartDate: '2026-08-01',
+  rentalEndDate: '2026-08-03',
+  requestedTimeZone: 'Africa/Accra',
+  customerNotes: '',
+};
+
+describe('guest rental request validation', () => {
+  it('accepts pickup and normalizes optional and email fields', () => {
+    expect(submitRentalRequestSchema.parse(validRentalRequest)).toMatchObject({
+      contactEmail: 'ama@example.com',
+      companyName: null,
+      customerNotes: null,
+      deliveryAddress: null,
+    });
+  });
+
+  it('requires a delivery address for either delivery method', () => {
+    expect(
+      submitRentalRequestSchema.safeParse({
+        ...validRentalRequest,
+        fulfillmentMethod: 'DELIVERY',
+      }).success,
+    ).toBe(false);
+    expect(
+      submitRentalRequestSchema.safeParse({
+        ...validRentalRequest,
+        fulfillmentMethod: 'DELIVERY_AND_SETUP',
+        deliveryAddress: '1 Independence Avenue, Accra',
+      }).success,
+    ).toBe(true);
+  });
+
+  it('rejects invalid or reversed dates and unknown fields', () => {
+    expect(
+      submitRentalRequestSchema.safeParse({
+        ...validRentalRequest,
+        rentalStartDate: '2026-02-30',
+      }).success,
+    ).toBe(false);
+    expect(
+      submitRentalRequestSchema.safeParse({
+        ...validRentalRequest,
+        rentalEndDate: '2026-07-31',
+      }).success,
+    ).toBe(false);
+    expect(
+      submitRentalRequestSchema.safeParse({
+        ...validRentalRequest,
+        availableQuantity: 4,
+      }).success,
+    ).toBe(false);
+  });
+});
 
 describe('staff login validation', () => {
   it('normalizes valid login input', () => {

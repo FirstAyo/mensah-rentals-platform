@@ -274,13 +274,18 @@ export function RentalCart() {
         </dl>
         <div className="mt-6 rounded-xl bg-accent p-4 text-sm leading-6 text-accent-foreground">
           Adding items does not reserve equipment. Staff will privately review
-          supply after a rental request is submitted in the next development
-          phase.
+          your dates and desired quantities after you submit a rental request.
         </div>
         <p className="mt-4 text-sm leading-6 text-muted-foreground">
-          Rental dates, project details, contact information, and request
-          submission are intentionally introduced in Phase 8.
+          No final rental price is calculated here. Staff may approve, partially
+          approve, or reject the request after review.
         </p>
+        <a
+          className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-primary px-5 font-semibold text-primary-foreground"
+          href="/rental-request"
+        >
+          Continue to rental request
+        </a>
       </aside>
 
       <dialog

@@ -219,5 +219,33 @@ validation and returns private, no-store, allowlisted DTOs.
 `Cart` and `CartItem` represent mutable customer intent only. Absolute desired
 quantity updates are transactional and constrained, but never inspect or
 mutate Inventory, calculate availability, create inventory transactions, or
-reserve equipment. Rental dates and request conversion remain Phase 8 work.
+reserve equipment. Rental dates and request conversion are separate Phase 8 boundaries.
 See [Rental cart foundation](rental-cart.md).
+
+## Phase 8 rental request architecture
+
+Guest submission is a new public workflow boundary, not an extension of staff
+authentication. The web application collects shared-Zod validated details,
+posts through a fixed same-origin BFF, and never stores contact data or access
+capabilities in localStorage. The BFF forwards only the named cart and request
+capabilities to the NestJS rental-request module.
+
+The API rate-limits valid cart/request capabilities and maintains a separately
+configured high global safety ceiling. It does not treat the BFF socket address
+as an individual customer address. A production reverse proxy must add
+per-client throttling at the trusted public edge and replace untrusted forwarded
+address headers; horizontally scaled API processes require a shared limiter.
+
+The API hashes the UUID idempotency key and authoritative source-cart
+capability, locks the cart, snapshots its active public catalogue fields and
+original quantities, creates `RentalRequest`/`RentalRequestItem`, and consumes
+the cart in one PostgreSQL transaction. Unique constraints and a post-lock
+re-read make safe retries return the existing request. Database triggers make
+submitted item and request-intent fields immutable.
+
+Private tracking combines a random readable reference with a separate expiring
+guest capability. Only the capability hash is stored. Public response mappers
+expose a customer-safe `REQUEST_SUBMITTED` projection and no contact, staff,
+pricing, inventory, availability, or reservation data. Submission never queries
+or mutates inventory. Request pages are noindex and outside the public sitemap.
+See [Rental request foundation](rental-requests.md).

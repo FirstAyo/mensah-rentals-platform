@@ -45,6 +45,9 @@ export function PublicShell({ children }: { children: ReactNode }) {
               <Link className={navLink} href="/rentals">
                 Rentals
               </Link>
+              <Link className={navLink} href="/track-request">
+                Track request
+              </Link>
             </nav>
             <ThemeToggle />
             <CartHeaderLink />
@@ -88,6 +91,9 @@ export function PublicShell({ children }: { children: ReactNode }) {
             </Link>
             <Link className={navLink} href="/rentals">
               Rental catalogue
+            </Link>
+            <Link className={navLink} href="/track-request">
+              Track request
             </Link>
           </nav>
         </div>

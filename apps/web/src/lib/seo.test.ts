@@ -48,14 +48,18 @@ describe('SEO contracts', () => {
   });
   it('keeps the stateful cart out of production crawling', () => {
     process.env.SITE_INDEXING_ENABLED = 'true';
-    expect(JSON.stringify(robots())).toContain('/cart');
+    expect(JSON.stringify(robots())).toMatch(
+      /\/cart.*\/rental-request.*\/track-request/,
+    );
   });
   it('paginates the entire public sitemap and excludes admin routes', async () => {
     const entries = await sitemap();
     expect(entries.map(({ url }) => url)).toContain(
       'http://localhost:3000/rentals/tents/tent',
     );
-    expect(JSON.stringify(entries)).not.toMatch(/admin|login|cart|\?/);
+    expect(JSON.stringify(entries)).not.toMatch(
+      /admin|login|cart|rental-request|track-request|\?/,
+    );
   });
   it('emits truthful product data without offers, price, or availability', () => {
     const data = productJsonLd(

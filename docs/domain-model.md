@@ -1,8 +1,8 @@
 # Planned Domain Model
 
-Phase 2 implements only the identity/session foundation. Every remaining
-domain is direction that will be refined through a reviewed vertical slice and
-Prisma migration.
+The platform implements each domain through reviewed vertical slices and Prisma
+migrations while keeping customer, staff, catalogue, inventory, and workflow
+boundaries separate.
 
 ## Identity and access
 
@@ -49,8 +49,14 @@ This current operational state is not date-based rental availability. Reservatio
   inventory and has no customer/staff identity relationship.
 - **CartItem (implemented)** uniquely pairs one Cart and Product and stores the
   customer's bounded `desiredQuantity`. This is not an available, approved, or
-  reserved quantity. Rental dates and request snapshots remain Phase 8 work.
-- **Rental Request** preserves what the customer asked for, requested dates, and project/contact details. Submission does not reserve inventory.
+  reserved quantity.
+- **GuestRequestSession (implemented)** owns one or more guest requests through
+  a hashed, expiring browser capability. A readable reference is not access.
+- **RentalRequest (implemented)** preserves submitted contact/project/date data,
+  fulfillment method, initial `SUBMITTED` state, random reference, and hashed
+  idempotency/source-cart identifiers. Submission does not reserve inventory.
+- **RentalRequestItem (implemented)** preserves original desired quantities and
+  product/category/unit snapshots. PostgreSQL rejects updates and deletion.
 - **Quote** contains staff-approved quantities and staff-entered pricing. Revisions preserve history.
 - **Rental Order** represents a confirmed operational rental after the appropriate acceptance workflow.
 - **Inventory Reservation** is a separate allocation for a defined period at the approved/confirmed stage. It is not the cart, request, quote, or order itself.
@@ -58,9 +64,8 @@ This current operational state is not date-based rental availability. Reservatio
 Cart, Rental Request, Quote, Rental Order, and Inventory Reservation must never
 be collapsed into one generic Order entity.
 
-Rental request items preserve both the original requested quantity and any
-separately approved quantity. Partial approval must not overwrite customer
-history.
+Future decision records will preserve an approved quantity separately. Partial
+approval must never overwrite the implemented original requested quantity.
 
 ## Fulfillment and asset care
 

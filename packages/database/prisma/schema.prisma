@@ -33,6 +33,16 @@ enum InventoryTransactionKind {
   SERIALIZED_ITEM_STATE_CHANGED
 }
 
+enum RentalRequestStatus {
+  SUBMITTED
+}
+
+enum RentalRequestFulfillmentMethod {
+  PICKUP
+  DELIVERY
+  DELIVERY_AND_SETUP
+}
+
 model User {
   id           String         @id @default(cuid())
   email        String         @unique
@@ -137,6 +147,7 @@ model Product {
   specifications   ProductSpecification[]
   inventory        Inventory?
   cartItems        CartItem[]
+  rentalRequestItems RentalRequestItem[]
 
   @@index([categoryId, isActive, name, id])
   @@index([isActive, isFeatured, updatedAt, id])
@@ -163,6 +174,67 @@ model CartItem {
   product         Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
 
   @@id([cartId, productId])
+  @@index([productId])
+}
+
+model GuestRequestSession {
+  id        String          @id @default(cuid())
+  tokenHash String          @unique @db.Char(64)
+  expiresAt DateTime        @db.Timestamptz(3)
+  createdAt DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt DateTime        @updatedAt @db.Timestamptz(3)
+  requests  RentalRequest[]
+
+  @@index([expiresAt, id])
+}
+
+model RentalRequest {
+  id                    String                         @id @default(cuid())
+  referenceNumber       String                         @unique
+  submissionKeyHash     String                         @unique @db.Char(64)
+  submissionPayloadHash String                         @db.Char(64)
+  sourceCartTokenHash   String                         @unique @db.Char(64)
+  guestSessionId        String
+  status                RentalRequestStatus            @default(SUBMITTED)
+  fulfillmentMethod     RentalRequestFulfillmentMethod
+  contactFirstName      String
+  contactLastName       String
+  contactEmail          String
+  contactPhone          String
+  companyName           String?
+  projectName           String
+  projectType           String
+  projectLocation       String
+  deliveryAddress       String?
+  rentalStartDate       DateTime                       @db.Date
+  rentalEndDate         DateTime                       @db.Date
+  requestedTimeZone     String
+  customerNotes         String?                        @db.Text
+  submittedAt           DateTime                       @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime                       @updatedAt @db.Timestamptz(3)
+  guestSession          GuestRequestSession            @relation(fields: [guestSessionId], references: [id], onDelete: Restrict)
+  items                 RentalRequestItem[]
+
+  @@index([guestSessionId, submittedAt, id])
+  @@index([status, submittedAt, id])
+  @@index([contactEmail, submittedAt])
+}
+
+model RentalRequestItem {
+  id                String        @id @default(cuid())
+  rentalRequestId   String
+  productId         String
+  requestedQuantity Int
+  productName       String
+  productSlug       String
+  categoryName      String
+  categorySlug      String
+  rentalUnit        String
+  createdAt         DateTime      @default(now()) @db.Timestamptz(3)
+  rentalRequest     RentalRequest @relation(fields: [rentalRequestId], references: [id], onDelete: Restrict)
+  product           Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@unique([rentalRequestId, productId])
   @@index([productId])
 }
 
