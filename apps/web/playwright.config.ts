@@ -11,6 +11,10 @@ const viewports = [
 
 export default defineConfig({
   testDir: './e2e',
+  testIgnore:
+    process.env.MENSAH_ISOLATED_E2E === 'verified-local-test-database'
+      ? []
+      : ['**/admin-decisions.spec.ts', '**/quotes.spec.ts'],
   timeout: 60_000,
   fullyParallel: false,
   globalSetup: './e2e/global-setup.ts',

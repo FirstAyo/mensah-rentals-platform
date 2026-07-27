@@ -140,3 +140,9 @@ legacy or directly inserted text is replaced with a generic server-owned
 message; it is never copied through merely because it exists in the database.
 The web BFF additionally validates decision scalar types, terminal outcome,
 timestamp, and exact server-owned notice text before returning a response.
+
+## Private customer quote responses
+
+Quote number is display-only and never grants access. The public quote API requires a revision-scoped capability and uses an explicit mapper. It may return customer display name, rental dates, item/product snapshots, quoted/approved quantities, integer-cent prices and totals, customer-visible charges, tax snapshot, customer notes, terms, validity, safe lifecycle status, and the required non-reservation notice.
+
+It never returns internal notes, staff identities, contact details not needed for the quote, decision IDs or internal reasons, operation/payload identifiers, lifecycle versions, capability/access records, activity, permissions, inventory quantities/states/assets, availability, reservations, or order internals. The customer web BFF recursively checks the exact allowed shape and returns a sanitized `502` if the API adds an unexpected key.

@@ -209,6 +209,47 @@ Preserve local database data and stop the container:
 docker compose down
 ```
 
+## Phase 11 custom quotes on Windows
+
+Add these safe local values to the ignored `.env` file (never put a real production secret in `.env.example`):
+
+```dotenv
+PUBLIC_QUOTE_ACCESS_SECRET=replace-with-at-least-32-random-local-characters
+PUBLIC_QUOTE_ACCESS_TTL_DAYS=30
+PUBLIC_QUOTE_COOKIE_NAME=mensah_quote_access
+PUBLIC_QUOTE_COOKIE_SECURE=false
+```
+
+With Docker Desktop open, apply and verify the quote migration:
+
+```powershell
+docker compose up -d postgres
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+```
+
+`db:status` should report that the schema is up to date and include the Phase 11 migrations from `20260727210000_custom_quote_foundation` through `20260727214000_quote_lifecycle_updated_at_fix`. Start all applications:
+
+```powershell
+pnpm dev
+```
+
+1. Sign in at `http://localhost:3001/login` with credentials sourced from your ignored `STAFF_BOOTSTRAP_*` variables.
+2. Open `http://localhost:3001/rental-requests` and use an APPROVED or PARTIALLY_APPROVED request. If needed, submit a guest request and complete Phase 9/10 review first.
+3. Choose **Create quote**. Enter each CAD unit price, optional allowlisted charges, discount, tax name/rate, exact validity date/time, customer notes, terms, and separate internal notes.
+4. Save the immutable draft. Open `http://localhost:3001/quotes`, locate it, and send it.
+5. Copy the generated private link. Open it in a private/incognito window so the customer capability cookie is isolated from staff browsing.
+6. Confirm `/quote/access` immediately becomes `/quote`, the fragment disappears, internal notes are absent, the no-order/no-reservation notice is visible, and accept/reject remains available only while valid/current.
+7. Accept or reject, refresh, and confirm the response remains terminal. Return to admin quote detail to review history.
+
+If access says unavailable, confirm the complete fragment link was copied, the quote is not expired/superseded, all three applications use the same `.env`, and cookies are enabled. On local HTTP keep `PUBLIC_QUOTE_COOKIE_SECURE=false`; production must use true and an appropriate `__Host-` cookie name. If creation returns `409`, refresh because another session changed the quote or the request already owns one. If `422`, correct the highlighted bounded money, quantity, tax, text, or validity value.
+
+The browser suites are destructive only to the guarded local `_test` database. Stop normal dev servers first, then run `pnpm test:e2e:admin-quotes`, `pnpm test:e2e:customer-quotes`, or `pnpm test:e2e:quotes`. Never point `TEST_DATABASE_URL` at development, staging, or production.
+
 ## Phase 10 decision setup and manual check
 
 From PowerShell at the repository root, apply the decision migrations and

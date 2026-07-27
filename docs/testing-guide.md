@@ -787,3 +787,35 @@ serious/critical axe findings. It never chooses an unrelated development
 request. Run one outcome with `pnpm test:e2e:admin-decisions:approve`,
 `:partial`, or `:reject`. Common failures are Docker Desktop not running,
 missing safe `.env` database URLs, Chromium not installed, or occupied ports.
+
+## Phase 11 quote tests
+
+Run the complete non-browser gate from the repository root:
+
+```powershell
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+Success means Prisma validates/generates, all migrations are applied, RBAC verifies, formatting/lint/typecheck have zero errors, unit/integration tests pass against the isolated `_test` database, and all three production builds complete.
+
+Quote tests cover strict DTOs and BFF allowlists, body-size and malformed-JSON handling, decimal-string parsing, integer-cent/basis-point totals and half-up rounding, permission independence, decision eligibility, quantity bounds, direct database immutability attempts, exact retry/conflicting operation behavior, hash-only capabilities, customer confidentiality, and absence of order/reservation/inventory mutations. PostgreSQL integration coverage includes concurrent first-quote and revision writers, simultaneous accept/reject, explicit rejection, expiry persistence, replacement supersession, capability revocation, disabled users, live permission revocation, and complete bulk/serialized inventory snapshots across create, revise, send, view, and respond. Existing Phase 9/10, cart, auth, RBAC, catalogue, media, and inventory suites remain part of `pnpm test`. Sustained concurrency/load testing remains production-readiness work.
+
+Run focused browser workflows separately with normal dev servers stopped:
+
+```powershell
+pnpm test:e2e:admin-quotes
+pnpm test:e2e:customer-quotes
+pnpm test:e2e:quotes
+```
+
+The admin-focused coverage creates, validates, prices, double-submits safely, adds a charge and tax, verifies the exact total, sends, checks non-reservation wording, exercises dark mode and 320px overflow, and runs axe. The customer coverage exchanges a fragment capability, checks private content, accepts, refreshes terminal state, verifies 320px overflow, and runs axe. The combined command additionally creates an immutable replacement revision, checks history, proves old access is revoked, and rejects the replacement. Expiry is deterministic in PostgreSQL integration coverage rather than delayed in the browser suite. The runner refuses a non-local database, a name not ending `_test`, development/test URL equality, or occupied ports. Common failures are Docker Desktop closed, missing Playwright Chromium (`pnpm exec playwright install chromium`), stale applications using ports 3000/3001/4000, or unsafe/missing `.env` test URLs.

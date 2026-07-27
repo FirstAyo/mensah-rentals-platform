@@ -52,6 +52,14 @@ export const FORBIDDEN_PUBLIC_KEYS = [
   'auditData',
   'quotePrice',
   'unitPrice',
+  'accessTokenHash',
+  'capabilityHash',
+  'createdByUserId',
+  'sentByUserId',
+  'rentalRequestDecisionId',
+  'lifecycleVersion',
+  'reservationId',
+  'rentalOrderId',
 ] as const;
 
 export function expectPublicDataSafe(value: unknown): void {

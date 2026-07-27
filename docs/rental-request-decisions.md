@@ -132,3 +132,7 @@ pnpm test:e2e:admin-decisions:approve
 pnpm test:e2e:admin-decisions:partial
 pnpm test:e2e:admin-decisions:reject
 ```
+
+## Quote continuation
+
+Phase 11 consumes the immutable decision as quote source. It never changes requested or approved quantities. Positive approved lines must appear in each quote revision; zero-approved lines remain historical only. A quote customer response does not alter the decision or request status. See [Custom quotes](quotes.md).

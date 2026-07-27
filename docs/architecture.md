@@ -312,3 +312,11 @@ allows only fixed decision routes. Public tracking uses a separate allowlisted
 mapper and never serializes administrative decision records directly. Decision
 code does not mutate inventory or create quotes, orders, or reservations. See
 [Rental request decisions](rental-request-decisions.md).
+
+## Phase 11 quote architecture
+
+The API now owns a quote aggregate composed of one `Quote` thread, immutable commercial `QuoteRevision` snapshots, separate lifecycle state, items, charges, tax, customer access, customer response, and append-only activity. `latestRevisionId` is the staff work pointer; `customerRevisionId` is the sent/customer pointer. This prevents a new draft from accidentally invalidating an existing sent proposal before the replacement is sent.
+
+Admin mutations pass through fixed Next.js BFF allowlists and require live backend permissions both at the guard and inside the database transaction. Customer access uses a separate revision-scoped HMAC capability, hash-only persistence, fragment bootstrap, and HttpOnly cookie. Customer responses never traverse the staff-auth boundary. All private responses are no-store/noindex. Explicit public mappers and a fail-closed web parser prevent internal quote, decision, staff, RBAC, or inventory fields from crossing the public boundary.
+
+Quote calculations are server-owned integer-cent/basis-point operations and PostgreSQL verifies stored aggregates at transaction commit. No quote code imports an order, reservation, allocation, or inventory mutation service. See [Custom quotes](quotes.md).

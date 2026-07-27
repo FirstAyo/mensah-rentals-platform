@@ -185,3 +185,7 @@ Assignment is frozen once a decision is terminal. Internal notes may still be
 appended. See [Rental request decisions](rental-request-decisions.md). Quotes,
 prices, confirmed orders, reservations, requested-period availability,
 delivery, return, maintenance, customer accounts, and mobile remain deferred.
+
+## Phase 11 continuation
+
+An `APPROVED` or `PARTIALLY_APPROVED` detail now shows **Create quote** to staff with `quote.create`. The quote editor derives its lines from the immutable decision and cannot exceed approved quantities. Quote pricing and customer response are managed in the separate quote aggregate; they do not reopen or rewrite review history. See [Custom quotes](quotes.md).

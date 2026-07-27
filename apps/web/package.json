@@ -18,6 +18,9 @@
     "test:e2e:admin-decisions:approve": "node ../../scripts/run-admin-decisions-e2e.mjs approve",
     "test:e2e:admin-decisions:partial": "node ../../scripts/run-admin-decisions-e2e.mjs partial",
     "test:e2e:admin-decisions:reject": "node ../../scripts/run-admin-decisions-e2e.mjs reject",
+    "test:e2e:admin-quotes": "node ../../scripts/run-admin-decisions-e2e.mjs quotes-admin",
+    "test:e2e:customer-quotes": "node ../../scripts/run-admin-decisions-e2e.mjs quotes-customer",
+    "test:e2e:quotes": "node ../../scripts/run-admin-decisions-e2e.mjs quotes-all",
     "test:e2e:smoke": "playwright test --grep @smoke"
   },
   "dependencies": {

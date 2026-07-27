@@ -110,3 +110,7 @@ partially approved requests. Internal reasons, staff identities, inventory,
 and administrative quote eligibility remain absent. Verified cross-device
 recovery, customer authentication, email notifications, quotes, reservations,
 and orders remain later work.
+
+## Phase 11 tracking boundary
+
+Custom quote viewing is now available through a separate `/quote` capability and cookie. It is intentionally not added to rental-request tracking and does not reuse the guest request session. This separation preserves guest request tracking while ensuring a sent quote is scoped to one revision. Customer accounts, cross-device account recovery, orders, and reservations remain deferred.

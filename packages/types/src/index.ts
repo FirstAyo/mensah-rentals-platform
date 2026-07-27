@@ -301,6 +301,7 @@ export interface AdminRentalRequestActivityResponse {
 
 export interface AdminRentalRequestDecisionItemResponse {
   approvedQuantity: number;
+  id: string;
   rentalRequestItemId: string;
   requestedQuantitySnapshot: number;
 }
@@ -316,6 +317,153 @@ export interface AdminRentalRequestDecisionResponse {
   quoteEligible: boolean;
   reviewVersionAfter: number;
   reviewVersionBefore: number;
+}
+
+export type QuoteRevisionStatus =
+  | 'DRAFT'
+  | 'SENT'
+  | 'VIEWED'
+  | 'ACCEPTED'
+  | 'REJECTED'
+  | 'EXPIRED'
+  | 'SUPERSEDED';
+
+export interface QuoteMoneyResponse {
+  chargeTotalCents: number;
+  discountCents: number;
+  itemSubtotalCents: number;
+  subtotalCents: number;
+  taxableSubtotalCents: number;
+  taxCents: number;
+  totalCents: number;
+}
+
+export interface AdminQuoteItemResponse {
+  approvedQuantity: number;
+  categoryName: string;
+  categorySlug: string;
+  decisionItemId: string;
+  id: string;
+  lineSubtotalCents: number;
+  productName: string;
+  productSlug: string;
+  quotedQuantity: number;
+  rentalUnit: string;
+  sortOrder: number;
+  taxable: boolean;
+  unitPriceCents: number;
+}
+
+export interface AdminQuoteChargeResponse {
+  amountCents: number;
+  id: string;
+  label: string;
+  sortOrder: number;
+  taxable: boolean;
+  type: 'DELIVERY' | 'PICKUP' | 'SETUP' | 'TEARDOWN' | 'LABOUR' | 'OTHER';
+}
+
+export interface AdminQuoteRevisionResponse extends QuoteMoneyResponse {
+  charges: AdminQuoteChargeResponse[];
+  createdAt: string;
+  createdBy: AdminRentalRequestStaffSummary;
+  currency: 'CAD';
+  customerNotes: string | null;
+  customerResponse: {
+    note: string | null;
+    respondedAt: string;
+    response: 'ACCEPTED' | 'REJECTED';
+  } | null;
+  discountTaxable: boolean;
+  id: string;
+  internalNotes: string | null;
+  items: AdminQuoteItemResponse[];
+  lifecycleVersion: number;
+  revisionNumber: number;
+  sentAt: string | null;
+  status: QuoteRevisionStatus;
+  tax: {
+    name: string;
+    rateBasisPoints: number;
+    taxAmountCents: number;
+    taxableAmountCents: number;
+  };
+  terms: string | null;
+  validUntil: string;
+  viewedAt: string | null;
+}
+
+export interface AdminQuoteSummaryResponse {
+  createdAt: string;
+  customerName: string;
+  id: string;
+  quoteNumber: string;
+  rentalRequestId: string;
+  rentalRequestReference: string;
+  revisionNumber: number;
+  status: QuoteRevisionStatus;
+  totalCents: number;
+  validUntil: string;
+}
+
+export interface AdminQuoteDetailResponse {
+  createdAt: string;
+  customer: { companyName: string | null; name: string };
+  customerRevisionId: string | null;
+  id: string;
+  latestRevisionId: string;
+  notice: string;
+  quoteNumber: string;
+  rentalRequest: {
+    id: string;
+    referenceNumber: string;
+    rentalEndDate: string;
+    rentalStartDate: string;
+  };
+  revisions: AdminQuoteRevisionResponse[];
+}
+
+export interface AdminQuoteSendResponse {
+  accessLink: string;
+  quoteId: string;
+  revisionId: string;
+  status: 'SENT';
+}
+
+export interface PublicQuoteResponse extends QuoteMoneyResponse {
+  charges: Array<{
+    amountCents: number;
+    label: string;
+    taxable: boolean;
+    type: AdminQuoteChargeResponse['type'];
+  }>;
+  currency: 'CAD';
+  customerName: string;
+  customerNotes: string | null;
+  items: Array<{
+    approvedQuantity: number;
+    lineSubtotalCents: number;
+    productName: string;
+    productSlug: string;
+    quotedQuantity: number;
+    rentalUnit: string;
+    taxable: boolean;
+    unitPriceCents: number;
+  }>;
+  notice: string;
+  quoteNumber: string;
+  rentalEndDate: string;
+  rentalStartDate: string;
+  revisionNumber: number;
+  status: Exclude<QuoteRevisionStatus, 'DRAFT'>;
+  tax: {
+    name: string;
+    rateBasisPoints: number;
+    taxAmountCents: number;
+    taxableAmountCents: number;
+  };
+  terms: string | null;
+  validUntil: string;
 }
 
 export type InventoryTrackingModeResponse = 'BULK' | 'SERIALIZED';

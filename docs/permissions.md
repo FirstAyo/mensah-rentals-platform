@@ -92,3 +92,13 @@ for another. Default role mappings remain unchanged: SUPER_ADMIN and ADMIN
 have all three. SALES_PERSON has none of the three decision permissions under
 the current intentional mapping, despite having review permissions. EDITOR has
 none.
+
+## Phase 11 quote enforcement
+
+- `quote.view`: list and view internal quote details and revision history.
+- `quote.create`: create the first immutable draft from an eligible request; also requires `rental_request.view`.
+- `quote.update`: create a later immutable revision; also requires `quote.view`.
+- `quote.send`: send the latest draft and create customer access; also requires `quote.view`.
+- `quote.approve`: remains catalogued but intentionally unused in Phase 11 because no managerial approval gate was specified.
+
+SUPER_ADMIN has all five. ADMIN has all five under the existing broad mapping. SALES_PERSON has view/create/update/send but not approve. EDITOR has no quote permissions. Every mutation rechecks ACTIVE status and exact live permissions inside its transaction, so disabling a user or revoking permission takes effect before mutation/replay.

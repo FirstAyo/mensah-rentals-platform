@@ -6,6 +6,7 @@ import {
   FolderTree,
   LayoutDashboard,
   Warehouse,
+  FileText,
 } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -30,6 +31,12 @@ const links = [
     icon: ClipboardList,
     label: 'Rental Requests',
     permission: 'rental_request.view',
+  },
+  {
+    href: '/quotes',
+    icon: FileText,
+    label: 'Quotes',
+    permission: 'quote.view',
   },
   {
     href: '/categories',

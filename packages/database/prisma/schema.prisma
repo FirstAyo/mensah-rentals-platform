@@ -64,6 +64,41 @@ enum RentalRequestFulfillmentMethod {
   DELIVERY_AND_SETUP
 }
 
+enum QuoteRevisionState {
+  DRAFT
+  SENT
+  VIEWED
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  SUPERSEDED
+}
+
+enum QuoteChargeType {
+  DELIVERY
+  PICKUP
+  SETUP
+  TEARDOWN
+  LABOUR
+  OTHER
+}
+
+enum QuoteCustomerResponseKind {
+  ACCEPTED
+  REJECTED
+}
+
+enum QuoteActivityType {
+  QUOTE_CREATED
+  QUOTE_REVISION_CREATED
+  QUOTE_SENT
+  QUOTE_VIEWED
+  QUOTE_ACCEPTED
+  QUOTE_REJECTED
+  QUOTE_EXPIRED
+  QUOTE_SUPERSEDED
+}
+
 model User {
   id           String         @id @default(cuid())
   email        String         @unique
@@ -84,6 +119,10 @@ model User {
   rentalRequestDecisions RentalRequestDecision[] @relation("RentalRequestDecisionActor")
   rentalRequestPreviousAssignments RentalRequestActivity[] @relation("RentalRequestActivityPreviousAssignee")
   rentalRequestNewAssignments RentalRequestActivity[] @relation("RentalRequestActivityNewAssignee")
+  quotesCreated Quote[] @relation("QuoteCreator")
+  quoteRevisionsCreated QuoteRevision[] @relation("QuoteRevisionCreator")
+  quoteRevisionsSent QuoteRevisionLifecycle[] @relation("QuoteRevisionSender")
+  quoteActivities QuoteActivity[] @relation("QuoteActivityActor")
 }
 
 model StaffSession {
@@ -249,6 +288,7 @@ model RentalRequest {
   internalNotes         RentalRequestInternalNote[]
   activities            RentalRequestActivity[]
   decision              RentalRequestDecision?
+  quote                 Quote?
 
   @@index([guestSessionId, submittedAt, id])
   @@index([status, submittedAt, id])
@@ -333,6 +373,7 @@ model RentalRequestDecision {
   decidedBy           User                         @relation("RentalRequestDecisionActor", fields: [decidedByUserId], references: [id], onDelete: Restrict)
   items               RentalRequestDecisionItem[]
   activity            RentalRequestActivity?
+  quoteRevisions      QuoteRevision[]
 
   @@index([decidedByUserId, decidedAt, id])
   @@index([outcome, decidedAt, id])
@@ -347,9 +388,176 @@ model RentalRequestDecisionItem {
   createdAt                 DateTime              @default(now()) @db.Timestamptz(3)
   decision                  RentalRequestDecision @relation(fields: [decisionId], references: [id], onDelete: Restrict)
   rentalRequestItem         RentalRequestItem     @relation(fields: [rentalRequestItemId], references: [id], onDelete: Restrict)
+  quoteItems                QuoteRevisionItem[]
 
   @@unique([decisionId, rentalRequestItemId])
   @@index([decisionId, createdAt, id])
+}
+
+model Quote {
+  id                 String          @id @default(cuid())
+  rentalRequestId    String          @unique
+  quoteNumber        String          @unique
+  latestRevisionId   String?         @unique
+  customerRevisionId String?         @unique
+  createdByUserId    String
+  createdAt          DateTime        @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime        @updatedAt @db.Timestamptz(3)
+  rentalRequest      RentalRequest   @relation(fields: [rentalRequestId], references: [id], onDelete: Restrict)
+  createdBy          User            @relation("QuoteCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  revisions          QuoteRevision[] @relation("QuoteRevisions")
+  latestRevision     QuoteRevision?  @relation("QuoteLatestRevision", fields: [latestRevisionId], references: [id], onDelete: Restrict)
+  customerRevision   QuoteRevision?  @relation("QuoteCustomerRevision", fields: [customerRevisionId], references: [id], onDelete: Restrict)
+  activities         QuoteActivity[]
+
+  @@index([createdAt, id])
+  @@index([createdByUserId, createdAt, id])
+}
+
+model QuoteRevision {
+  id                      String                  @id @default(cuid())
+  quoteId                 String
+  revisionNumber          Int
+  rentalRequestDecisionId String
+  currency                String                  @default("CAD") @db.Char(3)
+  itemSubtotalCents       BigInt
+  chargeTotalCents        BigInt
+  subtotalCents           BigInt
+  discountCents           BigInt
+  discountTaxable         Boolean                 @default(true)
+  taxableSubtotalCents    BigInt
+  taxCents                BigInt
+  totalCents              BigInt
+  customerNotes           String?                 @db.Text
+  internalNotes           String?                 @db.Text
+  terms                   String?                 @db.Text
+  validUntil              DateTime                @db.Timestamptz(3)
+  createdByUserId         String
+  operationId             String                  @unique
+  payloadHash             String                  @db.Char(64)
+  createdAt               DateTime                @default(now()) @db.Timestamptz(3)
+  quote                   Quote                   @relation("QuoteRevisions", fields: [quoteId], references: [id], onDelete: Restrict)
+  decision                RentalRequestDecision   @relation(fields: [rentalRequestDecisionId], references: [id], onDelete: Restrict)
+  createdBy               User                    @relation("QuoteRevisionCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  latestForQuote          Quote?                  @relation("QuoteLatestRevision")
+  customerForQuote        Quote?                  @relation("QuoteCustomerRevision")
+  items                   QuoteRevisionItem[]
+  charges                 QuoteRevisionCharge[]
+  tax                     QuoteRevisionTax?
+  lifecycle               QuoteRevisionLifecycle?
+  customerAccess          QuoteCustomerAccess?
+  customerResponse        QuoteCustomerResponse?
+  activities              QuoteActivity[]
+
+  @@unique([quoteId, revisionNumber])
+  @@index([rentalRequestDecisionId, createdAt, id])
+  @@index([validUntil, id])
+  @@index([totalCents, id])
+}
+
+model QuoteRevisionItem {
+  id                        String                    @id @default(cuid())
+  quoteRevisionId           String
+  rentalRequestDecisionItemId String
+  productIdSnapshot         String
+  productNameSnapshot       String
+  productSlugSnapshot       String
+  categoryNameSnapshot      String
+  categorySlugSnapshot      String
+  rentalUnitSnapshot        String
+  approvedQuantitySnapshot Int
+  quotedQuantity            Int
+  unitPriceCents            BigInt
+  lineSubtotalCents         BigInt
+  taxable                   Boolean                   @default(true)
+  sortOrder                 Int
+  createdAt                 DateTime                  @default(now()) @db.Timestamptz(3)
+  quoteRevision             QuoteRevision             @relation(fields: [quoteRevisionId], references: [id], onDelete: Restrict)
+  decisionItem              RentalRequestDecisionItem @relation(fields: [rentalRequestDecisionItemId], references: [id], onDelete: Restrict)
+
+  @@unique([quoteRevisionId, rentalRequestDecisionItemId])
+  @@unique([quoteRevisionId, sortOrder])
+  @@index([rentalRequestDecisionItemId])
+}
+
+model QuoteRevisionCharge {
+  id              String          @id @default(cuid())
+  quoteRevisionId String
+  type            QuoteChargeType
+  label           String
+  amountCents     BigInt
+  taxable         Boolean         @default(true)
+  sortOrder       Int
+  createdAt       DateTime        @default(now()) @db.Timestamptz(3)
+  quoteRevision   QuoteRevision   @relation(fields: [quoteRevisionId], references: [id], onDelete: Restrict)
+
+  @@unique([quoteRevisionId, sortOrder])
+}
+
+model QuoteRevisionTax {
+  id                   String        @id @default(cuid())
+  quoteRevisionId      String        @unique
+  name                 String
+  rateBasisPoints      Int
+  taxableAmountCents   BigInt
+  taxAmountCents       BigInt
+  createdAt            DateTime      @default(now()) @db.Timestamptz(3)
+  quoteRevision        QuoteRevision @relation(fields: [quoteRevisionId], references: [id], onDelete: Restrict)
+}
+
+model QuoteRevisionLifecycle {
+  quoteRevisionId String             @id
+  state           QuoteRevisionState @default(DRAFT)
+  lifecycleVersion Int               @default(0)
+  sentAt          DateTime?          @db.Timestamptz(3)
+  sentByUserId    String?
+  viewedAt        DateTime?          @db.Timestamptz(3)
+  terminalAt      DateTime?          @db.Timestamptz(3)
+  updatedAt       DateTime           @updatedAt @db.Timestamptz(3)
+  quoteRevision   QuoteRevision      @relation(fields: [quoteRevisionId], references: [id], onDelete: Restrict)
+  sentBy          User?              @relation("QuoteRevisionSender", fields: [sentByUserId], references: [id], onDelete: Restrict)
+
+  @@index([state, updatedAt, quoteRevisionId])
+}
+
+model QuoteCustomerAccess {
+  id              String        @id @default(uuid()) @db.Uuid
+  quoteRevisionId String        @unique
+  tokenHash       String        @unique @db.Char(64)
+  expiresAt       DateTime      @db.Timestamptz(3)
+  revokedAt       DateTime?     @db.Timestamptz(3)
+  createdAt       DateTime      @default(now()) @db.Timestamptz(3)
+  quoteRevision   QuoteRevision @relation(fields: [quoteRevisionId], references: [id], onDelete: Restrict)
+
+  @@index([expiresAt, id])
+}
+
+model QuoteCustomerResponse {
+  id              String                    @id @default(cuid())
+  quoteRevisionId String                    @unique
+  response        QuoteCustomerResponseKind
+  operationId     String                    @unique
+  payloadHash     String                    @db.Char(64)
+  note            String?                   @db.Text
+  respondedAt     DateTime                  @default(now()) @db.Timestamptz(3)
+  quoteRevision   QuoteRevision             @relation(fields: [quoteRevisionId], references: [id], onDelete: Restrict)
+}
+
+model QuoteActivity {
+  id              String            @id @default(cuid())
+  quoteId         String
+  quoteRevisionId String
+  actorUserId     String?
+  type            QuoteActivityType
+  operationId     String?           @unique
+  payloadHash     String?           @db.Char(64)
+  createdAt       DateTime          @default(now()) @db.Timestamptz(3)
+  quote           Quote             @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  quoteRevision   QuoteRevision     @relation(fields: [quoteRevisionId], references: [id], onDelete: Restrict)
+  actor           User?             @relation("QuoteActivityActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([quoteId, createdAt, id])
+  @@index([quoteRevisionId, createdAt, id])
 }
 
 model Inventory {

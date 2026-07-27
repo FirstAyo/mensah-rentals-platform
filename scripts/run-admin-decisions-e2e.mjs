@@ -5,7 +5,15 @@ import { fileURLToPath } from 'node:url';
 import { loadTestEnvironment } from './test-database.mjs';
 
 const mode = process.argv[2] ?? 'all';
-const modes = new Set(['all', 'approve', 'partial', 'reject']);
+const modes = new Set([
+  'all',
+  'approve',
+  'partial',
+  'reject',
+  'quotes-admin',
+  'quotes-customer',
+  'quotes-all',
+]);
 if (!modes.has(mode)) throw new Error(`Unknown decision browser mode: ${mode}`);
 
 const pnpm = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
@@ -180,7 +188,16 @@ try {
     throw new Error(
       `The isolated API rejected its verified test fixture (HTTP ${loginCheck.status}).`,
     );
-  const grep = mode === 'all' ? '@admin-decisions' : `@admin-decisions-${mode}`;
+  const isQuoteMode = mode.startsWith('quotes-');
+  const grep = isQuoteMode
+    ? mode === 'quotes-all'
+      ? '@quotes'
+      : mode === 'quotes-admin'
+        ? '@admin-quotes'
+        : '@customer-quotes'
+    : mode === 'all'
+      ? '@admin-decisions'
+      : `@admin-decisions-${mode}`;
   run(
     pnpm,
     [
@@ -189,7 +206,7 @@ try {
       'exec',
       'playwright',
       'test',
-      'e2e/admin-decisions.spec.ts',
+      isQuoteMode ? 'e2e/quotes.spec.ts' : 'e2e/admin-decisions.spec.ts',
       '--grep',
       grep,
     ],

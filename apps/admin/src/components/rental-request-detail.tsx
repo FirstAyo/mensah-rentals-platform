@@ -76,6 +76,7 @@ function DetailBody({
   canReject,
   canUpdate,
   canViewQuantity,
+  canCreateQuote,
   id,
 }: {
   canAssign: boolean;
@@ -84,6 +85,7 @@ function DetailBody({
   canReject: boolean;
   canUpdate: boolean;
   canViewQuantity: boolean;
+  canCreateQuote: boolean;
   id: string;
 }) {
   const [mutationError, setMutationError] = useState<string | null>(null);
@@ -311,6 +313,16 @@ function DetailBody({
           <span className="rounded-full bg-muted px-3 py-1.5 text-sm font-semibold">
             {humanize(request.status)}
           </span>
+          {canCreateQuote &&
+          (request.status === 'APPROVED' ||
+            request.status === 'PARTIALLY_APPROVED') ? (
+            <Link
+              className="rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground"
+              href={`/rental-requests/${id}/quote`}
+            >
+              Create quote
+            </Link>
+          ) : null}
         </div>
       </header>
 
@@ -710,6 +722,7 @@ export function RentalRequestDetail(props: {
   canReject: boolean;
   canUpdate: boolean;
   canViewQuantity: boolean;
+  canCreateQuote: boolean;
   id: string;
 }) {
   const [client] = useState(() => new QueryClient());

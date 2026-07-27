@@ -415,7 +415,7 @@ describe('rental-request decisions against PostgreSQL', () => {
     expect(await inventorySnapshot()).toEqual(inventoryBaseline);
   });
 
-  it('has no quote, order, or reservation persistence table in Phase 10', async () => {
+  it('keeps Phase 10 decisions separate from orders and reservations after quotes are introduced', async () => {
     const [tables] = await prisma.$queryRaw<
       Array<{
         order_table: string | null;
@@ -428,7 +428,7 @@ describe('rental-request decisions against PostgreSQL', () => {
       to_regclass('public."Reservation"')::text AS reservation_table`;
     expect(tables).toEqual({
       order_table: null,
-      quote_table: null,
+      quote_table: '"Quote"',
       reservation_table: null,
     });
   });

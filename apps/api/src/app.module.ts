@@ -13,6 +13,7 @@ import { ProductMediaModule } from './media/product-media.module';
 import { InventoryModule } from './inventory/inventory.module';
 import { CartModule } from './cart/cart.module';
 import { RentalRequestModule } from './rental-request/rental-request.module';
+import { QuoteModule } from './quote/quote.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { RentalRequestModule } from './rental-request/rental-request.module';
     InventoryModule,
     CartModule,
     RentalRequestModule,
+    QuoteModule,
   ],
   controllers: [HealthController],
   providers: [DatabaseService, HealthService],

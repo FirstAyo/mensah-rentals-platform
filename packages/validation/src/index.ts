@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+export * from './quote';
+
 const environmentBoolean = z
   .enum(['true', 'false'])
   .transform((value) => value === 'true');
@@ -174,6 +176,16 @@ export const apiEnvironmentSchema = z
       .min(1)
       .max(3600)
       .default(60),
+    PUBLIC_QUOTE_ACCESS_SECRET: z
+      .string()
+      .min(32)
+      .default('development-only-change-this-quote-secret'),
+    PUBLIC_QUOTE_ACCESS_TTL_DAYS: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(90)
+      .default(30),
     STAFF_SESSION_COOKIE_NAME: z
       .string()
       .regex(/^[A-Za-z0-9_-]+$/)
@@ -238,6 +250,14 @@ export const apiEnvironmentSchema = z
         code: z.ZodIssueCode.custom,
         message: 'Production request tracking requires a unique secret',
         path: ['PUBLIC_REQUEST_TRACKING_SECRET'],
+      });
+    }
+
+    if (environment.PUBLIC_QUOTE_ACCESS_SECRET.startsWith('development-only')) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Production quote access requires a unique secret',
+        path: ['PUBLIC_QUOTE_ACCESS_SECRET'],
       });
     }
 

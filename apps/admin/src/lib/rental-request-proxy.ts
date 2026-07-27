@@ -39,6 +39,10 @@ const routes = [
     ),
     methods: new Set(['POST']),
   },
+  {
+    pattern: new RegExp(`^${identifier}/quotes$`),
+    methods: new Set(['POST']),
+  },
 ] as const;
 
 const queryKeys = new Set([

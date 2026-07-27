@@ -33,6 +33,7 @@ const decisionSelect = {
     orderBy: [{ createdAt: 'asc' as const }, { id: 'asc' as const }],
     select: {
       approvedQuantity: true,
+      id: true,
       rentalRequestItemId: true,
       requestedQuantitySnapshot: true,
     },

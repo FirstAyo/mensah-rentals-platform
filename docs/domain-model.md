@@ -123,3 +123,9 @@ explanation, operation/payload identity, review versions, and decision time.
 the requested-quantity snapshot and separate approved quantity. Full approval,
 partial approval, and rejection have database-enforced quantity shapes. The
 one-decision policy intentionally defers revision/supersession semantics.
+
+## Implemented quote aggregate
+
+`Quote` is the one-per-request commercial thread and stores only identity, display number, latest/customer revision pointers, creator, and timestamps. `QuoteRevision` is an immutable proposal tied to the authoritative eligible decision. `QuoteRevisionItem`, `QuoteRevisionCharge`, and `QuoteRevisionTax` are immutable financial snapshots. `QuoteRevisionLifecycle` is the narrowly mutable state machine. `QuoteCustomerAccess` holds only a capability hash and expiry/revocation. `QuoteCustomerResponse` records exactly one immutable accept/reject response. `QuoteActivity` is append-only internal history.
+
+Rental Request, Decision, Quote, Revision, Customer Response, future Confirmed Rental Order, and future Inventory Reservation remain different models. Acceptance does not change the terminal request decision and does not create either future model.

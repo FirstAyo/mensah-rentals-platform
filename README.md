@@ -36,6 +36,12 @@ current operational context—not a date-based availability guarantee. This
 phase creates no decision, approved quantity, quote, order, reservation, or
 inventory mutation.
 
+Phase 10 adds immutable approval, partial-approval, and rejection decisions.
+Phase 11 adds custom staff-priced quotes derived from approved decision
+quantities, immutable revisions, exact integer-cent totals, secure customer
+access, and accept/reject responses. A quote is not a confirmed order and does
+not reserve or mutate inventory.
+
 ## Architecture
 
 This pnpm and Turborepo monorepo contains:
@@ -101,6 +107,8 @@ Then open:
 - Private request tracking: http://localhost:3000/track-request
 - Admin staff login: http://localhost:3001/login
 - Admin rental-request queue: http://localhost:3001/rental-requests
+- Admin quotes: http://localhost:3001/quotes
+- Private customer quote: http://localhost:3000/quote (valid capability required)
 - API liveness: http://localhost:4000/health
 - PostgreSQL readiness: http://localhost:4000/health/database
 
@@ -132,6 +140,9 @@ pnpm test:e2e:admin-decisions # Isolated approval/partial/rejection checks
 pnpm test:e2e:admin-decisions:approve # Isolated full-approval check
 pnpm test:e2e:admin-decisions:partial # Isolated partial-approval check
 pnpm test:e2e:admin-decisions:reject  # Isolated rejection check
+pnpm test:e2e:admin-quotes     # Isolated quote creation/send checks
+pnpm test:e2e:customer-quotes  # Isolated private customer quote checks
+pnpm test:e2e:quotes           # Both quote browser suites in one reset
 ```
 
 `pnpm test` includes database-backed integration tests. It automatically uses
@@ -164,8 +175,13 @@ through a development API.
 - [Administrative rental-request review](docs/admin-rental-request-review.md)
 - [Inventory foundation](docs/inventory.md)
 - [Rental-request decisions](docs/rental-request-decisions.md)
+- [Custom quotes](docs/quotes.md)
 
 Phase 10 adds permission-separated approval, partial approval, and rejection,
 immutable decision history, separate approved quantities, and customer-safe
 tracking updates. Decisions create no quote, order, reservation, or inventory
 mutation.
+
+Phase 11 creates immutable custom quote revisions, secure customer access, and
+accept/reject history. Confirmed orders, inventory reservations, date-based
+allocation, and inventory mutation remain deferred to later phases.
