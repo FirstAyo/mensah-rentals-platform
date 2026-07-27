@@ -59,3 +59,22 @@ The schema supports future custom roles (`isSystem = false`). The idempotent see
 `inventory.quantity.view` is required for operational quantities. Customers, guest users, customer accounts, public APIs, and future customer mobile clients must never receive total, available, remaining, reserved, rented, damaged, maintenance, or lost quantities. Frontend hiding is not a security boundary.
 
 Phase 5 uses cumulative checks: metadata requires `inventory.view`; quantities and serialized assets also require `inventory.quantity.view`; mutations additionally require `inventory.adjust`; append-only history additionally requires `inventory.transaction.view`. ADMIN and SUPER_ADMIN have all four. SALES_PERSON has metadata and quantity access only. EDITOR has none.
+
+## Phase 9 rental-request review enforcement
+
+- `rental_request.view` authorizes the internal queue, request detail, notes
+  timeline, and activity timeline.
+- `rental_request.assign`, together with `rental_request.view`, authorizes
+  assignment, reassignment, and unassignment to eligible active staff.
+- `rental_request.update`, together with `rental_request.view`, authorizes
+  appending an internal note and the non-decision
+  `SUBMITTED -> UNDER_REVIEW` transition.
+- `inventory.view` plus `inventory.quantity.view` is required to add current
+  internal inventory totals to a request detail response.
+
+The approval, partial-approval, and rejection permissions are deliberately not
+accepted for ordinary Phase 9 review actions. ADMIN and SUPER_ADMIN have full
+review access under existing mappings. SALES_PERSON has the three review
+permissions and the explicit inventory context permissions. EDITOR has none by
+default. Backend permission checks are authoritative; permission-aware
+navigation does not authorize an action.

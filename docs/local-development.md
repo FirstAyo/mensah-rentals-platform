@@ -781,3 +781,148 @@ database readiness, and at least one active seeded product. A readiness timeout
 or failed group is a failure; do not report it as passing. Responsive checks
 retain 320px coverage, and representative light/dark axe checks cover the
 catalogue, cart, request, and admin login surfaces.
+
+## 28. Run the Phase 9 administrative rental-request review
+
+These steps are for Windows PowerShell. Start Docker Desktop first and wait
+until it says the engine is running. Open PowerShell in the repository root;
+the prompt should end with `mensah-rentals-platform`.
+
+If this is your first setup, or dependencies changed, run:
+
+```powershell
+corepack enable
+corepack prepare pnpm@10.15.1 --activate
+pnpm install
+```
+
+If `.env` does not exist, create the ignored local file and fill in your own
+`STAFF_BOOTSTRAP_*` values. Never put the password in `.env.example` or Git:
+
+```powershell
+Copy-Item .env.example .env
+notepad .env
+```
+
+Start PostgreSQL, validate the schema, generate Prisma Client, and apply the
+Phase 9 migration:
+
+```powershell
+docker compose up -d postgres
+docker compose ps
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm staff:bootstrap
+pnpm rbac:verify
+pnpm catalogue:seed
+```
+
+`docker compose ps` should show `postgres` as healthy. `pnpm db:status` should
+report that the database is up to date and include
+`20260727150000_admin_rental_request_review` and
+`20260727150100_admin_rental_request_review_constraints`. The second migration
+adds status-dependent constraints after PostgreSQL commits the new enum value.
+The RBAC commands are idempotent:
+they preserve custom mappings while ensuring the local bootstrap user has its
+documented `SUPER_ADMIN` role where appropriate.
+
+Phase 9 needs at least one submitted request. If the queue is empty, start the
+applications, open `http://localhost:3000/rentals`, add an active sample item,
+continue through `/cart`, and submit a guest request. Desired quantities need
+not match internal inventory and submission still creates no reservation.
+
+Start all applications and keep this PowerShell window open:
+
+```powershell
+pnpm dev
+```
+
+Then:
+
+1. Open `http://localhost:3001/login`.
+2. Sign in with the email/password stored only in your ignored `.env` as
+   `STAFF_BOOTSTRAP_EMAIL` and `STAFF_BOOTSTRAP_PASSWORD`.
+3. Open `http://localhost:3001/rental-requests`.
+4. Search by reference or customer contact, and test status, assignment,
+   fulfillment, rental-date, sort, and pagination controls.
+5. Open a request. Confirm its contact/project/date information and original
+   requested quantities are present.
+6. Assign an eligible active staff user, reassign if another eligible user is
+   available, and unassign. Assignment never means approval.
+7. Add a non-empty internal note. Confirm its author/time appear in the timeline
+   and that refreshing does not remove it.
+8. Select **Start review** on a `SUBMITTED` request. The only new internal state
+   should be `UNDER_REVIEW`; no approve/reject controls belong to this phase.
+9. If inventory context is visible, confirm the page says: “Current internal
+   inventory context only. Date-based booking conflicts are not yet
+   calculated.”
+10. Log out and confirm the queue/detail can no longer be opened.
+
+For the automated authenticated queue/detail check, keep `pnpm dev` running in
+one PowerShell window and run this in a second window:
+
+```powershell
+pnpm test:e2e:admin-requests
+```
+
+This reads the bootstrap credentials only from the ignored root `.env`, needs
+at least one `SUBMITTED` local request, adds a synthetic internal note, and
+moves that test request to `UNDER_REVIEW`. It also checks dark mode, 320-pixel
+reflow, and serious/critical accessibility findings.
+
+To test concurrency, open the same request in two signed-in browser windows.
+Change assignment in the first, then try a different assignment from the stale
+second window. The second write should show a conflict instead of overwriting
+the first. Refresh before retrying.
+
+To test permissions, use an active local staff user with the intended role:
+
+- `EDITOR` should receive no queue access.
+- `SALES_PERSON` should have its mapped review actions but no decision actions.
+- A custom role with `rental_request.view` and without the two inventory
+  permissions should see the request but no internal quantities.
+
+Role changes are made through the protected RBAC API/admin foundation; never
+edit the database manually. Log out and back in if you want the UI to refresh
+its permission-aware navigation, although the API resolves current permissions
+on protected requests.
+
+Check customer confidentiality in the original browser that submitted the
+request. Open `http://localhost:3000/track-request`, enter the reference, and
+confirm tracking contains no assigned staff, staff IDs, internal note,
+activity, inventory count, review comment, permission, or conflict assessment.
+A private browser without the guest capability should still get the generic
+unavailable state.
+
+Reviewing a request must not create an inventory transaction or reservation.
+The current schema has no reservation model. If you inspect inventory in the
+admin UI before and after Phase 9 actions, its quantities and history must be
+unchanged.
+
+Common Phase 9 problems:
+
+- **401 Unauthorized:** the staff cookie is missing/expired; sign in again at
+  `http://localhost:3001/login` and use `localhost`, not `127.0.0.1`.
+- **403 Forbidden:** the signed-in user lacks the required review or inventory
+  permission. Frontend visibility cannot override API authorization.
+- **409 conflict/stale version:** another write advanced `reviewVersion`;
+  refresh the detail and decide whether to retry.
+- **Assignee rejected:** select an existing active staff user. Disabled users
+  are intentionally ineligible.
+- **No requests:** submit one through the guest customer workflow first.
+- **No inventory counts:** this is expected without both `inventory.view` and
+  `inventory.quantity.view`.
+- **Prisma client/schema mismatch:** stop `pnpm dev`, then rerun
+  `pnpm db:generate`, `pnpm db:migrate`, and `pnpm dev`.
+- **Port already used:** stop the old process using ports 3000, 3001, or 4000,
+  then restart `pnpm dev`.
+
+Press `Ctrl+C` in the development window to stop the applications. To stop
+Docker without deleting the local database volume, run:
+
+```powershell
+docker compose down
+```

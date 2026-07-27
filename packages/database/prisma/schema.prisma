@@ -35,6 +35,15 @@ enum InventoryTransactionKind {
 
 enum RentalRequestStatus {
   SUBMITTED
+  UNDER_REVIEW
+}
+
+enum RentalRequestActivityType {
+  ASSIGNED
+  REASSIGNED
+  UNASSIGNED
+  NOTE_ADDED
+  REVIEW_STARTED
 }
 
 enum RentalRequestFulfillmentMethod {
@@ -57,6 +66,11 @@ model User {
   roles        UserRole[]     @relation("UserRoles")
   roleAssignmentsMade UserRole[] @relation("UserRoleAssignedBy")
   inventoryTransactions InventoryTransaction[] @relation("InventoryTransactionActor")
+  assignedRentalRequests RentalRequest[] @relation("RentalRequestAssignee")
+  rentalRequestNotes RentalRequestInternalNote[] @relation("RentalRequestNoteAuthor")
+  rentalRequestActivities RentalRequestActivity[] @relation("RentalRequestActivityActor")
+  rentalRequestPreviousAssignments RentalRequestActivity[] @relation("RentalRequestActivityPreviousAssignee")
+  rentalRequestNewAssignments RentalRequestActivity[] @relation("RentalRequestActivityNewAssignee")
 }
 
 model StaffSession {
@@ -195,6 +209,7 @@ model RentalRequest {
   submissionPayloadHash String                         @db.Char(64)
   sourceCartTokenHash   String                         @unique @db.Char(64)
   guestSessionId        String?
+  assignedToUserId      String?
   status                RentalRequestStatus            @default(SUBMITTED)
   fulfillmentMethod     RentalRequestFulfillmentMethod
   contactFirstName      String
@@ -211,13 +226,60 @@ model RentalRequest {
   requestedTimeZone     String
   customerNotes         String?                        @db.Text
   submittedAt           DateTime                       @default(now()) @db.Timestamptz(3)
+  assignedAt            DateTime?                      @db.Timestamptz(3)
+  reviewStartedAt       DateTime?                      @db.Timestamptz(3)
+  reviewVersion         Int                            @default(0)
   updatedAt             DateTime                       @updatedAt @db.Timestamptz(3)
   guestSession          GuestRequestSession?           @relation(fields: [guestSessionId], references: [id], onDelete: SetNull)
+  assignedTo            User?                          @relation("RentalRequestAssignee", fields: [assignedToUserId], references: [id], onDelete: Restrict)
   items                 RentalRequestItem[]
+  internalNotes         RentalRequestInternalNote[]
+  activities            RentalRequestActivity[]
 
   @@index([guestSessionId, submittedAt, id])
   @@index([status, submittedAt, id])
+  @@index([assignedToUserId, submittedAt, id])
+  @@index([rentalStartDate, submittedAt, id])
+  @@index([updatedAt, id])
   @@index([contactEmail, submittedAt])
+}
+
+model RentalRequestInternalNote {
+  id              String        @id @default(cuid())
+  rentalRequestId String
+  authorUserId    String
+  operationId     String        @unique
+  body            String        @db.Text
+  createdAt       DateTime      @default(now()) @db.Timestamptz(3)
+  rentalRequest   RentalRequest @relation(fields: [rentalRequestId], references: [id], onDelete: Restrict)
+  author          User          @relation("RentalRequestNoteAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  activity        RentalRequestActivity?
+
+  @@index([rentalRequestId, createdAt, id])
+  @@index([authorUserId, createdAt, id])
+}
+
+model RentalRequestActivity {
+  id                       String                    @id @default(cuid())
+  rentalRequestId          String
+  actorUserId              String?
+  type                     RentalRequestActivityType
+  previousAssigneeUserId   String?
+  newAssigneeUserId        String?
+  noteId                   String?                   @unique
+  previousStatus           RentalRequestStatus?
+  newStatus                RentalRequestStatus?
+  createdAt                DateTime                  @default(now()) @db.Timestamptz(3)
+  rentalRequest            RentalRequest             @relation(fields: [rentalRequestId], references: [id], onDelete: Restrict)
+  actor                    User?                     @relation("RentalRequestActivityActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  previousAssignee         User?                     @relation("RentalRequestActivityPreviousAssignee", fields: [previousAssigneeUserId], references: [id], onDelete: Restrict)
+  newAssignee              User?                     @relation("RentalRequestActivityNewAssignee", fields: [newAssigneeUserId], references: [id], onDelete: Restrict)
+  note                     RentalRequestInternalNote? @relation(fields: [noteId], references: [id], onDelete: Restrict)
+
+  @@index([rentalRequestId, createdAt, id])
+  @@index([actorUserId, createdAt, id])
+  @@index([previousAssigneeUserId])
+  @@index([newAssigneeUserId])
 }
 
 model RentalRequestItem {

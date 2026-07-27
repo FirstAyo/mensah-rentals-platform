@@ -1,6 +1,12 @@
 import type { StaffUserResponse } from '@mensah-rentals/types';
 import { ThemeToggle } from '@mensah-rentals/ui';
-import { Boxes, FolderTree, LayoutDashboard, Warehouse } from 'lucide-react';
+import {
+  Boxes,
+  ClipboardList,
+  FolderTree,
+  LayoutDashboard,
+  Warehouse,
+} from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { LogoutButton } from './logout-button';
@@ -18,6 +24,12 @@ const links = [
     icon: Warehouse,
     label: 'Inventory',
     permission: 'inventory.view',
+  },
+  {
+    href: '/rental-requests',
+    icon: ClipboardList,
+    label: 'Rental Requests',
+    permission: 'rental_request.view',
   },
   {
     href: '/categories',

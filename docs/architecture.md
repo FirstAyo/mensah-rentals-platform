@@ -274,3 +274,30 @@ enabled; normal development records are never used as test fixtures.
 Playwright is partitioned into smoke, catalogue, cart, request, and admin
 groups. A single global setup verifies the customer site, admin login, API,
 database readiness, and seeded catalogue before browser work begins.
+
+## Phase 9 administrative request-review architecture
+
+Phase 9 adds an administrative-only rental-request boundary. The NestJS API
+owns server-side queue search/filter/sort/pagination, internal request detail,
+eligible active-staff assignment, append-only notes/activity, and the single
+non-decision `SUBMITTED -> UNDER_REVIEW` transition. The admin Next.js BFF and
+UI never replace API authentication, live permission checks, validation, or
+transactional integrity.
+
+`RentalRequest.reviewVersion` provides optimistic concurrency for assignment
+and review-state changes. A transaction conditionally advances that version
+and writes the corresponding activity, so stale staff screens cannot silently
+overwrite newer work. Notes use operation IDs for safe retry handling and are
+append-only. Immutable `RentalRequestItem` snapshots remain protected by the
+database.
+
+Internal inventory context is composed only for staff who hold both
+`inventory.view` and `inventory.quantity.view`. It represents current ledger
+state only and is labelled as not calculating requested-date conflicts. Review
+reads and mutations never change Inventory, create InventoryTransaction rows,
+create reservations, or allocate serialized assets.
+
+Administrative and public response mappers remain physically separate. Public
+tracking never receives assignment, staff identity, internal notes/activity,
+inventory context, or internal review details. See [Administrative request
+review](admin-rental-request-review.md).

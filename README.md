@@ -29,6 +29,13 @@ bounded expired-access cleanup, an isolated disposable integration-test
 database, recursive public-data regression checks, and partitioned Playwright
 suites. It does not begin staff request review or any approval workflow.
 
+Phase 9 adds the protected administrative rental-request queue, assignment,
+append-only internal notes and activity, and the `SUBMITTED -> UNDER_REVIEW`
+transition. Internal inventory totals are permission gated and clearly remain
+current operational context—not a date-based availability guarantee. This
+phase creates no decision, approved quantity, quote, order, reservation, or
+inventory mutation.
+
 ## Architecture
 
 This pnpm and Turborepo monorepo contains:
@@ -93,6 +100,7 @@ Then open:
 - Guest rental request: http://localhost:3000/rental-request
 - Private request tracking: http://localhost:3000/track-request
 - Admin staff login: http://localhost:3001/login
+- Admin rental-request queue: http://localhost:3001/rental-requests
 - API liveness: http://localhost:4000/health
 - PostgreSQL readiness: http://localhost:4000/health/database
 
@@ -119,6 +127,7 @@ pnpm test:e2e:catalogue      # Catalogue browser checks
 pnpm test:e2e:cart           # Guest-cart browser checks
 pnpm test:e2e:requests       # Guest-request browser checks
 pnpm test:e2e:admin          # Admin login/protection browser checks
+pnpm test:e2e:admin-requests # Authenticated Phase 9 review browser checks
 ```
 
 `pnpm test` includes database-backed integration tests. It automatically uses
@@ -143,4 +152,5 @@ runner refuses the development database, remote hosts, and names not ending in
 - [Customer website and catalogue](docs/customer-catalogue.md)
 - [Rental cart foundation](docs/rental-cart.md)
 - [Rental request foundation](docs/rental-requests.md)
+- [Administrative rental-request review](docs/admin-rental-request-review.md)
 - [Inventory foundation](docs/inventory.md)

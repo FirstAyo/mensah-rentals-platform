@@ -24,7 +24,7 @@ export function LogoutButton() {
 
   return (
     <button
-      className="inline-flex items-center gap-2 rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-slate-500 hover:text-white disabled:cursor-wait disabled:opacity-60"
+      className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-4 py-2 text-sm font-semibold text-foreground transition hover:bg-muted disabled:cursor-wait disabled:opacity-60"
       disabled={isPending}
       onClick={logout}
       type="button"

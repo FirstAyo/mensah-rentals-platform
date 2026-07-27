@@ -13,6 +13,7 @@
     "test:e2e:cart": "playwright test --grep @cart",
     "test:e2e:requests": "playwright test --grep @requests",
     "test:e2e:admin": "playwright test --grep @admin",
+    "test:e2e:admin-requests": "playwright test --grep @admin-requests",
     "test:e2e:smoke": "playwright test --grep @smoke"
   },
   "dependencies": {

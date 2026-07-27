@@ -106,3 +106,25 @@ authentication/RBAC data, internal storage paths, staff/assignment/rejection
 data, audit information, and premature quote/price fields. The public Next.js
 BFFs also validate successful cart/request DTOs before returning them to the
 browser and fail closed with sanitized `502` responses on a contract violation.
+
+## Administrative rental-request responses
+
+Phase 9 `/admin/rental-requests` responses require an active staff session and
+`rental_request.view`. They may include customer contact/project information,
+rental dates, fulfillment method, immutable request-item snapshots, internal
+review state, safe assignee profile, internal notes, and activity needed for
+authorized review. They never include password hashes, raw or hashed staff
+sessions, guest capability tokens/hashes, cart capability data, raw media
+storage paths, or unrelated authentication/RBAC records.
+
+Internal quantity context has a second authorization boundary: both
+`inventory.view` and `inventory.quantity.view` are required. Without those
+permissions, the same request detail remains usable but omits the inventory
+context entirely. Returned totals are current internal operational state only,
+not requested-date availability.
+
+Public tracking continues to use its own narrow projection and mapper. It never
+receives assignee/staff data, internal notes, internal activity, review
+comments, inventory context, internal conflict assessments, or permissions.
+Recursive confidentiality tests must enforce this at every nesting depth; UI
+hiding is not a control.

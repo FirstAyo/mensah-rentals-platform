@@ -187,6 +187,92 @@ export interface PublicRentalRequestResponse {
   submittedAt: string;
 }
 
+export type AdminRentalRequestStatus = 'SUBMITTED' | 'UNDER_REVIEW';
+
+export interface AdminRentalRequestStaffSummary {
+  firstName: string;
+  id: string;
+  lastName: string;
+}
+
+export type AdminRentalRequestAssigneeResponse = AdminRentalRequestStaffSummary;
+
+export interface AdminRentalRequestSummaryResponse {
+  assignedTo: AdminRentalRequestStaffSummary | null;
+  companyName: string | null;
+  contactEmail: string;
+  contactFirstName: string;
+  contactLastName: string;
+  contactPhone: string;
+  fulfillmentMethod: PublicRentalRequestFulfillmentMethod;
+  id: string;
+  projectName: string;
+  referenceNumber: string;
+  rentalEndDate: string;
+  rentalStartDate: string;
+  reviewVersion: number;
+  status: AdminRentalRequestStatus;
+  submittedAt: string;
+  updatedAt: string;
+}
+
+export interface AdminRentalRequestInventoryContext {
+  notice: string;
+  states: Record<InventoryStateResponse, number>;
+  totalQuantity: number;
+  trackingMode: InventoryTrackingModeResponse;
+}
+
+export interface AdminRentalRequestItemResponse {
+  categoryName: string;
+  categorySlug: string;
+  id: string;
+  inventoryContext?: AdminRentalRequestInventoryContext;
+  productId: string;
+  productName: string;
+  productSlug: string;
+  rentalUnit: string;
+  requestedQuantity: number;
+}
+
+export interface AdminRentalRequestDetailResponse
+  extends AdminRentalRequestSummaryResponse {
+  assignedAt: string | null;
+  customerNotes: string | null;
+  deliveryAddress: string | null;
+  items: AdminRentalRequestItemResponse[];
+  projectLocation: string;
+  projectType: string;
+  requestedTimeZone: string;
+  reviewStartedAt: string | null;
+}
+
+export interface AdminRentalRequestNoteResponse {
+  author: AdminRentalRequestStaffSummary;
+  body: string;
+  createdAt: string;
+  id: string;
+}
+
+export type AdminRentalRequestActivityType =
+  | 'ASSIGNED'
+  | 'REASSIGNED'
+  | 'UNASSIGNED'
+  | 'NOTE_ADDED'
+  | 'REVIEW_STARTED';
+
+export interface AdminRentalRequestActivityResponse {
+  actor: AdminRentalRequestStaffSummary | null;
+  createdAt: string;
+  id: string;
+  newAssignee: AdminRentalRequestStaffSummary | null;
+  newStatus: AdminRentalRequestStatus | null;
+  noteId: string | null;
+  previousAssignee: AdminRentalRequestStaffSummary | null;
+  previousStatus: AdminRentalRequestStatus | null;
+  type: AdminRentalRequestActivityType;
+}
+
 export type InventoryTrackingModeResponse = 'BULK' | 'SERIALIZED';
 export type InventoryStateResponse =
   | 'RENTABLE'

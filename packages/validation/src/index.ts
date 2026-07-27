@@ -496,6 +496,88 @@ export type SubmitRentalRequestInput = z.infer<
 export type SubmitRentalRequestFormInput = z.input<
   typeof submitRentalRequestSchema
 >;
+
+export const rentalRequestAdminStatusSchema = z.enum([
+  'SUBMITTED',
+  'UNDER_REVIEW',
+]);
+
+export const rentalRequestAdminListQuerySchema = z
+  .object({
+    page: boundedPage,
+    pageSize: boundedPageSize,
+    search: z.string().trim().max(160).optional(),
+    status: rentalRequestAdminStatusSchema.optional(),
+    assignment: z
+      .enum(['ALL', 'ASSIGNED', 'UNASSIGNED', 'MINE'])
+      .default('ALL'),
+    assignedToUserId: cuidParamSchema.optional(),
+    fulfillmentMethod: z
+      .enum(['PICKUP', 'DELIVERY', 'DELIVERY_AND_SETUP'])
+      .optional(),
+    rentalStartFrom: rentalDateSchema.optional(),
+    rentalStartTo: rentalDateSchema.optional(),
+    sortBy: z
+      .enum(['submittedAt', 'rentalStartDate', 'updatedAt'])
+      .default('submittedAt'),
+    sortDirection: z.enum(['asc', 'desc']).default('desc'),
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (
+      value.rentalStartFrom &&
+      value.rentalStartTo &&
+      value.rentalStartFrom > value.rentalStartTo
+    )
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['rentalStartTo'],
+        message: 'The end of the rental-start filter must not be earlier.',
+      });
+  });
+
+const expectedReviewVersionSchema = z.number().int().min(0);
+
+export const updateRentalRequestAssignmentSchema = z
+  .object({
+    assigneeUserId: cuidParamSchema,
+    expectedVersion: expectedReviewVersionSchema,
+  })
+  .strict();
+
+export const unassignRentalRequestSchema = z
+  .object({ expectedVersion: expectedReviewVersionSchema })
+  .strict();
+
+export const createRentalRequestInternalNoteSchema = z
+  .object({
+    operationId: z.string().uuid(),
+    body: z.string().trim().min(1).max(3000),
+  })
+  .strict();
+
+export const updateRentalRequestReviewStateSchema = z
+  .object({
+    status: z.literal('UNDER_REVIEW'),
+    expectedVersion: expectedReviewVersionSchema,
+  })
+  .strict();
+
+export type AdminRentalRequestListQuery = z.infer<
+  typeof rentalRequestAdminListQuerySchema
+>;
+export type UpdateRentalRequestAssignmentInput = z.infer<
+  typeof updateRentalRequestAssignmentSchema
+>;
+export type UnassignRentalRequestInput = z.infer<
+  typeof unassignRentalRequestSchema
+>;
+export type CreateRentalRequestInternalNoteInput = z.infer<
+  typeof createRentalRequestInternalNoteSchema
+>;
+export type UpdateRentalRequestReviewStateInput = z.infer<
+  typeof updateRentalRequestReviewStateSchema
+>;
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
 export type CreateProductInput = z.infer<typeof createProductSchema>;

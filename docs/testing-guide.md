@@ -631,3 +631,123 @@ Common failures:
 Phase 8.1 does not implement staff request review, decisions, quotes, orders,
 reservations, operations, customer accounts, mobile applications, or
 production deployment.
+
+## Phase 9 administrative rental-request review verification
+
+Open Docker Desktop. In PowerShell at the repository root, prepare the normal
+development database and authorization catalogue:
+
+```powershell
+docker compose up -d postgres
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+```
+
+Success means PostgreSQL is healthy, Prisma validation/generation finish
+without errors, migrations `20260727150000_admin_rental_request_review` and
+`20260727150100_admin_rental_request_review_constraints` are applied, no
+migration is pending, and RBAC verification succeeds. These
+commands do not prove the feature by themselves.
+
+Run the complete automated code gate:
+
+```powershell
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+Each command must exit with code 0. The tests should cover 401 versus 403,
+default role behavior, permission-gated quantity context, queue pagination,
+search/filter/sort, immutable item snapshots, public confidentiality,
+assignment/reassignment/unassignment and history, disabled-assignee rejection,
+stale-version conflicts, append-only validated notes, the sole
+`SUBMITTED -> UNDER_REVIEW` transition, and non-reservation/non-mutation
+regressions. Do not report the gate as passing unless all commands actually
+finish successfully.
+
+### Manual API and browser checks
+
+First submit at least one guest request through the public site as described in
+[Local development](local-development.md), then keep the stack running:
+
+```powershell
+pnpm dev
+```
+
+In a second PowerShell window, verify service readiness:
+
+```powershell
+(Invoke-WebRequest http://localhost:3000).StatusCode
+(Invoke-WebRequest http://localhost:3001/login).StatusCode
+(Invoke-RestMethod http://localhost:4000/health).status
+(Invoke-RestMethod http://localhost:4000/health/database).database
+```
+
+The websites should return 200, and the health responses should report a
+running API and reachable database without revealing credentials.
+
+Use the browser for cookie-authenticated review testing:
+
+1. Log in at `http://localhost:3001/login` with credentials sourced from your
+   ignored `.env`—never paste the password into documentation or test output.
+2. Open `/rental-requests`; verify reference/customer search, each filter,
+   each sort, pagination, loading, empty, and error behavior.
+3. Verify an unauthenticated browser redirects/blocks the queue (API equivalent
+   is 401) and an authenticated `EDITOR` is denied (API equivalent is 403).
+4. Open a detail and compare its requested quantities/snapshots with the guest
+   submission. Catalogue edits must not alter those snapshots.
+5. Assign, reassign, and unassign an eligible active staff member. Confirm each
+   action is retained in activity history and a disabled user is rejected.
+6. Open the same detail twice. Change assignment in one tab and submit a stale
+   change from the other; the stale write must be rejected, not overwrite.
+7. Add one valid note. Try blank and overlong notes and expect validation
+   errors. Refresh and verify author/time retention without an edit/delete UI.
+8. Start review. Confirm `SUBMITTED` becomes `UNDER_REVIEW`; retrying or an
+   invalid transition must be idempotent or safely rejected.
+9. Confirm no approved quantity, approve/partial/reject action, quote, price,
+   order, reservation, inventory mutation, or inventory transaction appears.
+10. With full inventory permissions, verify current totals and the visible
+    date-conflict limitation. With `rental_request.view` but without either
+    inventory permission, verify the detail still loads and contains no totals.
+11. Open customer tracking in the capability-owning browser and recursively
+    inspect its JSON/rendered output. It must contain no staff/assignee IDs,
+    internal notes/activity, inventory, conflicts, permissions, capabilities,
+    session data, or internal comments.
+12. Log out, refresh both admin routes, and confirm access is not restored.
+
+Repeat queue/detail checks in light and dark themes and at widths 320, 390,
+768, 1024, 1440, and 1920 pixels. At 320 pixels, content may use an intentional
+local table scroller but the page itself must not overflow horizontally. Tab
+through search, filters, pagination, assignment, note form, and start-review;
+labels, focus indicators, error announcements, and status meaning must remain
+usable without a mouse or color alone.
+
+Run the relevant browser partition(s) after the Phase 9 Playwright checks are
+present, keeping `pnpm dev` running:
+
+```powershell
+pnpm test:e2e:smoke
+pnpm test:e2e:admin-requests
+```
+
+The Phase 9 partition signs in using the ignored `.env`, exercises queue search,
+detail, assignment, a synthetic internal note, and start-review, then checks
+dark-mode 320-pixel reflow and serious/critical accessibility findings. It
+requires at least one `SUBMITTED` request and intentionally changes that local
+request to `UNDER_REVIEW`. Success requires every selected Playwright test to
+pass without concealing a failure. Use `pnpm test:e2e:admin` for all admin-tagged
+checks, or the full `pnpm test:e2e` command when validating all earlier public
+catalogue, cart, request, and admin regressions.
+
+Common failures include an unapplied Phase 9 migration, no submitted fixture,
+an expired staff session, missing role permissions, a disabled assignee, stale
+`reviewVersion`, or unavailable Docker/API. A missing inventory panel is not a
+failure when the user lacks quantity permissions. Current counts must never be
+described as available for the requested dates.

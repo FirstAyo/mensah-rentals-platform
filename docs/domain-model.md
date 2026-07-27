@@ -69,6 +69,28 @@ be collapsed into one generic Order entity.
 Future decision records will preserve an approved quantity separately. Partial
 approval must never overwrite the implemented original requested quantity.
 
+### Phase 9 request-review models
+
+`RentalRequest` now has an optional active-staff assignee, `assignedAt`,
+`reviewStartedAt`, and a monotonically advancing `reviewVersion`. The version
+is an optimistic-concurrency boundary for assignment and review-state writes.
+Only `SUBMITTED -> UNDER_REVIEW` is activated; this does not represent a
+decision or approval.
+
+`RentalRequestInternalNote` is an append-only staff-only note with an author,
+validated body, idempotent operation identifier, and timestamp. It is never a
+public/customer DTO field.
+
+`RentalRequestActivity` is append-only history for assignment,
+reassignment/unassignment, note creation, and review start. It preserves actor,
+old/new assignee or old/new state where applicable. These records do not replace
+the future cross-domain `AuditLog` model.
+
+The original `RentalRequestItem.requestedQuantity` and product/category/unit
+snapshots remain immutable. A later decision model will store approved quantity
+separately; Phase 9 deliberately adds no such field and creates no Inventory
+Reservation.
+
 ## Fulfillment and asset care
 
 - **Delivery** records outbound fulfillment where delivery is selected.
