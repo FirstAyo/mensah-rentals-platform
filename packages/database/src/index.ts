@@ -15,6 +15,11 @@ if (process.env.NODE_ENV !== 'production') {
 }
 
 export { runRbacSeed } from './rbac-seed';
+export { cleanupExpiredData } from './expired-cleanup';
+export type {
+  ExpiredCleanupOptions,
+  ExpiredCleanupResult,
+} from './expired-cleanup';
 
 export {
   InventoryState,

@@ -25,7 +25,8 @@ snapshots.
 ## Data model
 
 - `GuestRequestSession` stores only a SHA-256 hash of an opaque guest capability
-  plus its expiry. One browser session may own multiple requests.
+  plus its expiry. One browser session may own multiple requests. It is
+  temporary access metadata and may be removed after expiry.
 - `RentalRequest` stores a random unique `MR-YYYY-XXXXXXXXXX` reference,
   idempotency/source-cart hashes, initial `SUBMITTED` state, fulfillment,
   submitted contact/project/date data, and its guest-session relation.
@@ -62,6 +63,11 @@ single-process deployment. Production should add per-client abuse controls at a
 trusted edge that overwrites untrusted forwarding headers. Before horizontal
 API scaling, replace the in-process counters with a shared reverse-proxy or
 distributed limiter.
+
+`pnpm cleanup:expired` removes expired guest capability sessions in bounded
+batches. The foreign key then sets only `RentalRequest.guestSessionId` to null.
+The request, submitted details, reference, and immutable item snapshots remain;
+the removed capability cannot be reassigned or reactivated.
 
 ## Atomicity and idempotency
 

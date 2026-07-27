@@ -24,6 +24,11 @@ admin foundation. Phase 7 adds the anonymous rental cart. Phase 8 adds secure
 guest request submission and private customer-safe tracking while still creating
 no reservation, availability promise, automatic price, quote, or order.
 
+Phase 8.1 hardens the completed foundations with public-cart throttling,
+bounded expired-access cleanup, an isolated disposable integration-test
+database, recursive public-data regression checks, and partitioned Playwright
+suites. It does not begin staff request review or any approval workflow.
+
 ## Architecture
 
 This pnpm and Turborepo monorepo contains:
@@ -107,7 +112,19 @@ pnpm staff:bootstrap # Idempotently create the local development staff user
 pnpm rbac:seed       # Idempotently seed roles, permissions, and defaults
 pnpm rbac:verify     # Verify seed, uniqueness, and bootstrap SUPER_ADMIN
 pnpm catalogue:seed  # Create missing development-only catalogue samples
+pnpm cleanup:expired:dry-run # Preview bounded expired access cleanup
+pnpm cleanup:expired         # Remove bounded expired access records
+pnpm test:e2e:smoke          # Verify all local services are ready
+pnpm test:e2e:catalogue      # Catalogue browser checks
+pnpm test:e2e:cart           # Guest-cart browser checks
+pnpm test:e2e:requests       # Guest-request browser checks
+pnpm test:e2e:admin          # Admin login/protection browser checks
 ```
+
+`pnpm test` includes database-backed integration tests. It automatically uses
+and resets only the local database named by `TEST_DATABASE_URL`; the guarded
+runner refuses the development database, remote hosts, and names not ending in
+`_test`.
 
 ## Documentation
 
@@ -126,3 +143,4 @@ pnpm catalogue:seed  # Create missing development-only catalogue samples
 - [Customer website and catalogue](docs/customer-catalogue.md)
 - [Rental cart foundation](docs/rental-cart.md)
 - [Rental request foundation](docs/rental-requests.md)
+- [Inventory foundation](docs/inventory.md)

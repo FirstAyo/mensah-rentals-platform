@@ -541,3 +541,93 @@ Manual test:
 The request remains `SUBMITTED`. Staff queues, availability, assignment,
 approval, partial approval, rejection, quotes, reservations, customer accounts,
 email notifications, and orders are deliberately not part of Phase 8.
+
+## Phase 8.1 hardening and regression verification
+
+Ensure the ignored `.env` includes the current `TEST_DATABASE_URL` and cart
+rate-limit values from `.env.example`. Open Docker Desktop, then apply the
+cleanup migration to the normal development database:
+
+```powershell
+docker compose up -d postgres
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:verify
+```
+
+Preview cleanup first, then run it twice to verify idempotent local behavior:
+
+```powershell
+pnpm cleanup:expired:dry-run
+pnpm cleanup:expired
+pnpm cleanup:expired
+```
+
+Success prints bounded counts without identifiers or secrets. The second run
+normally reports zero unless new rows expire between runs. Automated tests prove
+active sessions/carts survive, request and item history survives guest-session
+detachment, inventory history remains append-only, and dry-run changes nothing.
+
+Run the complete code gate:
+
+```powershell
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+`pnpm test` starts and resets only the guarded local `_test` database. Success
+includes the test-database URL guard, cart read/mutation limiter, capability
+isolation, safe 429 responses, recursive public confidentiality, cleanup,
+request rollback/idempotency, and all earlier regression suites. Run it twice;
+both runs must pass without changing normal development inventory/request
+counts. Append-only and immutable triggers must remain enabled.
+
+Prepare browser data and run every disjoint group:
+
+```powershell
+pnpm catalogue:seed
+```
+
+Keep the applications running in another PowerShell window:
+
+```powershell
+pnpm dev
+```
+
+Then run:
+
+```powershell
+pnpm test:e2e:smoke
+pnpm test:e2e:catalogue
+pnpm test:e2e:cart
+pnpm test:e2e:requests
+pnpm test:e2e:admin
+```
+
+Successful smoke output proves web, admin, API, and database readiness. The
+catalogue group covers responsive filtering, media confidentiality, theme, and
+accessibility. Cart covers persistence and quantity 100 without availability
+or reservation claims. Requests cover atomic submission and private tracking.
+Admin covers unauthenticated protection and light/dark accessibility. The
+complete equivalent command is `pnpm test:e2e`; it executes each test once and
+does not conceal failures with retries.
+
+Common failures:
+
+- Test runner refuses the URL: add the distinct local `TEST_DATABASE_URL` from
+  `.env.example`; never weaken the `_test`/localhost guard.
+- Test PostgreSQL is unavailable: open Docker Desktop and rerun `pnpm test`.
+- Browser readiness times out: keep `pnpm dev` running; ensure ports 3000,
+  3001, 4000, and the configured `POSTGRES_PORT` are free; apply migrations;
+  and run `pnpm catalogue:seed`.
+- A cart operation returns 429: wait for the configured local window. The
+  response intentionally reveals no capability, inventory, or counter detail.
+
+Phase 8.1 does not implement staff request review, decisions, quotes, orders,
+reservations, operations, customer accounts, mobile applications, or
+production deployment.

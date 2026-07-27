@@ -89,7 +89,11 @@ export class PublicRentalRequestService {
           throw new ConflictException(
             'This submission identifier has already been used.',
           );
-        if (replay.guestSession.expiresAt <= new Date())
+        if (
+          !replay.guestSession ||
+          !replay.guestSessionId ||
+          replay.guestSession.expiresAt <= new Date()
+        )
           throw new ConflictException(
             'This rental request submission can no longer be replayed.',
           );
@@ -120,7 +124,11 @@ export class PublicRentalRequestService {
           },
         });
         if (committed?.submissionPayloadHash === submissionPayloadHash) {
-          if (committed.guestSession.expiresAt <= new Date())
+          if (
+            !committed.guestSession ||
+            !committed.guestSessionId ||
+            committed.guestSession.expiresAt <= new Date()
+          )
             throw new ConflictException(
               'This rental request submission can no longer be replayed.',
             );

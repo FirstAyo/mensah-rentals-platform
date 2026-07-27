@@ -46,8 +46,11 @@ const products = [
   },
 ] as const;
 
-export async function runCatalogueSeed(prisma: PrismaClient) {
-  if (process.env.NODE_ENV !== 'development') {
+export async function runCatalogueSeed(
+  prisma: PrismaClient,
+  environment: NodeJS.ProcessEnv = process.env,
+) {
+  if (environment.NODE_ENV !== 'development') {
     throw new Error('The catalogue sample seed is development-only.');
   }
 

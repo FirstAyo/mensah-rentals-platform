@@ -50,8 +50,10 @@ This current operational state is not date-based rental availability. Reservatio
 - **CartItem (implemented)** uniquely pairs one Cart and Product and stores the
   customer's bounded `desiredQuantity`. This is not an available, approved, or
   reserved quantity.
-- **GuestRequestSession (implemented)** owns one or more guest requests through
-  a hashed, expiring browser capability. A readable reference is not access.
+- **GuestRequestSession (implemented)** grants temporary access to one or more
+  guest requests through a hashed, expiring browser capability. A readable
+  reference is not access. Cleanup deletes the expired session and nulls only
+  the request's optional access-session link; it never deletes the request.
 - **RentalRequest (implemented)** preserves submitted contact/project/date data,
   fulfillment method, initial `SUBMITTED` state, random reference, and hashed
   idempotency/source-cart identifiers. Submission does not reserve inventory.

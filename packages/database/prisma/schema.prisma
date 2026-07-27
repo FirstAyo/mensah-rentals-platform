@@ -194,7 +194,7 @@ model RentalRequest {
   submissionKeyHash     String                         @unique @db.Char(64)
   submissionPayloadHash String                         @db.Char(64)
   sourceCartTokenHash   String                         @unique @db.Char(64)
-  guestSessionId        String
+  guestSessionId        String?
   status                RentalRequestStatus            @default(SUBMITTED)
   fulfillmentMethod     RentalRequestFulfillmentMethod
   contactFirstName      String
@@ -212,7 +212,7 @@ model RentalRequest {
   customerNotes         String?                        @db.Text
   submittedAt           DateTime                       @default(now()) @db.Timestamptz(3)
   updatedAt             DateTime                       @updatedAt @db.Timestamptz(3)
-  guestSession          GuestRequestSession            @relation(fields: [guestSessionId], references: [id], onDelete: Restrict)
+  guestSession          GuestRequestSession?           @relation(fields: [guestSessionId], references: [id], onDelete: SetNull)
   items                 RentalRequestItem[]
 
   @@index([guestSessionId, submittedAt, id])

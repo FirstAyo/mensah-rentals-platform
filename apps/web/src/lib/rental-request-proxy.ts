@@ -2,9 +2,20 @@ import { NextResponse } from 'next/server';
 import { rentalRequestReferenceSchema } from '@mensah-rentals/validation';
 
 import { rentalRequestConfig } from './rental-request-config';
+import { assertRentalRequestResponse } from './rental-request-client';
 
 const CART_TOKEN_HEADER = 'x-rental-cart-token';
 const REQUEST_TOKEN_HEADER = 'x-rental-request-token';
+
+function safeRentalRequestError(status: number): string {
+  if (status === 400) return 'The rental request details are invalid.';
+  if (status === 404) return 'Rental request not found.';
+  if (status === 409)
+    return 'The rental request changed. Refresh the page and try again.';
+  if (status === 429)
+    return 'Too many rental request attempts. Please try again later.';
+  return 'The rental request could not be completed.';
+}
 
 function cookieValue(request: Request, name: string): string | undefined {
   return request.headers
@@ -77,12 +88,24 @@ export async function proxyRentalRequest(
       body,
       cache: 'no-store',
     });
-    const response = new NextResponse(upstream.body, {
+    const upstreamBody: unknown = await upstream.json().catch(() => null);
+    if (upstream.ok) {
+      try {
+        assertRentalRequestResponse(upstreamBody);
+      } catch {
+        return Response.json(
+          { message: 'Rental request service returned an unsafe response' },
+          { status: 502, headers: { 'Cache-Control': 'private, no-store' } },
+        );
+      }
+    }
+    const browserBody = upstream.ok
+      ? upstreamBody
+      : { message: safeRentalRequestError(upstream.status) };
+    const response = NextResponse.json(browserBody, {
       status: upstream.status,
       headers: {
         'Cache-Control': 'private, no-store',
-        'Content-Type':
-          upstream.headers.get('content-type') ?? 'application/json',
       },
     });
     const nextToken = upstream.headers.get(REQUEST_TOKEN_HEADER);

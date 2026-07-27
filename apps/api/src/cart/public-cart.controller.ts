@@ -9,6 +9,7 @@ import {
   Param,
   Put,
   Res,
+  UseGuards,
 } from '@nestjs/common';
 import {
   catalogueSlugSchema,
@@ -23,10 +24,12 @@ import {
   type CartOperationResult,
   PublicCartService,
 } from './public-cart.service';
+import { PublicCartRateLimitGuard } from './public-cart-rate-limit.guard';
 
 const TOKEN_HEADER = 'x-rental-cart-token';
 
 @Public()
+@UseGuards(PublicCartRateLimitGuard)
 @Controller('public/cart')
 export class PublicCartController {
   constructor(

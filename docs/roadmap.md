@@ -11,6 +11,7 @@ database, API, authorization, UI, documentation, and tests where applicable.
 6. **Customer website and catalogue expansion (complete):** refined public visual design, server-backed combined filters and numbered pagination, bounded related products, accessible media gallery, hardened public projections, and Playwright/axe responsive automation.
 7. **Rental cart (complete):** database-backed guest cart, opaque HttpOnly capability, fixed web BFF, idempotent desired quantities, responsive management UI, and explicit proof that cart actions do not inspect or reserve inventory.
 8. **Rental requests (complete):** guest submission, random references, atomic/idempotent cart conversion, immutable requested quantities, private capability-based customer-safe tracking, and explicit non-reservation tests. Optional customer-account linking remains deferred until customer identity exists.
+   8.1. **Cross-phase hardening (complete):** cart abuse limits, bounded expired-access cleanup, isolated integration-test database, recursive public-data regression checks, and partitioned browser suites. No staff request review or decision workflow is included.
 9. **Admin dashboard and request review:** assignment, internal availability, conflicts, notes, permission-aware metrics.
 10. **Approval decisions:** approve, partially approve, reject, audit history, separate approved quantity, customer-safe explanations.
 11. **Quotes:** staff-entered pricing, revisions, sending, customer responses, decimal money handling.

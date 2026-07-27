@@ -7,6 +7,7 @@ import type { ApiEnvironment } from '@mensah-rentals/validation';
 import { beforeAll, describe, expect, it } from 'vitest';
 
 import { InventoryService } from '../inventory/inventory.service';
+import { expectPublicDataSafe } from '../testing/public-confidentiality.test-utils';
 import { PublicCartService } from './public-cart.service';
 
 describe('public rental cart against PostgreSQL', () => {
@@ -93,9 +94,7 @@ describe('public rental cart against PostgreSQL', () => {
       where: { tokenHash: hashSessionToken(result.rawToken!) },
     });
     expect(stored.tokenHash).not.toBe(result.rawToken);
-    expect(JSON.stringify(result.cart)).not.toMatch(
-      /inventory|available|remaining|reserved|stock|token|price/i,
-    );
+    expectPublicDataSafe(result.cart);
     expect(
       await prisma.inventory.findUniqueOrThrow({ where: { id: inventoryId } }),
     ).toEqual(before.inventory);

@@ -1,8 +1,8 @@
 # Staff authentication
 
-Authentication is for internal staff only. Phase 3 layers staff roles and
-permissions onto it, but does not implement customer accounts or business
-features. Guest customer rental requests remain an explicit future requirement.
+Authentication is for internal staff only. Staff roles and permissions are
+implemented, while customer accounts remain deferred. Implemented guest carts
+and rental requests do not require or reuse staff authentication.
 
 ## Architecture
 
@@ -69,8 +69,8 @@ SameSite is defense in depth, not the only CSRF control. The admin BFF and API
 require the exact configured `ADMIN_ORIGIN` for authentication and protected
 administrative state-changing requests. Auth POST requests must be JSON.
 Foreign or missing origins are rejected. Explicitly public endpoints are not
-mistaken for admin endpoints; future guest rental submissions can apply their
-own public-origin and abuse controls. The BFF accepts only fixed auth paths,
+mistaken for admin endpoints; guest cart/request routes have their own exact
+public-origin and abuse controls. The BFF accepts only fixed auth paths,
 overwrites the upstream Origin header, and does not act as a general-purpose
 proxy.
 
@@ -119,8 +119,8 @@ auditable administrative account lifecycle events.
 
 `User.status` is either `ACTIVE` or `DISABLED`, defaulting to `DISABLED`.
 Disabled users cannot log in. Existing sessions also fail immediately because
-status is checked on every session validation. Session rows are retained until
-logout or cleanup; a future scheduled cleanup should delete expired sessions.
+status is checked on every session validation. `pnpm cleanup:expired` deletes
+expired session rows in bounded batches; active sessions are never selected.
 
 ## Create the first local staff user
 

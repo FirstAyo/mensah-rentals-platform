@@ -7,12 +7,12 @@ allowlisted `select` projections and response mappers construct dedicated DTOs.
 Staff authentication uses its own minimal response contract. It may contain
 safe identity/profile fields, but never `passwordHash`, raw session tokens,
 stored `tokenHash`, or cookie values. Authentication alone does not authorize
-future administrative inventory responses; those will also require the
-explicit internal permission documented below.
+implemented administrative inventory responses; those also require the
+explicit internal permissions documented below.
 
 ## Public product responses (implemented)
 
-Future public product responses may contain:
+Public product responses may contain:
 
 ```json
 {
@@ -99,3 +99,10 @@ This is enforced in database projections, response DTOs/mappers, backend
 authorization, and recursive response-contract tests. Removing fields in the
 browser or spreading a database object and deleting fields afterward is not an
 acceptable control.
+
+Phase 8.1 expands recursive regression coverage across catalogue, cart, and
+request DTOs for all documented inventory states, asset/serial identity,
+authentication/RBAC data, internal storage paths, staff/assignment/rejection
+data, audit information, and premature quote/price fields. The public Next.js
+BFFs also validate successful cart/request DTOs before returning them to the
+browser and fail closed with sanitized `502` responses on a contract violation.

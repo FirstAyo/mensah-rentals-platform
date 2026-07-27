@@ -32,6 +32,24 @@ describe('fixed public cart BFF proxy', () => {
     expect(fetcher).not.toHaveBeenCalled();
   });
 
+  it('enforces the body limit in encoded bytes', async () => {
+    const fetcher = vi.fn();
+    const response = await proxyCart(
+      new Request('http://localhost:3000/api/cart/items/chair', {
+        method: 'PUT',
+        headers: {
+          Origin: 'http://localhost:3000',
+          'Content-Type': 'application/json',
+        },
+        body: 'é'.repeat(600),
+      }),
+      ['items', 'chair'],
+      fetcher,
+    );
+    expect(response.status).toBe(413);
+    expect(fetcher).not.toHaveBeenCalled();
+  });
+
   it('forwards only the named opaque cart token to a fixed upstream path', async () => {
     const fetcher = vi.fn(async () =>
       Response.json({ desiredUnitCount: 0, distinctItemCount: 0, items: [] }),
@@ -102,5 +120,43 @@ describe('fixed public cart BFF proxy', () => {
     );
     expect(response.status).toBe(404);
     expect(fetcher).not.toHaveBeenCalled();
+  });
+
+  it('fails closed before an unsafe successful response reaches the browser', async () => {
+    const fetcher = vi.fn(async () =>
+      Response.json({
+        desiredUnitCount: 0,
+        distinctItemCount: 0,
+        items: [],
+        nested: { availableQuantity: 12, passwordHash: 'private' },
+      }),
+    );
+    const response = await proxyCart(
+      new Request('http://localhost:3000/api/cart'),
+      [],
+      fetcher,
+    );
+    expect(response.status).toBe(502);
+    expect(await response.text()).not.toMatch(
+      /availableQuantity|passwordHash|12/,
+    );
+  });
+
+  it('maps unsafe upstream errors to a known public message', async () => {
+    const fetcher = vi.fn(async () =>
+      Response.json(
+        { message: 'availableQuantity=12 tokenHash=private' },
+        { status: 409 },
+      ),
+    );
+    const response = await proxyCart(
+      new Request('http://localhost:3000/api/cart'),
+      [],
+      fetcher,
+    );
+    expect(response.status).toBe(409);
+    expect(await response.json()).toEqual({
+      message: 'The rental cart changed. Refresh the page and try again.',
+    });
   });
 });

@@ -249,3 +249,28 @@ expose a customer-safe `REQUEST_SUBMITTED` projection and no contact, staff,
 pricing, inventory, availability, or reservation data. Submission never queries
 or mutates inventory. Request pages are noindex and outside the public sitemap.
 See [Rental request foundation](rental-requests.md).
+
+## Phase 8.1 hardening architecture
+
+Public cart reads and mutations use bounded process-local rate counters. Valid
+capabilities receive isolated read/mutation buckets, while tokenless,
+malformed, and rotating traffic also consumes a separately configured high
+global ceiling. The API never treats the shared Next.js BFF socket as one
+customer. Production still requires trusted-edge per-client throttling and a
+shared counter store before horizontal scaling.
+
+Expired `StaffSession`, `Cart`, and `GuestRequestSession` records are temporary
+and removable in ordered, bounded, race-safe batches. Removing an expired guest
+capability sets `RentalRequest.guestSessionId` to null; the durable request and
+immutable item snapshots remain. The database trigger permits only this
+one-way detachment and forbids capability reassignment.
+
+Database integration tests use a dedicated local PostgreSQL database whose
+name must end in `_test`. A guarded runner refuses the development database or
+remote hosts, resets only the test database, reapplies every migration and
+constraint, then executes uncached tests. Append-only inventory triggers remain
+enabled; normal development records are never used as test fixtures.
+
+Playwright is partitioned into smoke, catalogue, cart, request, and admin
+groups. A single global setup verifies the customer site, admin login, API,
+database readiness, and seeded catalogue before browser work begins.

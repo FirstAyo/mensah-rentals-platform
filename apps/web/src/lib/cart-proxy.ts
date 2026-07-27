@@ -2,8 +2,19 @@ import { NextResponse } from 'next/server';
 import { catalogueSlugSchema } from '@mensah-rentals/validation';
 
 import { cartConfig } from './cart-config';
+import { assertCartResponse } from './cart-client';
 
 const TOKEN_HEADER = 'x-rental-cart-token';
+
+function safeCartError(status: number): string {
+  if (status === 400) return 'The rental cart request is invalid.';
+  if (status === 404) return 'The requested rental cart item was not found.';
+  if (status === 409)
+    return 'The rental cart changed. Refresh the page and try again.';
+  if (status === 429)
+    return 'Too many rental cart attempts. Please try again later.';
+  return 'The rental cart could not be updated.';
+}
 
 function cookieValue(request: Request, name: string): string | undefined {
   return request.headers
@@ -63,7 +74,7 @@ export async function proxyCart(
   let body: string | undefined;
   if (request.method === 'PUT') {
     body = await request.text();
-    if (body.length > 1024)
+    if (new TextEncoder().encode(body).byteLength > 1024)
       return Response.json(
         { message: 'Cart request is too large' },
         { status: 413 },
@@ -79,12 +90,24 @@ export async function proxyCart(
       body,
       cache: 'no-store',
     });
-    const response = new NextResponse(upstream.body, {
+    const upstreamBody: unknown = await upstream.json().catch(() => null);
+    if (upstream.ok) {
+      try {
+        assertCartResponse(upstreamBody);
+      } catch {
+        return Response.json(
+          { message: 'Rental cart service returned an unsafe response' },
+          { status: 502, headers: { 'Cache-Control': 'private, no-store' } },
+        );
+      }
+    }
+    const browserBody = upstream.ok
+      ? upstreamBody
+      : { message: safeCartError(upstream.status) };
+    const response = NextResponse.json(browserBody, {
       status: upstream.status,
       headers: {
         'Cache-Control': 'private, no-store',
-        'Content-Type':
-          upstream.headers.get('content-type') ?? 'application/json',
       },
     });
     const nextToken = upstream.headers.get(TOKEN_HEADER);

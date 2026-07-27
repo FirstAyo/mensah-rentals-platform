@@ -10,8 +10,8 @@ reload. Customer authentication is not required.
 The cart is not a rental request, quote, order, reservation, or availability
 calculation. It contains no prices, customer details, project details, rental
 dates, approved quantities, inventory quantities, or reservation records.
-Rental dates and request submission belong to Phase 8, when the complete
-rental-request contract is designed.
+Rental dates and atomic guest request submission are implemented as the
+separate Phase 8 boundary.
 
 ## Data model
 
@@ -88,9 +88,10 @@ module does not import the inventory service or select an inventory relation.
 
 ## Operational follow-ups
 
-Expired rows are rejected immediately even before cleanup. A bounded scheduled
-cleanup task can be added when operations scheduling is introduced. Before a
-public production launch, mutation rate limiting should be enforced at a
-trusted reverse proxy and, if the API is horizontally scaled, use a shared
-limiter store. Redis remains unjustified for the current single-process local
-foundation.
+Expired rows are rejected immediately and `pnpm cleanup:expired` removes them
+in bounded batches. Public cart reads and mutations have separate
+per-capability limits plus a high global ceiling for tokenless, malformed, or
+rotating traffic. Counters are process-local and hard-bounded. Before public
+production launch, add trusted-edge per-client throttling; before horizontal
+API scaling, use a shared limiter store. Redis remains unjustified for the
+current single-process foundation.

@@ -4,12 +4,12 @@ import { runCatalogueSeed } from './catalogue-seed';
 describe('catalogue development seed against PostgreSQL', () => {
   afterAll(async () => prisma.$disconnect());
   it('is idempotent and contains no inventory fields', async () => {
-    const first = await runCatalogueSeed(prisma);
+    const first = await runCatalogueSeed(prisma, { NODE_ENV: 'development' });
     const counts = {
       categories: await prisma.category.count(),
       products: await prisma.product.count(),
     };
-    const second = await runCatalogueSeed(prisma);
+    const second = await runCatalogueSeed(prisma, { NODE_ENV: 'development' });
     expect(second).toEqual({ categoriesCreated: 0, productsCreated: 0 });
     expect({
       categories: await prisma.category.count(),

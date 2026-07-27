@@ -544,7 +544,7 @@ In another PowerShell window, run:
 pnpm test:e2e
 ```
 
-The suite uses Chromium at 320, 390, 768, 1024, 1440, and 1920 pixels. It starts the applications automatically unless they are already running. PostgreSQL must be running and migrations/sample data must already be prepared. On the first local checkout, the separate Playwright install command is required because browser binaries are not stored in Git.
+The suite uses Chromium at 320, 390, 768, 1024, 1440, and 1920 pixels. Keep `pnpm dev` running in a separate PowerShell window first. Every browser command performs explicit readiness checks for the customer website, admin login, API, database connectivity, and seeded public catalogue before tests begin. On the first local checkout, the separate Playwright install command is required because browser binaries are not stored in Git.
 
 Public pages must never show equipment quantities, asset/serial numbers, internal availability, or automatic pricing. Search/filter query variants should be noindex; clean catalogue and unfiltered page URLs keep their documented canonicals.
 
@@ -656,3 +656,128 @@ Common failures:
   password.
 - **429:** the configured local attempt limit was reached; wait for its window
   or restart the single local API process during development.
+
+## 27. Phase 8.1 hardening, cleanup, and isolated tests
+
+If your ignored `.env` predates Phase 8.1, copy these safe local values from
+`.env.example` without overwriting your existing staff credentials:
+
+```text
+TEST_POSTGRES_PORT=5434
+TEST_DATABASE_URL=postgresql://mensah_test:mensah_test_password@localhost:5434/mensah_rentals_test?schema=public
+PUBLIC_CART_READ_RATE_LIMIT=300
+PUBLIC_CART_READ_RATE_WINDOW_SECONDS=60
+PUBLIC_CART_MUTATION_RATE_LIMIT=120
+PUBLIC_CART_MUTATION_RATE_WINDOW_SECONDS=60
+PUBLIC_CART_GLOBAL_RATE_LIMIT=10000
+PUBLIC_CART_GLOBAL_RATE_WINDOW_SECONDS=60
+```
+
+### Run database-backed tests safely
+
+Keep Docker Desktop open, then run:
+
+```powershell
+pnpm test
+```
+
+The command starts the separate `postgres-test` Compose service on port 5434,
+refuses unsafe or remote database URLs, resets only the database whose name ends
+in `_test`, reapplies every migration/trigger, and runs the full test suite.
+Your normal `mensah_rentals_dev` data on port 5432 is not used or deleted.
+Repeated full test runs start from the same clean test schema and do not
+accumulate append-only inventory fixtures in the development database.
+
+To inspect both database containers:
+
+```powershell
+docker compose ps
+```
+
+Stop them without deleting either volume:
+
+```powershell
+docker compose down
+```
+
+Never point `TEST_DATABASE_URL` at development, staging, or production. The
+runner intentionally rejects equal URLs, remote hosts, and names without the
+`_test` suffix.
+
+### Preview and run expired-access cleanup
+
+First apply the Phase 8.1 migration:
+
+```powershell
+docker compose up -d postgres
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+```
+
+Preview the bounded cleanup without deleting anything:
+
+```powershell
+pnpm cleanup:expired:dry-run
+```
+
+Run the cleanup:
+
+```powershell
+pnpm cleanup:expired
+```
+
+Optional bounds can be passed to the package command:
+
+```powershell
+pnpm --filter @mensah-rentals/database cleanup:expired --dry-run --batch-size=100 --max-batches=5
+```
+
+The command removes only expired `StaffSession`, `Cart` (and its temporary
+items), and `GuestRequestSession` rows. Active records remain. Removing an
+expired guest session detaches tracking access but preserves `RentalRequest`
+and immutable `RentalRequestItem` history. It never deletes products,
+inventory, inventory transactions, or other durable business records. Running
+it again is safe. A future VPS can invoke the same command from cron or a
+systemd timer; overlapping workers use `SKIP LOCKED`, and horizontal scheduling
+must still be operationally coordinated.
+
+### Run partitioned browser tests
+
+Prepare the development database and browser once:
+
+```powershell
+docker compose up -d postgres
+pnpm db:migrate
+pnpm catalogue:seed
+pnpm --filter @mensah-rentals/web exec playwright install chromium
+```
+
+In a second PowerShell window, start the complete application stack and keep it
+running:
+
+```powershell
+pnpm dev
+```
+
+Then run each group separately from the first PowerShell window:
+
+```powershell
+pnpm test:e2e:smoke
+pnpm test:e2e:catalogue
+pnpm test:e2e:cart
+pnpm test:e2e:requests
+pnpm test:e2e:admin
+```
+
+Or run the complete browser set once:
+
+```powershell
+pnpm test:e2e
+```
+
+Global setup waits for the customer website, admin login, API liveness,
+database readiness, and at least one active seeded product. A readiness timeout
+or failed group is a failure; do not report it as passing. Responsive checks
+retain 320px coverage, and representative light/dark axe checks cover the
+catalogue, cart, request, and admin login surfaces.

@@ -16,7 +16,7 @@ export default async function LoginPage() {
     <main className="relative flex min-h-screen items-center justify-center bg-background px-6 py-12 text-foreground">
       <ThemeToggle className="absolute right-6 top-6" />
       <section className="w-full max-w-md rounded-3xl border border-border bg-card p-8 shadow-xl sm:p-10">
-        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-primary">
+        <p className="text-sm font-semibold uppercase tracking-[0.18em] text-foreground">
           Staff access
         </p>
         <h1 className="mt-3 text-3xl font-semibold tracking-tight">

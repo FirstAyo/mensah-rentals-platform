@@ -5,6 +5,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { CatalogueRepository } from './catalogue.repository';
 import { CatalogueService } from './catalogue.service';
+import { expectPublicDataSafe } from '../testing/public-confidentiality.test-utils';
 
 describe('catalogue service against PostgreSQL', () => {
   const service = new CatalogueService(new CatalogueRepository());
@@ -89,9 +90,7 @@ describe('catalogue service against PostgreSQL', () => {
       sort: 'name-asc',
     });
     expect(page.items.map(({ name }) => name)).toEqual([`Alpha ${suffix}`]);
-    expect(JSON.stringify(page)).not.toMatch(
-      /inventory|totalQuantity|availableQuantity|assetNumber/i,
-    );
+    expectPublicDataSafe(page);
   });
 
   it('returns bounded active related products through the public allowlist', async () => {
@@ -116,9 +115,7 @@ describe('catalogue service against PostgreSQL', () => {
         'specifications',
       ].sort(),
     );
-    expect(JSON.stringify(detail)).not.toMatch(
-      /inventory|quantity|asset|serial|isActive|createdAt|categoryId/i,
-    );
+    expectPublicDataSafe(detail);
   });
 
   it('paginates active categories with actual database queries', async () => {

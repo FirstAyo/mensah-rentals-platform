@@ -1,4 +1,6 @@
 import { SUPER_ADMIN_ROLE_NAME, SYSTEM_ROLES } from '@mensah-rentals/rbac';
+import { randomUUID } from 'node:crypto';
+
 import { afterAll, describe, expect, it } from 'vitest';
 
 import { prisma } from './index';
@@ -30,8 +32,21 @@ describe('RBAC seed against PostgreSQL', () => {
   });
 
   it('keeps the configured active bootstrap user as SUPER_ADMIN', async () => {
-    const email = process.env.STAFF_BOOTSTRAP_EMAIL?.trim().toLowerCase();
-    expect(email).toBeTruthy();
+    const email = `test-bootstrap-${randomUUID()}@example.test`;
+    await prisma.user.create({
+      data: {
+        email,
+        firstName: 'Test',
+        lastName: 'Bootstrap',
+        passwordHash: 'not-used',
+        status: 'ACTIVE',
+      },
+    });
+    const seeded = await runRbacSeed(prisma, {
+      NODE_ENV: 'development',
+      STAFF_BOOTSTRAP_EMAIL: email,
+    });
+    expect(seeded.bootstrapRoleAssigned).toBe(true);
     const user = await prisma.user.findUnique({
       include: { roles: { include: { role: true } } },
       where: { email },

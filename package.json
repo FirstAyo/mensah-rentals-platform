@@ -25,8 +25,13 @@
     "build": "turbo run build",
     "lint": "eslint . --max-warnings 0",
     "typecheck": "turbo run typecheck",
-    "test": "turbo run test",
+    "test": "node scripts/run-tests.mjs",
     "test:e2e": "pnpm --filter @mensah-rentals/web test:e2e",
+    "test:e2e:catalogue": "pnpm --filter @mensah-rentals/web test:e2e:catalogue",
+    "test:e2e:cart": "pnpm --filter @mensah-rentals/web test:e2e:cart",
+    "test:e2e:requests": "pnpm --filter @mensah-rentals/web test:e2e:requests",
+    "test:e2e:admin": "pnpm --filter @mensah-rentals/web test:e2e:admin",
+    "test:e2e:smoke": "pnpm --filter @mensah-rentals/web test:e2e:smoke",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:validate": "pnpm --filter @mensah-rentals/database db:validate",
@@ -38,7 +43,9 @@
     "rbac:seed": "turbo run build --filter=@mensah-rentals/database && pnpm --filter @mensah-rentals/database rbac:seed",
     "rbac:verify": "turbo run build --filter=@mensah-rentals/database && pnpm --filter @mensah-rentals/database rbac:verify",
     "staff:bootstrap": "pnpm rbac:seed && pnpm --filter @mensah-rentals/database staff:bootstrap",
-    "catalogue:seed": "turbo run build --filter=@mensah-rentals/database && pnpm --filter @mensah-rentals/database catalogue:seed"
+    "catalogue:seed": "turbo run build --filter=@mensah-rentals/database && pnpm --filter @mensah-rentals/database catalogue:seed",
+    "cleanup:expired": "turbo run build --filter=@mensah-rentals/database && pnpm --filter @mensah-rentals/database cleanup:expired",
+    "cleanup:expired:dry-run": "turbo run build --filter=@mensah-rentals/database && pnpm --filter @mensah-rentals/database cleanup:expired --dry-run"
   },
   "devDependencies": {
     "@eslint/js": "9.35.0",

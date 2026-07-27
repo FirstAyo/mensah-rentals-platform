@@ -10,6 +10,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 
 import { PublicCartService } from '../cart/public-cart.service';
 import { InventoryService } from '../inventory/inventory.service';
+import { expectPublicDataSafe } from '../testing/public-confidentiality.test-utils';
 import { PublicRentalRequestService } from './public-rental-request.service';
 
 describe('guest rental requests against PostgreSQL', () => {
@@ -106,9 +107,7 @@ describe('guest rental requests against PostgreSQL', () => {
     );
     expect(result.request.items[0]?.requestedQuantity).toBe(100);
     expect(result.rawRequestToken).toMatch(/^[A-Za-z0-9_-]{43}$/);
-    expect(JSON.stringify(result.request)).not.toMatch(
-      /inventory|available|remaining|reserved|reservation|stock|price|contact|email|notes|token|staff/i,
-    );
+    expectPublicDataSafe(result.request);
     expect(
       await prisma.inventory.findUniqueOrThrow({ where: { id: inventoryId } }),
     ).toEqual(before.inventory);
@@ -185,6 +184,12 @@ describe('guest rental requests against PostgreSQL', () => {
     await expect(
       requests.submit(cart.rawToken, undefined, input),
     ).rejects.toThrow(/can no longer be replayed/i);
+    await expect(
+      requests.track(
+        submitted.rawRequestToken,
+        submitted.request.referenceNumber,
+      ),
+    ).rejects.toThrow('Rental request could not be found.');
     expect(
       (
         await prisma.guestRequestSession.findUniqueOrThrow({
@@ -192,6 +197,26 @@ describe('guest rental requests against PostgreSQL', () => {
         })
       ).expiresAt,
     ).toEqual(expiredAt);
+  });
+
+  it('keeps a different cart intact when an idempotency key is reused with changed data', async () => {
+    const firstCart = await carts.setItem(undefined, productSlug, {
+      desiredQuantity: 2,
+    });
+    const input = payload();
+    await requests.submit(firstCart.rawToken, undefined, input);
+    const secondCart = await carts.setItem(undefined, productSlug, {
+      desiredQuantity: 9,
+    });
+    await expect(
+      requests.submit(secondCart.rawToken, undefined, {
+        ...input,
+        projectName: 'Changed project intent',
+      }),
+    ).rejects.toThrow(/submission identifier has already been used/i);
+    expect((await carts.get(secondCart.rawToken)).cart.desiredUnitCount).toBe(
+      9,
+    );
   });
 
   it('rejects an inactive cart without consuming it', async () => {

@@ -70,7 +70,19 @@ describe('fixed public rental request BFF proxy', () => {
     const fetcher = vi.fn(
       async () =>
         new Response(
-          JSON.stringify({ referenceNumber: 'MR-2026-ABCDEFGH23' }),
+          JSON.stringify({
+            fulfillmentMethod: 'PICKUP',
+            items: [],
+            projectName: 'Test event',
+            referenceNumber: 'MR-2026-ABCDEFGH23',
+            rentalEndDate: '2026-08-03',
+            rentalStartDate: '2026-08-01',
+            status: {
+              key: 'REQUEST_SUBMITTED',
+              label: 'Request submitted',
+            },
+            submittedAt: '2026-07-24T12:00:00.000Z',
+          }),
           {
             headers: {
               'Content-Type': 'application/json',
@@ -101,5 +113,52 @@ describe('fixed public rental request BFF proxy', () => {
       /mensah_rental_request=.*HttpOnly.*SameSite=lax/i,
     );
     expect(await response.text()).not.toContain(capability);
+  });
+
+  it('fails closed before an unsafe successful response reaches the browser', async () => {
+    const fetcher = vi.fn(async () =>
+      Response.json({
+        fulfillmentMethod: 'PICKUP',
+        items: [],
+        projectName: 'Test event',
+        referenceNumber: 'MR-2026-ABCDEFGH23',
+        rentalEndDate: '2026-08-03',
+        rentalStartDate: '2026-08-01',
+        status: { key: 'REQUEST_SUBMITTED', label: 'Request submitted' },
+        submittedAt: '2026-07-24T12:00:00.000Z',
+        nested: { internalStaffNotes: 'private', reservedQuantity: 4 },
+      }),
+    );
+    const response = await proxyRentalRequest(
+      new Request(
+        'http://localhost:3000/api/rental-requests/MR-2026-ABCDEFGH23',
+      ),
+      ['MR-2026-ABCDEFGH23'],
+      fetcher,
+    );
+    expect(response.status).toBe(502);
+    expect(await response.text()).not.toMatch(
+      /internalStaffNotes|reservedQuantity|private/,
+    );
+  });
+
+  it('maps unsafe upstream errors to a known public message', async () => {
+    const fetcher = vi.fn(async () =>
+      Response.json(
+        { message: 'internalStaffNotes=private sessionToken=secret' },
+        { status: 404 },
+      ),
+    );
+    const response = await proxyRentalRequest(
+      new Request(
+        'http://localhost:3000/api/rental-requests/MR-2026-ABCDEFGH23',
+      ),
+      ['MR-2026-ABCDEFGH23'],
+      fetcher,
+    );
+    expect(response.status).toBe(404);
+    expect(await response.json()).toEqual({
+      message: 'Rental request not found.',
+    });
   });
 });

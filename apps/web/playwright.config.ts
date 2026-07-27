@@ -13,6 +13,8 @@ export default defineConfig({
   testDir: './e2e',
   timeout: 60_000,
   fullyParallel: false,
+  globalSetup: './e2e/global-setup.ts',
+  retries: 0,
   workers: 1,
   reporter: 'list',
   use: {
@@ -25,13 +27,4 @@ export default defineConfig({
     name,
     use: { browserName: 'chromium', viewport: { width, height } },
   })),
-  webServer:
-    process.env.PLAYWRIGHT_EXTERNAL_SERVER === 'true'
-      ? undefined
-      : {
-          command: 'pnpm --dir ../.. dev',
-          reuseExistingServer: true,
-          timeout: 180_000,
-          url: 'http://localhost:3000/rentals',
-        },
 });

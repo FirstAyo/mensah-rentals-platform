@@ -16,7 +16,12 @@ Bulk totals are calculated from ledger movements. Serialized totals are calculat
 
 Every mutation reloads the active actor's permissions inside the database transaction, locks the inventory header row, validates the source balance or item state, writes the projection where applicable, and appends history atomically. A transaction-scoped advisory lock serializes the rare inventory-definition creation operation. Inventory creation and every ledger mutation use required unique operation UUIDs to prevent retry duplication; the admin retains one UUID for each user intent and reuses it after uncertain failures. Conflicting reuse returns 409. PostgreSQL triggers reject transaction updates/deletes, serialized items under bulk definitions, cross-mode events, and tracking-mode changes after activity.
 
-The integration tests preserve their randomly named inventory ledger fixtures because history is intentionally immutable. They never disable the append-only database triggers. Use the documented development-database reset only when discarding all local data is appropriate.
+Integration tests run only in the guarded disposable database named by
+`TEST_DATABASE_URL`. The test database is reset and migrated before the full
+suite, so append-only fixtures never accumulate in the normal development
+database. Tests never disable the append-only triggers or delete individual
+ledger entries; resetting the dedicated test database reinstalls the same
+production constraints. Test fixtures use recognizable test-only names.
 
 Corrections use compensating transactions; history is never rewritten.
 

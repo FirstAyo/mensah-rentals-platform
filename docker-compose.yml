@@ -21,5 +21,24 @@ services:
       retries: 10
       start_period: 5s
 
+  postgres-test:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: mensah_test
+      POSTGRES_PASSWORD: mensah_test_password
+      POSTGRES_DB: mensah_rentals_test
+    ports:
+      - '${TEST_POSTGRES_PORT:-5434}:5432'
+    volumes:
+      - postgres_test_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U mensah_test -d mensah_rentals_test']
+      interval: 2s
+      timeout: 5s
+      retries: 20
+      start_period: 3s
+
 volumes:
   postgres_data:
+  postgres_test_data:

@@ -7,7 +7,7 @@
     "build": "nest build",
     "start": "node dist/main.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "dotenv -e ../../.env -- vitest run"
+    "test": "node ../../scripts/run-test-command.mjs vitest run --fileParallelism=false"
   },
   "dependencies": {
     "@mensah-rentals/auth": "workspace:*",

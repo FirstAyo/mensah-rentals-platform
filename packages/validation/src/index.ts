@@ -87,6 +87,42 @@ export const apiEnvironmentSchema = z
       .default('mensah_rental_cart'),
     PUBLIC_CART_COOKIE_SECURE: environmentBoolean.default('false'),
     PUBLIC_CART_TTL_DAYS: z.coerce.number().int().min(1).max(90).default(30),
+    PUBLIC_CART_READ_RATE_LIMIT: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(10000)
+      .default(300),
+    PUBLIC_CART_READ_RATE_WINDOW_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(3600)
+      .default(60),
+    PUBLIC_CART_MUTATION_RATE_LIMIT: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(10000)
+      .default(120),
+    PUBLIC_CART_MUTATION_RATE_WINDOW_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(3600)
+      .default(60),
+    PUBLIC_CART_GLOBAL_RATE_LIMIT: z.coerce
+      .number()
+      .int()
+      .min(100)
+      .max(100000)
+      .default(10000),
+    PUBLIC_CART_GLOBAL_RATE_WINDOW_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(3600)
+      .default(60),
     PUBLIC_REQUEST_COOKIE_NAME: z
       .string()
       .regex(/^[A-Za-z0-9_-]+$/)
