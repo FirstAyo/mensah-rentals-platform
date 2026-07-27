@@ -12,14 +12,20 @@ import {
 } from '@nestjs/common';
 import type { StaffUserResponse } from '@mensah-rentals/types';
 import {
+  approveRentalRequestDecisionSchema,
   createRentalRequestInternalNoteSchema,
   cuidParamSchema,
+  partiallyApproveRentalRequestDecisionSchema,
+  rejectRentalRequestDecisionSchema,
   rentalRequestAdminListQuerySchema,
   unassignRentalRequestSchema,
   updateRentalRequestAssignmentSchema,
   updateRentalRequestReviewStateSchema,
   type AdminRentalRequestListQuery,
+  type ApproveRentalRequestDecisionInput,
   type CreateRentalRequestInternalNoteInput,
+  type PartiallyApproveRentalRequestDecisionInput,
+  type RejectRentalRequestDecisionInput,
   type UnassignRentalRequestInput,
   type UpdateRentalRequestAssignmentInput,
   type UpdateRentalRequestReviewStateInput,
@@ -30,6 +36,7 @@ import { ZodBodyPipe } from '../auth/zod-body.pipe';
 import { RequirePermissions } from '../authorization/require-permissions.decorator';
 import { AdminRentalRequestNoStoreInterceptor } from './admin-rental-request-no-store.interceptor';
 import { AdminRentalRequestService } from './admin-rental-request.service';
+import { RentalRequestDecisionService } from './rental-request-decision.service';
 
 @Controller('admin/rental-requests')
 @UseInterceptors(AdminRentalRequestNoStoreInterceptor)
@@ -37,6 +44,8 @@ export class AdminRentalRequestController {
   constructor(
     @Inject(AdminRentalRequestService)
     private readonly requests: AdminRentalRequestService,
+    @Inject(RentalRequestDecisionService)
+    private readonly decisions: RentalRequestDecisionService,
   ) {}
 
   @Get()
@@ -62,6 +71,51 @@ export class AdminRentalRequestController {
     @Param('id', new ZodBodyPipe(cuidParamSchema)) id: string,
   ) {
     return this.requests.detail(actor, id);
+  }
+
+  @Get(':id/decision')
+  @RequirePermissions('rental_request.view')
+  decision(@Param('id', new ZodBodyPipe(cuidParamSchema)) id: string) {
+    return this.decisions.current(id);
+  }
+
+  @Get(':id/decisions')
+  @RequirePermissions('rental_request.view')
+  decisionHistory(@Param('id', new ZodBodyPipe(cuidParamSchema)) id: string) {
+    return this.decisions.history(id);
+  }
+
+  @Post(':id/decisions/approve')
+  @RequirePermissions('rental_request.view', 'rental_request.approve')
+  approve(
+    @CurrentStaffUser() actor: StaffUserResponse,
+    @Param('id', new ZodBodyPipe(cuidParamSchema)) id: string,
+    @Body(new ZodBodyPipe(approveRentalRequestDecisionSchema))
+    input: ApproveRentalRequestDecisionInput,
+  ) {
+    return this.decisions.approve(actor, id, input);
+  }
+
+  @Post(':id/decisions/partially-approve')
+  @RequirePermissions('rental_request.view', 'rental_request.partially_approve')
+  partiallyApprove(
+    @CurrentStaffUser() actor: StaffUserResponse,
+    @Param('id', new ZodBodyPipe(cuidParamSchema)) id: string,
+    @Body(new ZodBodyPipe(partiallyApproveRentalRequestDecisionSchema))
+    input: PartiallyApproveRentalRequestDecisionInput,
+  ) {
+    return this.decisions.partiallyApprove(actor, id, input);
+  }
+
+  @Post(':id/decisions/reject')
+  @RequirePermissions('rental_request.view', 'rental_request.reject')
+  reject(
+    @CurrentStaffUser() actor: StaffUserResponse,
+    @Param('id', new ZodBodyPipe(cuidParamSchema)) id: string,
+    @Body(new ZodBodyPipe(rejectRentalRequestDecisionSchema))
+    input: RejectRentalRequestDecisionInput,
+  ) {
+    return this.decisions.reject(actor, id, input);
   }
 
   @Put(':id/assignment')

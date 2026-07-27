@@ -177,10 +177,11 @@ names and history are not serialized automatically.
 The reference number is readable identification, not authorization. Phase 9
 does not add customer authentication and does not weaken guest tracking.
 
-## Deliberately deferred
+## Phase 10 continuation
 
-Phase 10 will design and implement approval, partial approval, rejection,
-separate approved quantities, customer-safe decision communication, and the
-corresponding decision audit history. Quotes, prices, confirmed orders,
-reservations, requested-period availability, delivery, return, maintenance,
-customer accounts, and the mobile application remain later work.
+Phase 10 now adds approval, partial approval, rejection, separate approved
+quantities, safe decision communication, and append-only decision history.
+Assignment is frozen once a decision is terminal. Internal notes may still be
+appended. See [Rental request decisions](rental-request-decisions.md). Quotes,
+prices, confirmed orders, reservations, requested-period availability,
+delivery, return, maintenance, customer accounts, and mobile remain deferred.

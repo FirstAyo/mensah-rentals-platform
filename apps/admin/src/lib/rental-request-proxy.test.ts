@@ -111,6 +111,11 @@ describe('rental-request BFF', () => {
       ['GET', 'requestid/notes'],
       ['POST', 'requestid/notes'],
       ['GET', 'requestid/activity'],
+      ['GET', 'requestid/decision'],
+      ['GET', 'requestid/decisions'],
+      ['POST', 'requestid/decisions/approve'],
+      ['POST', 'requestid/decisions/partially-approve'],
+      ['POST', 'requestid/decisions/reject'],
       ['PUT', 'requestid/assignment'],
       ['DELETE', 'requestid/assignment'],
       ['PUT', 'requestid/review-state'],
@@ -132,7 +137,7 @@ describe('rental-request BFF', () => {
       );
       expect(response.status).toBe(200);
     }
-    expect(fetcher).toHaveBeenCalledTimes(7);
+    expect(fetcher).toHaveBeenCalledTimes(12);
   });
 
   it('returns a stable unavailable response when the API cannot be reached', async () => {

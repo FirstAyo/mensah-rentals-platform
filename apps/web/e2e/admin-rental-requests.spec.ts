@@ -27,7 +27,7 @@ async function login(page: Page) {
   await expect(page).toHaveURL('http://localhost:3001/');
 }
 
-test('@admin-requests authenticated review workflow remains non-decision and non-reserving', async ({
+test('@admin-requests authenticated review and approval workflow remains non-reserving', async ({
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'desktop-1024');
@@ -53,9 +53,7 @@ test('@admin-requests authenticated review workflow remains non-decision and non
   await expect(
     page.getByText(/does not reserve or change inventory/i).first(),
   ).toBeVisible();
-  await expect(
-    page.getByRole('button', { name: /approve|reject/i }),
-  ).toHaveCount(0);
+  await expect(page.getByText(/start review before recording/i)).toBeVisible();
 
   const assignment = page.getByLabel('Assigned staff');
   const current = await assignment.inputValue();
@@ -79,6 +77,38 @@ test('@admin-requests authenticated review workflow remains non-decision and non
   await expect(page.getByRole('button', { name: 'Start review' })).toHaveCount(
     0,
   );
+  await page
+    .getByLabel('Internal reason', { exact: true })
+    .fill('Browser-tested approval reason');
+  await page
+    .getByLabel('Customer-safe explanation')
+    .fill('Your requested equipment has been approved for the next step.');
+  await page.getByRole('button', { name: 'Approve', exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Confirm final decision' }),
+  ).toBeVisible();
+  const dialogResults = await new AxeBuilder({ page })
+    .include('dialog')
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+    .analyze();
+  expect(
+    dialogResults.violations.filter((violation) =>
+      ['critical', 'serious'].includes(violation.impact ?? ''),
+    ),
+  ).toEqual([]);
+  await page.keyboard.press('Escape');
+  await expect(
+    page.getByRole('heading', { name: 'Confirm final decision' }),
+  ).not.toBeVisible();
+  await expect(
+    page.getByRole('button', { name: 'Approve', exact: true }),
+  ).toBeFocused();
+  await page.getByRole('button', { name: 'Approve', exact: true }).click();
+  await page.getByRole('button', { name: 'Confirm decision' }).click();
+  await expect(page.getByText('Approved').first()).toBeVisible();
+  await expect(page.getByText(/quote eligibility: eligible/i)).toBeVisible();
+  await expect(page.getByText(/does not create a quote, order/i)).toBeVisible();
+  await expect(page.getByLabel('Assigned staff')).toHaveCount(0);
 
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])

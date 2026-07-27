@@ -301,3 +301,14 @@ Administrative and public response mappers remain physically separate. Public
 tracking never receives assignment, staff identity, internal notes/activity,
 inventory context, or internal review details. See [Administrative request
 review](admin-rental-request-review.md).
+
+## Phase 10 decision boundary
+
+The API owns `UNDER_REVIEW -> APPROVED | PARTIALLY_APPROVED | REJECTED`. It
+authorizes the exact action, rechecks live permissions inside a row-locking
+transaction, stores an append-only decision with complete line snapshots,
+appends activity, and advances the optimistic review version. The admin BFF
+allows only fixed decision routes. Public tracking uses a separate allowlisted
+mapper and never serializes administrative decision records directly. Decision
+code does not mutate inventory or create quotes, orders, or reservations. See
+[Rental request decisions](rental-request-decisions.md).

@@ -128,3 +128,15 @@ receives assignee/staff data, internal notes, internal activity, review
 comments, inventory context, internal conflict assessments, or permissions.
 Recursive confidentiality tests must enforce this at every nesting depth; UI
 hiding is not a control.
+
+Phase 10 public tracking may add a customer-safe decision outcome,
+customer-safe explanation, decision time, and approved quantity only for full
+or partial approval. Rejection omits approved quantities. It never exposes the
+internal reason, deciding staff identity, operation/payload identifiers,
+review versions, administrative quote eligibility, or inventory data. Admin
+decision DTOs are separate and are never serialized into public responses.
+Customer explanations are revalidated at the public mapping boundary. Unsafe
+legacy or directly inserted text is replaced with a generic server-owned
+message; it is never copied through merely because it exists in the database.
+The web BFF additionally validates decision scalar types, terminal outcome,
+timestamp, and exact server-owned notice text before returning a response.

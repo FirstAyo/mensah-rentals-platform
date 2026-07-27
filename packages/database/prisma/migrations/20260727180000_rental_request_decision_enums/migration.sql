@@ -1,0 +1,7 @@
+ALTER TYPE "RentalRequestStatus" ADD VALUE 'APPROVED';
+ALTER TYPE "RentalRequestStatus" ADD VALUE 'PARTIALLY_APPROVED';
+ALTER TYPE "RentalRequestStatus" ADD VALUE 'REJECTED';
+
+ALTER TYPE "RentalRequestActivityType" ADD VALUE 'APPROVED';
+ALTER TYPE "RentalRequestActivityType" ADD VALUE 'PARTIALLY_APPROVED';
+ALTER TYPE "RentalRequestActivityType" ADD VALUE 'REJECTED';

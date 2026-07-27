@@ -165,6 +165,7 @@ export type PublicRentalRequestFulfillmentMethod =
   | 'DELIVERY_AND_SETUP';
 
 export interface PublicRentalRequestItemResponse {
+  approvedQuantity?: number;
   categoryName: string;
   categorySlug: string;
   productName: string;
@@ -173,21 +174,43 @@ export interface PublicRentalRequestItemResponse {
   requestedQuantity: number;
 }
 
+export type PublicRentalRequestDecisionOutcome =
+  | 'APPROVED'
+  | 'PARTIALLY_APPROVED'
+  | 'REJECTED';
+
+export interface PublicRentalRequestDecisionResponse {
+  customerExplanation: string | null;
+  decidedAt: string;
+  notice: string;
+  outcome: PublicRentalRequestDecisionOutcome;
+}
+
+export type PublicRentalRequestStatus =
+  | { key: 'REQUEST_SUBMITTED'; label: 'Request submitted' }
+  | { key: 'UNDER_REVIEW'; label: 'Under review' }
+  | { key: 'APPROVED'; label: 'Request approved' }
+  | { key: 'PARTIALLY_APPROVED'; label: 'Request partially approved' }
+  | { key: 'REJECTED'; label: 'Request not approved' };
+
 export interface PublicRentalRequestResponse {
+  decision: PublicRentalRequestDecisionResponse | null;
   fulfillmentMethod: PublicRentalRequestFulfillmentMethod;
   items: PublicRentalRequestItemResponse[];
   projectName: string;
   referenceNumber: string;
   rentalEndDate: string;
   rentalStartDate: string;
-  status: {
-    key: 'REQUEST_SUBMITTED';
-    label: 'Request submitted';
-  };
+  status: PublicRentalRequestStatus;
   submittedAt: string;
 }
 
-export type AdminRentalRequestStatus = 'SUBMITTED' | 'UNDER_REVIEW';
+export type AdminRentalRequestStatus =
+  | 'SUBMITTED'
+  | 'UNDER_REVIEW'
+  | 'APPROVED'
+  | 'PARTIALLY_APPROVED'
+  | 'REJECTED';
 
 export interface AdminRentalRequestStaffSummary {
   firstName: string;
@@ -259,7 +282,10 @@ export type AdminRentalRequestActivityType =
   | 'REASSIGNED'
   | 'UNASSIGNED'
   | 'NOTE_ADDED'
-  | 'REVIEW_STARTED';
+  | 'REVIEW_STARTED'
+  | 'APPROVED'
+  | 'PARTIALLY_APPROVED'
+  | 'REJECTED';
 
 export interface AdminRentalRequestActivityResponse {
   actor: AdminRentalRequestStaffSummary | null;
@@ -271,6 +297,25 @@ export interface AdminRentalRequestActivityResponse {
   previousAssignee: AdminRentalRequestStaffSummary | null;
   previousStatus: AdminRentalRequestStatus | null;
   type: AdminRentalRequestActivityType;
+}
+
+export interface AdminRentalRequestDecisionItemResponse {
+  approvedQuantity: number;
+  rentalRequestItemId: string;
+  requestedQuantitySnapshot: number;
+}
+
+export interface AdminRentalRequestDecisionResponse {
+  customerExplanation: string | null;
+  decidedAt: string;
+  decidedBy: AdminRentalRequestStaffSummary;
+  id: string;
+  internalReason: string;
+  items: AdminRentalRequestDecisionItemResponse[];
+  outcome: PublicRentalRequestDecisionOutcome;
+  quoteEligible: boolean;
+  reviewVersionAfter: number;
+  reviewVersionBefore: number;
 }
 
 export type InventoryTrackingModeResponse = 'BULK' | 'SERIALIZED';

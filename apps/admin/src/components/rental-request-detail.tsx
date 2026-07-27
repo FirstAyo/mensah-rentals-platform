@@ -30,6 +30,7 @@ import {
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
+import { RentalRequestDecisionPanel } from './rental-request-decision-panel';
 
 const field =
   'w-full rounded-lg border border-border bg-background px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
@@ -70,11 +71,17 @@ async function failureMessage(response: Response, fallback: string) {
 
 function DetailBody({
   canAssign,
+  canApprove,
+  canPartiallyApprove,
+  canReject,
   canUpdate,
   canViewQuantity,
   id,
 }: {
   canAssign: boolean;
+  canApprove: boolean;
+  canPartiallyApprove: boolean;
+  canReject: boolean;
   canUpdate: boolean;
   canViewQuantity: boolean;
   id: string;
@@ -475,7 +482,9 @@ function DetailBody({
               Assignment coordinates staff work. It does not approve the
               request.
             </p>
-            {canAssign ? (
+            {canAssign &&
+            (request.status === 'SUBMITTED' ||
+              request.status === 'UNDER_REVIEW') ? (
               <form
                 className="mt-4 space-y-3"
                 onSubmit={assignmentForm.handleSubmit(assign)}
@@ -547,6 +556,14 @@ function DetailBody({
               <p className="mt-4 font-semibold">{humanize(request.status)}</p>
             )}
           </section>
+
+          <RentalRequestDecisionPanel
+            canApprove={canApprove}
+            canPartiallyApprove={canPartiallyApprove}
+            canReject={canReject}
+            onCompleted={refreshReviewState}
+            request={request}
+          />
         </aside>
       </div>
 
@@ -688,6 +705,9 @@ function DetailBody({
 
 export function RentalRequestDetail(props: {
   canAssign: boolean;
+  canApprove: boolean;
+  canPartiallyApprove: boolean;
+  canReject: boolean;
   canUpdate: boolean;
   canViewQuantity: boolean;
   id: string;

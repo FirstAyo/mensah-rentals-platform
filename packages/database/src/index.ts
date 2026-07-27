@@ -26,6 +26,7 @@ export {
   InventoryTrackingMode,
   InventoryTransactionKind,
   RentalRequestActivityType,
+  RentalRequestDecisionOutcome,
   RentalRequestStatus,
   UserStatus,
 } from '@prisma/client';

@@ -287,6 +287,7 @@ export class AdminRentalRequestService {
       ]);
       const request = await this.lockRequest(tx, id);
       this.requireVersion(request.reviewVersion, input.expectedVersion);
+      this.requireOpenReview(request.status);
       if (request.assignedToUserId === input.assigneeUserId)
         throw new ConflictException('Request is already assigned to this user');
       const assignee = await tx.user.findFirst({
@@ -345,6 +346,7 @@ export class AdminRentalRequestService {
       ]);
       const request = await this.lockRequest(tx, id);
       this.requireVersion(request.reviewVersion, input.expectedVersion);
+      this.requireOpenReview(request.status);
       if (!request.assignedToUserId)
         throw new ConflictException('Request is not currently assigned');
       await tx.rentalRequest.update({
@@ -588,6 +590,16 @@ export class AdminRentalRequestService {
     if (current !== expected)
       throw new ConflictException(
         'This request changed since it was loaded. Refresh and try again.',
+      );
+  }
+
+  private requireOpenReview(status: RentalRequestStatus) {
+    if (
+      status !== RentalRequestStatus.SUBMITTED &&
+      status !== RentalRequestStatus.UNDER_REVIEW
+    )
+      throw new ConflictException(
+        'Assignment cannot change after a rental request decision',
       );
   }
 

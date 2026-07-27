@@ -9,8 +9,12 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { hashSessionToken } from '@mensah-rentals/auth';
 import { prisma, type Prisma } from '@mensah-rentals/database';
-import type { PublicRentalRequestResponse } from '@mensah-rentals/types';
+import type {
+  PublicRentalRequestResponse,
+  PublicRentalRequestStatus,
+} from '@mensah-rentals/types';
 import {
+  customerDecisionExplanationSchema,
   rentalRequestReferenceSchema,
   type ApiEnvironment,
   type SubmitRentalRequestInput,
@@ -20,6 +24,19 @@ const TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
 const REFERENCE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
 const requestSelect = {
+  decision: {
+    select: {
+      customerExplanation: true,
+      decidedAt: true,
+      items: {
+        select: {
+          approvedQuantity: true,
+          rentalRequestItemId: true,
+        },
+      },
+      outcome: true,
+    },
+  },
   fulfillmentMethod: true,
   id: true,
   items: {
@@ -27,6 +44,7 @@ const requestSelect = {
     select: {
       categoryName: true,
       categorySlug: true,
+      id: true,
       productName: true,
       productSlug: true,
       rentalUnit: true,
@@ -331,15 +349,69 @@ export class PublicRentalRequestService {
   }
 
   private map(request: SelectedRequest): PublicRentalRequestResponse {
+    const approvedByItem = new Map(
+      request.decision?.items.map((item) => [
+        item.rentalRequestItemId,
+        item.approvedQuantity,
+      ]) ?? [],
+    );
+    const exposesApprovedQuantity =
+      request.status === 'APPROVED' || request.status === 'PARTIALLY_APPROVED';
+    const safeExplanation = request.decision?.customerExplanation
+      ? customerDecisionExplanationSchema.safeParse(
+          request.decision.customerExplanation,
+        )
+      : null;
+    const customerExplanation = safeExplanation?.success
+      ? safeExplanation.data
+      : request.decision?.customerExplanation
+        ? 'Please contact Mensah Rentals for an update about your request.'
+        : null;
     return {
+      decision: request.decision
+        ? {
+            customerExplanation,
+            decidedAt: request.decision.decidedAt.toISOString(),
+            notice:
+              request.decision.outcome === 'REJECTED'
+                ? 'This decision is not a quote or final order.'
+                : 'Approved quantities may be used to prepare a future custom quote. This decision is not a reservation, quote, or final order.',
+            outcome: request.decision.outcome,
+          }
+        : null,
       fulfillmentMethod: request.fulfillmentMethod,
-      items: request.items,
+      items: request.items.map(({ id, ...item }) => ({
+        ...item,
+        ...(exposesApprovedQuantity
+          ? { approvedQuantity: approvedByItem.get(id) }
+          : {}),
+      })),
       projectName: request.projectName,
       referenceNumber: request.referenceNumber,
       rentalEndDate: request.rentalEndDate.toISOString().slice(0, 10),
       rentalStartDate: request.rentalStartDate.toISOString().slice(0, 10),
-      status: { key: 'REQUEST_SUBMITTED', label: 'Request submitted' },
+      status: this.publicStatus(request.status),
       submittedAt: request.submittedAt.toISOString(),
     };
+  }
+
+  private publicStatus(
+    status: SelectedRequest['status'],
+  ): PublicRentalRequestStatus {
+    switch (status) {
+      case 'SUBMITTED':
+        return { key: 'REQUEST_SUBMITTED', label: 'Request submitted' };
+      case 'UNDER_REVIEW':
+        return { key: 'UNDER_REVIEW', label: 'Under review' };
+      case 'APPROVED':
+        return { key: 'APPROVED', label: 'Request approved' };
+      case 'PARTIALLY_APPROVED':
+        return {
+          key: 'PARTIALLY_APPROVED',
+          label: 'Request partially approved',
+        };
+      case 'REJECTED':
+        return { key: 'REJECTED', label: 'Request not approved' };
+    }
   }
 }

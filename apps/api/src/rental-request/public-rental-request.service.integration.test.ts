@@ -120,6 +120,88 @@ describe('guest rental requests against PostgreSQL', () => {
     expect((await carts.get(cart.rawToken)).cart.items).toEqual([]);
   });
 
+  it('returns only customer-safe partial-decision fields when tracked', async () => {
+    const cart = await carts.setItem(undefined, productSlug, {
+      desiredQuantity: 5,
+    });
+    const submitted = await requests.submit(
+      cart.rawToken,
+      undefined,
+      payload(),
+    );
+    const stored = await prisma.rentalRequest.findUniqueOrThrow({
+      where: { referenceNumber: submitted.request.referenceNumber },
+      include: { items: true },
+    });
+    await prisma.$transaction(async (tx) => {
+      await tx.rentalRequest.update({
+        where: { id: stored.id },
+        data: {
+          reviewStartedAt: new Date(),
+          reviewVersion: 1,
+          status: 'UNDER_REVIEW',
+        },
+      });
+      const decision = await tx.rentalRequestDecision.create({
+        data: {
+          customerExplanation: 'Only 12 units are available in inventory.',
+          decidedByUserId: actorId,
+          internalReason: 'PRIVATE-INTERNAL-DECISION-SENTINEL',
+          operationId: randomUUID(),
+          outcome: 'PARTIALLY_APPROVED',
+          payloadHash: 'a'.repeat(64),
+          rentalRequestId: stored.id,
+          reviewVersionAfter: 2,
+          reviewVersionBefore: 1,
+          items: {
+            create: stored.items.map((item) => ({
+              approvedQuantity: 3,
+              rentalRequestItemId: item.id,
+              requestedQuantitySnapshot: item.requestedQuantity,
+            })),
+          },
+        },
+      });
+      await tx.rentalRequestActivity.create({
+        data: {
+          actorUserId: actorId,
+          decisionId: decision.id,
+          newStatus: 'PARTIALLY_APPROVED',
+          previousStatus: 'UNDER_REVIEW',
+          rentalRequestId: stored.id,
+          type: 'PARTIALLY_APPROVED',
+        },
+      });
+      await tx.rentalRequest.update({
+        where: { id: stored.id },
+        data: {
+          reviewStartedAt: new Date(),
+          reviewVersion: 2,
+          status: 'PARTIALLY_APPROVED',
+        },
+      });
+    });
+    const tracked = (
+      await requests.track(
+        submitted.rawRequestToken,
+        submitted.request.referenceNumber,
+      )
+    ).request;
+    expect(tracked.items[0]?.approvedQuantity).toBe(3);
+    expect(tracked.decision).toMatchObject({
+      customerExplanation:
+        'Please contact Mensah Rentals for an update about your request.',
+      outcome: 'PARTIALLY_APPROVED',
+    });
+    expect(JSON.stringify(tracked)).not.toContain(
+      'Only 12 units are available in inventory.',
+    );
+    expect(JSON.stringify(tracked)).not.toContain(
+      'PRIVATE-INTERNAL-DECISION-SENTINEL',
+    );
+    expectPublicDataSafe(tracked);
+  });
+
   it('replays the same submission idempotently and allows only the owning guest capability to track', async () => {
     const cart = await carts.setItem(undefined, productSlug, {
       desiredQuantity: 3,

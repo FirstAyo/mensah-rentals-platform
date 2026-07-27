@@ -113,3 +113,13 @@ Reservations will use date ranges and account for overlap, operational states,
 and both bulk and serialized inventory. The design must prevent concurrent
 double-booking through database transactions/locking or constraints; a frontend
 check or ordinary availability query is insufficient.
+
+## Implemented decision models
+
+`RentalRequestDecision` is the single immutable terminal decision for a
+request. It stores outcome, actor, internal reason, optional customer-safe
+explanation, operation/payload identity, review versions, and decision time.
+`RentalRequestDecisionItem` covers every immutable request item and stores both
+the requested-quantity snapshot and separate approved quantity. Full approval,
+partial approval, and rejection have database-enforced quantity shapes. The
+one-decision policy intentionally defers revision/supersession semantics.

@@ -6,12 +6,14 @@ import { AdminRentalRequestService } from './admin-rental-request.service';
 import { PublicRentalRequestController } from './public-rental-request.controller';
 import { PublicRentalRequestRateLimitGuard } from './public-rental-request-rate-limit.guard';
 import { PublicRentalRequestService } from './public-rental-request.service';
+import { RentalRequestDecisionService } from './rental-request-decision.service';
 
 @Module({
   controllers: [AdminRentalRequestController, PublicRentalRequestController],
   providers: [
     AdminRentalRequestNoStoreInterceptor,
     AdminRentalRequestService,
+    RentalRequestDecisionService,
     PublicRentalRequestService,
     PublicRentalRequestRateLimitGuard,
   ],

@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  approveRentalRequestDecisionSchema,
   createRentalRequestInternalNoteSchema,
+  partiallyApproveRentalRequestDecisionSchema,
   rentalRequestAdminListQuerySchema,
+  rejectRentalRequestDecisionSchema,
   unassignRentalRequestSchema,
   updateRentalRequestAssignmentSchema,
   updateRentalRequestReviewStateSchema,
@@ -93,5 +96,78 @@ describe('administrative rental-request validation', () => {
         body: '   ',
       }).success,
     ).toBe(false);
+  });
+
+  it('validates strict approval, partial approval, and rejection payloads', () => {
+    const common = {
+      expectedReviewVersion: 1,
+      internalReason: '  Documented internal reason  ',
+      operationId: '00000000-0000-4000-8000-000000000000',
+    };
+    expect(approveRentalRequestDecisionSchema.parse(common)).toMatchObject({
+      internalReason: 'Documented internal reason',
+    });
+    expect(
+      partiallyApproveRentalRequestDecisionSchema.safeParse({
+        ...common,
+        customerExplanation: 'We can support part of your request.',
+        items: [
+          { approvedQuantity: 3, rentalRequestItemId: cuid },
+          { approvedQuantity: 2, rentalRequestItemId: cuid },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      rejectRentalRequestDecisionSchema.safeParse({
+        ...common,
+        customerExplanation: 'Only 2 items remain in inventory.',
+      }).success,
+    ).toBe(false);
+    expect(
+      rejectRentalRequestDecisionSchema.safeParse({
+        ...common,
+        customerExplanation: 'Only 12 units remain.',
+      }).success,
+    ).toBe(false);
+    expect(
+      rejectRentalRequestDecisionSchema.safeParse({
+        ...common,
+        customerExplanation: 'Another customer has equipment reserved.',
+      }).success,
+    ).toBe(false);
+    expect(
+      rejectRentalRequestDecisionSchema.safeParse({
+        ...common,
+        customerExplanation: 'We are unable to support this request.',
+      }).success,
+    ).toBe(true);
+    for (const customerExplanation of [
+      'Please contact us before 5 PM.',
+      'Your event date can be moved to August 12.',
+      'We can discuss an alternative package for 20 guests.',
+      'Our staff will contact you about MR-2026-ABC123.',
+      'This does not reserve equipment.',
+    ])
+      expect(
+        rejectRentalRequestDecisionSchema.safeParse({
+          ...common,
+          customerExplanation,
+        }).success,
+      ).toBe(true);
+    for (const customerExplanation of [
+      'Only 12 units are available.',
+      'Another customer reserved 30.',
+      'Five units are damaged.',
+      'Warehouse count is 42.',
+      'We have twelve on hand.',
+      'Only １２ units are available.',
+      'The asset number is ABC-123.',
+    ])
+      expect(
+        rejectRentalRequestDecisionSchema.safeParse({
+          ...common,
+          customerExplanation,
+        }).success,
+      ).toBe(false);
   });
 });

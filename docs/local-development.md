@@ -209,7 +209,64 @@ Preserve local database data and stop the container:
 docker compose down
 ```
 
+## Phase 10 decision setup and manual check
+
+From PowerShell at the repository root, apply the decision migrations and
+confirm the existing permission catalogue:
+
+```powershell
+docker compose up -d postgres postgres-test
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+pnpm dev
+```
+
+Open `http://localhost:3001/login` and sign in with the ignored `.env` bootstrap
+credentials. Open `http://localhost:3001/rental-requests`, choose a submitted
+request, and select **Start review**. Enter an internal reason. For partial
+approval or rejection, also enter a customer-safe explanation; for partial
+approval, set every approved quantity. Select the action, review the confirmation
+dialog, and confirm. The terminal summary must retain both requested and
+approved quantities. The customer tracking page is
+`http://localhost:3000/track-request` and requires the original browser
+capability.
+
+If a `409` appears, the request changed after it was loaded. The form keeps its
+entries; reload the request and verify the latest decision/version before
+trying a new valid action. A `403` means the signed-in user lacks the exact
+decision permission. Decision actions are available only from `UNDER_REVIEW`.
+
 Do not add `-v` unless you intentionally want to erase local database data.
+
+### Isolated Phase 10 decision browser tests
+
+Close any normal `pnpm dev` process first. These commands intentionally reset
+only the local database named by `TEST_DATABASE_URL`; the safety guard rejects
+remote hosts, the normal development database, and database names that do not
+end in `_test`:
+
+```powershell
+docker compose up -d postgres-test
+pnpm test:e2e:admin-decisions
+```
+
+The complete command covers approval on desktop/light, partial approval at
+320px/dark, and rejection on desktop/light. It creates every request it decides
+through the guest workflow and retains the originating browser capability for
+customer-tracking assertions. Focused commands are:
+
+```powershell
+pnpm test:e2e:admin-decisions:approve
+pnpm test:e2e:admin-decisions:partial
+pnpm test:e2e:admin-decisions:reject
+```
+
+The runner starts and stops the applications itself. It does not create quotes,
+orders, reservations, inventory transactions, or serialized-asset assignments.
 
 ## 15. Restart local development
 

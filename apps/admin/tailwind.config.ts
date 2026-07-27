@@ -16,6 +16,7 @@ const config: Config = {
         'muted-foreground': 'hsl(var(--muted-foreground))',
         border: 'hsl(var(--border))',
         primary: 'hsl(var(--primary))',
+        'primary-foreground': 'hsl(var(--primary-foreground))',
         ring: 'hsl(var(--ring))',
       },
     },

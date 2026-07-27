@@ -500,6 +500,9 @@ export type SubmitRentalRequestFormInput = z.input<
 export const rentalRequestAdminStatusSchema = z.enum([
   'SUBMITTED',
   'UNDER_REVIEW',
+  'APPROVED',
+  'PARTIALLY_APPROVED',
+  'REJECTED',
 ]);
 
 export const rentalRequestAdminListQuerySchema = z
@@ -563,6 +566,98 @@ export const updateRentalRequestReviewStateSchema = z
   })
   .strict();
 
+const rentalRequestDecisionOperationSchema = z.object({
+  operationId: z.string().uuid(),
+  expectedReviewVersion: expectedReviewVersionSchema,
+  internalReason: z
+    .string()
+    .trim()
+    .min(1, { message: 'Enter an internal reason.' })
+    .max(3000),
+});
+
+const confidentialDecisionLanguage =
+  /\b(?:inventory|stock|warehouse\s+count|on[\s-]+hand|availability|available|remain(?:s|ing)?|reserved|damaged|maintenance|lost|serial(?:\s+number)?|asset(?:\s+number)?|owned|in[\s-]+use)\b/i;
+const thirdPartyDecisionLanguage =
+  /\b(?:another|other)\s+(?:customer|client|booking|request)\b/i;
+const htmlLikeMarkup = /<[^>]*>/u;
+
+export function normalizeCustomerDecisionExplanation(value: string) {
+  return value.normalize('NFKC').replace(/\s+/gu, ' ').trim();
+}
+
+export function isCustomerDecisionExplanationSafe(value: string) {
+  const normalized = normalizeCustomerDecisionExplanation(value);
+  const hasControlCharacter = [...normalized].some((character) => {
+    const code = character.codePointAt(0)!;
+    return (
+      code === 127 || (code < 32 && code !== 9 && code !== 10 && code !== 13)
+    );
+  });
+  return (
+    normalized.length >= 1 &&
+    normalized.length <= 2000 &&
+    !hasControlCharacter &&
+    !htmlLikeMarkup.test(normalized) &&
+    !confidentialDecisionLanguage.test(normalized) &&
+    !thirdPartyDecisionLanguage.test(normalized)
+  );
+}
+
+export const customerDecisionExplanationSchema = z
+  .string()
+  .min(1, { message: 'Enter a customer-safe explanation.' })
+  .max(2000)
+  .transform(normalizeCustomerDecisionExplanation)
+  .refine(isCustomerDecisionExplanationSafe, {
+    message:
+      'Use customer-safe wording without internal inventory, asset-condition, or other-customer details.',
+  });
+
+export const approveRentalRequestDecisionSchema =
+  rentalRequestDecisionOperationSchema
+    .extend({
+      customerExplanation: customerDecisionExplanationSchema
+        .nullable()
+        .optional(),
+    })
+    .strict();
+
+export const partiallyApproveRentalRequestDecisionSchema =
+  rentalRequestDecisionOperationSchema
+    .extend({
+      customerExplanation: customerDecisionExplanationSchema,
+      items: z
+        .array(
+          z
+            .object({
+              rentalRequestItemId: cuidParamSchema,
+              approvedQuantity: z.number().int().min(0).max(1000),
+            })
+            .strict(),
+        )
+        .min(1)
+        .max(100)
+        .superRefine((items, context) => {
+          const seen = new Set<string>();
+          items.forEach((item, index) => {
+            if (seen.has(item.rentalRequestItemId))
+              context.addIssue({
+                code: z.ZodIssueCode.custom,
+                path: [index, 'rentalRequestItemId'],
+                message: 'Each requested item may appear only once.',
+              });
+            seen.add(item.rentalRequestItemId);
+          });
+        }),
+    })
+    .strict();
+
+export const rejectRentalRequestDecisionSchema =
+  rentalRequestDecisionOperationSchema
+    .extend({ customerExplanation: customerDecisionExplanationSchema })
+    .strict();
+
 export type AdminRentalRequestListQuery = z.infer<
   typeof rentalRequestAdminListQuerySchema
 >;
@@ -577,6 +672,15 @@ export type CreateRentalRequestInternalNoteInput = z.infer<
 >;
 export type UpdateRentalRequestReviewStateInput = z.infer<
   typeof updateRentalRequestReviewStateSchema
+>;
+export type ApproveRentalRequestDecisionInput = z.infer<
+  typeof approveRentalRequestDecisionSchema
+>;
+export type PartiallyApproveRentalRequestDecisionInput = z.infer<
+  typeof partiallyApproveRentalRequestDecisionSchema
+>;
+export type RejectRentalRequestDecisionInput = z.infer<
+  typeof rejectRentalRequestDecisionSchema
 >;
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;

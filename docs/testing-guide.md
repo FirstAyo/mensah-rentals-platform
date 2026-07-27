@@ -751,3 +751,39 @@ an expired staff session, missing role permissions, a disabled assignee, stale
 `reviewVersion`, or unavailable Docker/API. A missing inventory panel is not a
 failure when the user lacks quantity permissions. Current counts must never be
 described as available for the requested dates.
+
+## Phase 10 approval-decision tests
+
+Run the authoritative test workflow from PowerShell. It starts and safely
+resets only the isolated database whose name ends in `_test`, applies every
+migration, then runs all package and API tests:
+
+```powershell
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+Success means every command exits with code 0. Decision coverage includes full,
+partial, and rejected quantity shapes; original-quantity immutability; exact
+permission enforcement; inactive-user rejection; stale-version conflicts;
+idempotent replay; append-only database triggers; customer-safe projection;
+and proof that inventory transactions do not change.
+
+Stop normal applications on ports 3000, 3001, and 4000, then run:
+
+```powershell
+pnpm test:e2e:admin-decisions
+```
+
+The focused runner refuses an already-running application, validates that
+`TEST_DATABASE_URL` is local, differs from `DATABASE_URL`, and ends in `_test`,
+then resets only that isolated database. It creates temporary staff,
+catalogue, and guest-request fixtures and verifies approval, partial approval,
+rejection, customer-safe tracking, terminal controls, responsive behavior, and
+serious/critical axe findings. It never chooses an unrelated development
+request. Run one outcome with `pnpm test:e2e:admin-decisions:approve`,
+`:partial`, or `:reject`. Common failures are Docker Desktop not running,
+missing safe `.env` database URLs, Chromium not installed, or occupied ports.

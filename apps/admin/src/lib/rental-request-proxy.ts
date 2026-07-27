@@ -25,6 +25,20 @@ const routes = [
     pattern: new RegExp(`^${identifier}/activity$`),
     methods: new Set(['GET']),
   },
+  {
+    pattern: new RegExp(`^${identifier}/decision$`),
+    methods: new Set(['GET']),
+  },
+  {
+    pattern: new RegExp(`^${identifier}/decisions$`),
+    methods: new Set(['GET']),
+  },
+  {
+    pattern: new RegExp(
+      `^${identifier}/decisions/(approve|partially-approve|reject)$`,
+    ),
+    methods: new Set(['POST']),
+  },
 ] as const;
 
 const queryKeys = new Set([

@@ -2,7 +2,7 @@ import type { PublicRentalRequestResponse } from '@mensah-rentals/types';
 import type { SubmitRentalRequestInput } from '@mensah-rentals/validation';
 
 const forbidden =
-  /inventory|availability|available|remaining|reserved|reservation|stock|price|approved|internal|staff|role|permission|password|token|hash|contact|email|phone|address|notes|cart|customer/i;
+  /inventory|availability|available|remaining|reserved|reservation|stock|price|internal|staff|role|permission|password|token|hash|contact|email|phone|address|notes|cart|actor|decidedby|operation|version/i;
 
 function object(
   value: unknown,
@@ -33,6 +33,7 @@ export function assertRentalRequestResponse(
     value,
     [
       'fulfillmentMethod',
+      'decision',
       'items',
       'projectName',
       'referenceNumber',
@@ -46,16 +47,24 @@ export function assertRentalRequestResponse(
   if (!Array.isArray(value.items))
     throw new Error('Invalid rental request response.');
   object(value.status, ['key', 'label'], 'request status');
-  if (
-    value.status.key !== 'REQUEST_SUBMITTED' ||
-    value.status.label !== 'Request submitted'
-  )
+  const statuses = new Map([
+    ['REQUEST_SUBMITTED', 'Request submitted'],
+    ['UNDER_REVIEW', 'Under review'],
+    ['APPROVED', 'Request approved'],
+    ['PARTIALLY_APPROVED', 'Request partially approved'],
+    ['REJECTED', 'Request not approved'],
+  ]);
+  if (statuses.get(String(value.status.key)) !== value.status.label)
     throw new Error('Invalid rental request status.');
+  const exposesApproved =
+    value.status.key === 'APPROVED' ||
+    value.status.key === 'PARTIALLY_APPROVED';
   for (const item of value.items) {
     object(
       item,
       [
         'categoryName',
+        'approvedQuantity',
         'categorySlug',
         'productName',
         'productSlug',
@@ -66,6 +75,47 @@ export function assertRentalRequestResponse(
     );
     if (!Number.isInteger(item.requestedQuantity))
       throw new Error('Invalid requested quantity.');
+    if (
+      exposesApproved !== Object.hasOwn(item, 'approvedQuantity') ||
+      (exposesApproved &&
+        (!Number.isInteger(item.approvedQuantity) ||
+          Number(item.approvedQuantity) < 0 ||
+          Number(item.approvedQuantity) > Number(item.requestedQuantity)))
+    )
+      throw new Error('Invalid approved quantity.');
+  }
+  const terminal = ['APPROVED', 'PARTIALLY_APPROVED', 'REJECTED'].includes(
+    String(value.status.key),
+  );
+  if (terminal !== Boolean(value.decision))
+    throw new Error('Invalid request decision.');
+  if (value.decision) {
+    object(
+      value.decision,
+      ['customerExplanation', 'decidedAt', 'notice', 'outcome'],
+      'request decision',
+    );
+    if (value.decision.outcome !== value.status.key)
+      throw new Error('Invalid request decision outcome.');
+    const explanation = value.decision.customerExplanation;
+    if (
+      explanation !== null &&
+      (typeof explanation !== 'string' ||
+        explanation.length < 1 ||
+        explanation.length > 2000)
+    )
+      throw new Error('Invalid customer decision explanation.');
+    if (
+      typeof value.decision.decidedAt !== 'string' ||
+      Number.isNaN(Date.parse(value.decision.decidedAt))
+    )
+      throw new Error('Invalid decision timestamp.');
+    const expectedNotice =
+      value.decision.outcome === 'REJECTED'
+        ? 'This decision is not a quote or final order.'
+        : 'Approved quantities may be used to prepare a future custom quote. This decision is not a reservation, quote, or final order.';
+    if (value.decision.notice !== expectedNotice)
+      throw new Error('Invalid request decision notice.');
   }
 }
 

@@ -77,4 +77,18 @@ accepted for ordinary Phase 9 review actions. ADMIN and SUPER_ADMIN have full
 review access under existing mappings. SALES_PERSON has the three review
 permissions and the explicit inventory context permissions. EDITOR has none by
 default. Backend permission checks are authoritative; permission-aware
-navigation does not authorize an action.
+navigation does not authorize an action. The three review permissions here are
+`view`, `assign`, and `update`; they are not decision authority.
+
+Phase 10 uses the decision permissions independently:
+
+- `rental_request.approve` records full approval.
+- `rental_request.partially_approve` records exact per-line partial approval.
+- `rental_request.reject` records rejection.
+
+Each also requires `rental_request.view`, an active staff session, and a live
+transaction-time permission recheck. One decision permission never substitutes
+for another. Default role mappings remain unchanged: SUPER_ADMIN and ADMIN
+have all three. SALES_PERSON has none of the three decision permissions under
+the current intentional mapping, despite having review permissions. EDITOR has
+none.

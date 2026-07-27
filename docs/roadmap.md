@@ -13,7 +13,7 @@ database, API, authorization, UI, documentation, and tests where applicable.
 8. **Rental requests (complete):** guest submission, random references, atomic/idempotent cart conversion, immutable requested quantities, private capability-based customer-safe tracking, and explicit non-reservation tests. Optional customer-account linking remains deferred until customer identity exists.
    8.1. **Cross-phase hardening (complete):** cart abuse limits, bounded expired-access cleanup, isolated integration-test database, recursive public-data regression checks, and partitioned browser suites. No staff request review or decision workflow is included.
 9. **Administrative rental-request review (complete):** protected server-side queue, eligible-staff assignment with optimistic concurrency, append-only internal notes/activity, the non-decision `SUBMITTED -> UNDER_REVIEW` transition, and permission-gated current inventory context. No requested-date availability, reservation, decision, or dashboard metrics are included.
-10. **Approval decisions:** approve, partially approve, reject, audit history, separate approved quantity, customer-safe explanations.
+10. **Approval decisions (complete):** permission-separated approve, partial approval, and rejection; immutable decision records; separate approved quantities; customer-safe explanations; concurrency/idempotency protection; and explicit non-reservation proof.
 11. **Quotes:** staff-entered pricing, revisions, sending, customer responses, decimal money handling.
 12. **Confirmed rental orders:** accepted-quote conversion and operational order lifecycle.
 13. **Date-based reservations:** half-open UTC ranges, concurrency-safe bulk/serialized allocation, overlap and double-booking tests.

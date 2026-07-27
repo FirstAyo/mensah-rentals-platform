@@ -1,6 +1,12 @@
 'use client';
 
-import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-react';
+import {
+  AlertCircle,
+  CheckCircle2,
+  Clock3,
+  Loader2,
+  XCircle,
+} from 'lucide-react';
 import Link from 'next/link';
 
 import { useTrackedRentalRequest } from '@/lib/use-rental-request';
@@ -45,15 +51,23 @@ export function RentalRequestTracker({
     );
 
   const data = request.data;
+  const StatusIcon =
+    data.status.key === 'REJECTED'
+      ? XCircle
+      : data.status.key === 'REQUEST_SUBMITTED' ||
+          data.status.key === 'UNDER_REVIEW'
+        ? Clock3
+        : CheckCircle2;
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_22rem] lg:items-start">
       <section
         className="rounded-2xl border bg-card p-5 sm:p-7"
         aria-labelledby="request-status"
+        aria-live="polite"
       >
-        <CheckCircle2 aria-hidden="true" className="h-10 w-10 text-primary" />
+        <StatusIcon aria-hidden="true" className="h-10 w-10 text-primary" />
         <p className="mt-4 text-sm font-semibold uppercase tracking-[0.14em] text-primary">
-          Rental request received
+          Rental request status
         </p>
         <h1
           id="request-status"
@@ -66,8 +80,12 @@ export function RentalRequestTracker({
           <strong className="text-foreground">{data.referenceNumber}</strong>
         </p>
         <p className="mt-5 leading-7 text-muted-foreground">
-          Our staff will review your requested equipment and dates. This request
-          is not an approval, reservation, or final quote.
+          {data.decision?.customerExplanation ??
+            'Our staff will review your requested equipment and dates.'}
+        </p>
+        <p className="mt-2 text-sm font-medium text-muted-foreground">
+          {data.decision?.notice ??
+            'This request is not an approval, reservation, or final quote.'}
         </p>
         <dl className="mt-7 grid gap-4 rounded-xl bg-muted/50 p-4 text-sm sm:grid-cols-2">
           <div>
@@ -103,8 +121,13 @@ export function RentalRequestTracker({
               key={item.productSlug}
             >
               <span>{item.productName}</span>
-              <span className="font-semibold">
-                {item.requestedQuantity} {item.rentalUnit}
+              <span className="text-right font-semibold">
+                {item.requestedQuantity} requested
+                {item.approvedQuantity !== undefined ? (
+                  <span className="block text-primary">
+                    {item.approvedQuantity} approved
+                  </span>
+                ) : null}
               </span>
             </li>
           ))}

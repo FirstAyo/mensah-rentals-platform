@@ -11,6 +11,11 @@ export default async function RentalRequestDetailPage({
   return (
     <RentalRequestDetail
       canAssign={user.permissionKeys.includes('rental_request.assign')}
+      canApprove={user.permissionKeys.includes('rental_request.approve')}
+      canPartiallyApprove={user.permissionKeys.includes(
+        'rental_request.partially_approve',
+      )}
+      canReject={user.permissionKeys.includes('rental_request.reject')}
       canUpdate={user.permissionKeys.includes('rental_request.update')}
       canViewQuantity={
         user.permissionKeys.includes('inventory.view') &&

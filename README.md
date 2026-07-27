@@ -128,12 +128,21 @@ pnpm test:e2e:cart           # Guest-cart browser checks
 pnpm test:e2e:requests       # Guest-request browser checks
 pnpm test:e2e:admin          # Admin login/protection browser checks
 pnpm test:e2e:admin-requests # Authenticated Phase 9 review browser checks
+pnpm test:e2e:admin-decisions # Isolated approval/partial/rejection checks
+pnpm test:e2e:admin-decisions:approve # Isolated full-approval check
+pnpm test:e2e:admin-decisions:partial # Isolated partial-approval check
+pnpm test:e2e:admin-decisions:reject  # Isolated rejection check
 ```
 
 `pnpm test` includes database-backed integration tests. It automatically uses
 and resets only the local database named by `TEST_DATABASE_URL`; the guarded
 runner refuses the development database, remote hosts, and names not ending in
 `_test`.
+
+The Phase 10 decision browser commands apply the same `_test` guard and reset
+only that isolated database. Stop ordinary development servers first; the
+runner refuses occupied application ports so it cannot silently decide records
+through a development API.
 
 ## Documentation
 
@@ -154,3 +163,9 @@ runner refuses the development database, remote hosts, and names not ending in
 - [Rental request foundation](docs/rental-requests.md)
 - [Administrative rental-request review](docs/admin-rental-request-review.md)
 - [Inventory foundation](docs/inventory.md)
+- [Rental-request decisions](docs/rental-request-decisions.md)
+
+Phase 10 adds permission-separated approval, partial approval, and rejection,
+immutable decision history, separate approved quantities, and customer-safe
+tracking updates. Decisions create no quote, order, reservation, or inventory
+mutation.

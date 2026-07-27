@@ -10,6 +10,7 @@ import { AuthModule } from '../auth/auth.module';
 import { AuthService } from '../auth/auth.service';
 import { RentalRequestModule } from './rental-request.module';
 import { AdminRentalRequestService } from './admin-rental-request.service';
+import { RentalRequestDecisionService } from './rental-request-decision.service';
 
 const requestId = 'cm00000000000000000000000';
 const assigneeId = 'cm00000000000000000000001';
@@ -37,6 +38,11 @@ describe('administrative rental-request HTTP authorization', () => {
     assign: vi.fn(async () => ({ id: requestId, reviewVersion: 1 })),
     addNote: vi.fn(async () => ({ id: 'note-id', body: 'Internal note' })),
   };
+  const decisions = {
+    approve: vi.fn(async () => ({ outcome: 'APPROVED' })),
+    partiallyApprove: vi.fn(async () => ({ outcome: 'PARTIALLY_APPROVED' })),
+    reject: vi.fn(async () => ({ outcome: 'REJECTED' })),
+  };
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({
@@ -62,6 +68,8 @@ describe('administrative rental-request HTTP authorization', () => {
       })
       .overrideProvider(AdminRentalRequestService)
       .useValue(requests)
+      .overrideProvider(RentalRequestDecisionService)
+      .useValue(decisions)
       .compile();
     app = module.createNestApplication();
     app.use(cookieParser());
@@ -131,5 +139,77 @@ describe('administrative rental-request HTTP authorization', () => {
     };
     await call().expect(201);
     expect(requests.addNote).toHaveBeenCalled();
+  });
+
+  it.each([
+    ['approve', 'rental_request.approve', 'approve'],
+    [
+      'partially-approve',
+      'rental_request.partially_approve',
+      'partiallyApprove',
+    ],
+    ['reject', 'rental_request.reject', 'reject'],
+  ] as const)(
+    'enforces the exact %s decision permission',
+    async (segment, permission, method) => {
+      const body = {
+        customerExplanation:
+          segment === 'approve' ? null : 'We cannot support the full request.',
+        expectedReviewVersion: 0,
+        internalReason: 'Documented internal decision reason',
+        operationId: '7e57d004-2b97-4e7a-b45f-5387367791ce',
+        ...(segment === 'partially-approve'
+          ? {
+              items: [
+                {
+                  approvedQuantity: 1,
+                  rentalRequestItemId: requestId,
+                },
+              ],
+            }
+          : {}),
+      };
+      const call = () =>
+        request(app.getHttpServer())
+          .post(`/admin/rental-requests/${requestId}/decisions/${segment}`)
+          .set('Cookie', 'mensah_staff_session=x')
+          .set('Origin', 'http://localhost:3001')
+          .send(body);
+      current = { ...baseUser, permissionKeys: ['rental_request.view'] };
+      await call().expect(403);
+      current = { ...baseUser, permissionKeys: [permission] };
+      await call().expect(403);
+      current = {
+        ...baseUser,
+        permissionKeys: ['rental_request.view', permission],
+      };
+      await call().expect(201);
+      expect(decisions[method]).toHaveBeenCalled();
+    },
+  );
+
+  it('does not let one decision permission authorize a different outcome', async () => {
+    current = {
+      ...baseUser,
+      permissionKeys: ['rental_request.view', 'rental_request.approve'],
+    };
+    await request(app.getHttpServer())
+      .post(`/admin/rental-requests/${requestId}/decisions/reject`)
+      .set('Cookie', 'mensah_staff_session=x')
+      .set('Origin', 'http://localhost:3001')
+      .send({
+        customerExplanation: 'We are unable to support this request.',
+        expectedReviewVersion: 0,
+        internalReason: 'Documented internal decision reason',
+        operationId: '7e57d004-2b97-4e7a-b45f-5387367791cf',
+      })
+      .expect(403);
+    expect(decisions.reject).not.toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({
+        operationId: '7e57d004-2b97-4e7a-b45f-5387367791cf',
+      }),
+    );
   });
 });

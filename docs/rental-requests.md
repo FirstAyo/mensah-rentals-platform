@@ -35,7 +35,8 @@ snapshots.
 
 The submitted fields on `RentalRequest` are also protected by a focused database
 trigger. Future phases may change lifecycle fields without rewriting customer
-history. Approved quantities will be modeled separately in Phase 10.
+history. Approved quantities are modeled separately by the Phase 10 immutable
+decision items.
 
 ## Security and privacy
 
@@ -103,7 +104,9 @@ the guest capability remains mandatory.
 
 ## Deferred work
 
-Phase 9 adds the staff review queue, assignment, confidential availability, and
-internal notes. Phase 10 adds approval/partial approval/rejection and separate
-approved quantities. Verified cross-device recovery, customer authentication,
-email notifications, quotes, reservations, and orders remain later work.
+Phase 9 added staff review. Phase 10 adds customer-safe terminal tracking:
+outcome and safe explanation, plus approved quantities only for approved or
+partially approved requests. Internal reasons, staff identities, inventory,
+and administrative quote eligibility remain absent. Verified cross-device
+recovery, customer authentication, email notifications, quotes, reservations,
+and orders remain later work.

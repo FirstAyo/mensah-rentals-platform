@@ -213,6 +213,9 @@ function QueueBody() {
             <option value="">All statuses</option>
             <option value="SUBMITTED">Submitted</option>
             <option value="UNDER_REVIEW">Under review</option>
+            <option value="APPROVED">Approved</option>
+            <option value="PARTIALLY_APPROVED">Partially approved</option>
+            <option value="REJECTED">Rejected</option>
           </select>
         </label>
         <label>

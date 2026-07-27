@@ -36,6 +36,9 @@ enum InventoryTransactionKind {
 enum RentalRequestStatus {
   SUBMITTED
   UNDER_REVIEW
+  APPROVED
+  PARTIALLY_APPROVED
+  REJECTED
 }
 
 enum RentalRequestActivityType {
@@ -44,6 +47,15 @@ enum RentalRequestActivityType {
   UNASSIGNED
   NOTE_ADDED
   REVIEW_STARTED
+  APPROVED
+  PARTIALLY_APPROVED
+  REJECTED
+}
+
+enum RentalRequestDecisionOutcome {
+  APPROVED
+  PARTIALLY_APPROVED
+  REJECTED
 }
 
 enum RentalRequestFulfillmentMethod {
@@ -69,6 +81,7 @@ model User {
   assignedRentalRequests RentalRequest[] @relation("RentalRequestAssignee")
   rentalRequestNotes RentalRequestInternalNote[] @relation("RentalRequestNoteAuthor")
   rentalRequestActivities RentalRequestActivity[] @relation("RentalRequestActivityActor")
+  rentalRequestDecisions RentalRequestDecision[] @relation("RentalRequestDecisionActor")
   rentalRequestPreviousAssignments RentalRequestActivity[] @relation("RentalRequestActivityPreviousAssignee")
   rentalRequestNewAssignments RentalRequestActivity[] @relation("RentalRequestActivityNewAssignee")
 }
@@ -235,6 +248,7 @@ model RentalRequest {
   items                 RentalRequestItem[]
   internalNotes         RentalRequestInternalNote[]
   activities            RentalRequestActivity[]
+  decision              RentalRequestDecision?
 
   @@index([guestSessionId, submittedAt, id])
   @@index([status, submittedAt, id])
@@ -275,6 +289,8 @@ model RentalRequestActivity {
   previousAssignee         User?                     @relation("RentalRequestActivityPreviousAssignee", fields: [previousAssigneeUserId], references: [id], onDelete: Restrict)
   newAssignee              User?                     @relation("RentalRequestActivityNewAssignee", fields: [newAssigneeUserId], references: [id], onDelete: Restrict)
   note                     RentalRequestInternalNote? @relation(fields: [noteId], references: [id], onDelete: Restrict)
+  decisionId               String?                   @unique
+  decision                 RentalRequestDecision?    @relation(fields: [decisionId], references: [id], onDelete: Restrict)
 
   @@index([rentalRequestId, createdAt, id])
   @@index([actorUserId, createdAt, id])
@@ -295,9 +311,45 @@ model RentalRequestItem {
   createdAt         DateTime      @default(now()) @db.Timestamptz(3)
   rentalRequest     RentalRequest @relation(fields: [rentalRequestId], references: [id], onDelete: Restrict)
   product           Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
+  decisionItem      RentalRequestDecisionItem?
 
   @@unique([rentalRequestId, productId])
   @@index([productId])
+}
+
+model RentalRequestDecision {
+  id                  String                       @id @default(cuid())
+  rentalRequestId     String                       @unique
+  outcome             RentalRequestDecisionOutcome
+  decidedByUserId     String
+  operationId         String                       @unique
+  payloadHash         String                       @db.Char(64)
+  internalReason      String                       @db.Text
+  customerExplanation String?                      @db.Text
+  reviewVersionBefore Int
+  reviewVersionAfter  Int
+  decidedAt           DateTime                     @default(now()) @db.Timestamptz(3)
+  rentalRequest       RentalRequest                @relation(fields: [rentalRequestId], references: [id], onDelete: Restrict)
+  decidedBy           User                         @relation("RentalRequestDecisionActor", fields: [decidedByUserId], references: [id], onDelete: Restrict)
+  items               RentalRequestDecisionItem[]
+  activity            RentalRequestActivity?
+
+  @@index([decidedByUserId, decidedAt, id])
+  @@index([outcome, decidedAt, id])
+}
+
+model RentalRequestDecisionItem {
+  id                        String                @id @default(cuid())
+  decisionId                String
+  rentalRequestItemId       String                @unique
+  requestedQuantitySnapshot Int
+  approvedQuantity          Int
+  createdAt                 DateTime              @default(now()) @db.Timestamptz(3)
+  decision                  RentalRequestDecision @relation(fields: [decisionId], references: [id], onDelete: Restrict)
+  rentalRequestItem         RentalRequestItem     @relation(fields: [rentalRequestItemId], references: [id], onDelete: Restrict)
+
+  @@unique([decisionId, rentalRequestItemId])
+  @@index([decisionId, createdAt, id])
 }
 
 model Inventory {
