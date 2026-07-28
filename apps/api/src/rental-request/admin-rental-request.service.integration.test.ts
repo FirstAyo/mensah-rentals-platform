@@ -367,10 +367,7 @@ describe('administrative rental-request review against PostgreSQL', () => {
       transactions: await prisma.inventoryTransaction.count({
         where: { inventoryId },
       }),
-      reservations: await prisma.$queryRaw<Array<{ count: bigint }>>`
-        SELECT count(*) AS count FROM information_schema.tables
-        WHERE table_schema = 'public' AND table_name ILIKE '%reservation%'
-      `,
+      reservations: await prisma.inventoryReservation.count(),
     };
     const withoutQuantityPermission = await service.detail(
       { ...actor, permissionKeys: ['rental_request.view', 'inventory.view'] },
@@ -397,7 +394,7 @@ describe('administrative rental-request review against PostgreSQL', () => {
     expect(
       await prisma.inventoryTransaction.count({ where: { inventoryId } }),
     ).toBe(before.transactions);
-    expect(before.reservations[0]?.count).toBe(0n);
+    expect(await prisma.inventoryReservation.count()).toBe(before.reservations);
   });
 
   it('blocks a disabled actor even when a stale browser identity still carries permissions', async () => {

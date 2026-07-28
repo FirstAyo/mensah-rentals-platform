@@ -12,7 +12,7 @@ describe('RBAC catalogue', () => {
     expect(new Set(SYSTEM_ROLES.map(({ name }) => name)).size).toBe(
       SYSTEM_ROLES.length,
     );
-    expect(PERMISSION_CATALOGUE).toHaveLength(50);
+    expect(PERMISSION_CATALOGUE).toHaveLength(56);
   });
   it('grants SUPER_ADMIN every seeded permission', () => {
     expect(DEFAULT_ROLE_PERMISSION_KEYS.SUPER_ADMIN).toEqual(
@@ -33,6 +33,9 @@ describe('RBAC catalogue', () => {
     );
     expect(DEFAULT_ROLE_PERMISSION_KEYS.SALES_PERSON).not.toContain(
       'role.manage_permissions',
+    );
+    expect(DEFAULT_ROLE_PERMISSION_KEYS.SALES_PERSON).not.toContain(
+      'inventory.reservation.view',
     );
   });
   it('keeps owner-only role management out of ADMIN', () => {

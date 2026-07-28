@@ -20,6 +20,11 @@ export async function runRbacSeed(
 ): Promise<SeedResult> {
   return prisma.$transaction(async (transaction) => {
     await transaction.$executeRaw`SELECT pg_advisory_xact_lock(${RBAC_SEED_LOCK_ID})`;
+    const existingPermissionKeys = new Set(
+      (await transaction.permission.findMany({ select: { key: true } })).map(
+        ({ key }) => key,
+      ),
+    );
     await transaction.permission.createMany({
       data: PERMISSION_CATALOGUE.map(([key, description]) => ({
         description,
@@ -51,6 +56,19 @@ export async function runRbacSeed(
       if (wasCreated || definition.name === SUPER_ADMIN_ROLE_NAME) {
         await transaction.rolePermission.createMany({
           data: DEFAULT_ROLE_PERMISSION_KEYS[definition.name].map((key) => {
+            const permissionId = permissionIdByKey.get(key);
+            if (!permissionId)
+              throw new Error(`Seed permission is missing: ${key}`);
+            return { permissionId, roleId: role.id };
+          }),
+          skipDuplicates: true,
+        });
+      } else {
+        const newlyIntroducedDefaults = DEFAULT_ROLE_PERMISSION_KEYS[
+          definition.name
+        ].filter((key) => !existingPermissionKeys.has(key));
+        await transaction.rolePermission.createMany({
+          data: newlyIntroducedDefaults.map((key) => {
             const permissionId = permissionIdByKey.get(key);
             if (!permissionId)
               throw new Error(`Seed permission is missing: ${key}`);

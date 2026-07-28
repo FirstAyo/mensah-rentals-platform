@@ -1,5 +1,40 @@
 # Local Development on Windows
 
+## Phase 14 reservations on Windows
+
+Stop running application processes, open Docker Desktop, then run from the
+repository root:
+
+```powershell
+docker compose up -d postgres
+pnpm install
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+pnpm dev
+```
+
+Open `http://localhost:3001/login`, sign in with the local staff account, open
+Rental Orders, and choose a confirmed order. Its Reservation section shows
+staff-only availability, explicit serialized selection, full/partial actions,
+shortfall completion, release controls, and activity according to permissions.
+No reservation controls or quantities appear on `http://localhost:3000`.
+
+For isolated browser verification, first stop normal servers so ports 3000,
+3001, and 4000 are free, then run:
+
+```powershell
+pnpm test:e2e:admin-reservations
+pnpm test:e2e:reservation-concurrency
+pnpm test:e2e:reservations
+```
+
+These commands reset only the guarded `_test` database. Never point
+`TEST_DATABASE_URL` at development, staging, production, or a remote host.
+
 ## Phase 13 amendments on Windows
 
 Run these commands from the repository root in PowerShell after copying `.env.example` to `.env` and starting Docker Desktop:
@@ -731,7 +766,7 @@ pnpm db:status
 pnpm rbac:seed
 ```
 
-Successful migration status says the database schema is up to date. The seed reports `4 system roles` and `45 permissions`. Verification reports an idempotent seed.
+Successful migration status says the database schema is up to date. The seed reports `4 system roles` and `56 permissions`. Verification reports an idempotent seed.
 
 To create the first staff user and ensure that the local development account has `SUPER_ADMIN`, set the existing `STAFF_BOOTSTRAP_*` values in `.env`, then run:
 
@@ -754,7 +789,7 @@ In a second PowerShell window:
 pnpm dev:admin
 ```
 
-Open `http://localhost:3001/login`, sign in with `STAFF_BOOTSTRAP_EMAIL` and `STAFF_BOOTSTRAP_PASSWORD`, and confirm the page shows `Super Admin`, `45 effective permissions`, and all development navigation placeholders.
+Open `http://localhost:3001/login`, sign in with `STAFF_BOOTSTRAP_EMAIL` and `STAFF_BOOTSTRAP_PASSWORD`, and confirm the page shows `Super Admin`, `56 effective permissions`, and all development navigation placeholders.
 
 To test another role without a role-management UI, create a second disposable local account safely:
 

@@ -1,5 +1,38 @@
 # Testing Guide
 
+## Phase 14 reservation testing
+
+Run static, database, seed, and browser verification from PowerShell:
+
+```powershell
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+pnpm test:e2e:admin-reservations
+pnpm test:e2e:reservation-concurrency
+pnpm test:e2e:reservations
+```
+
+Successful database tests prove eligibility, permission independence,
+half-open overlap behavior, bulk capacity locking, partial/shortfall completion,
+serialized exclusion constraints, release/idempotency, immutable order data,
+dashboard counts, and recursively safe public DTOs. Browser success shows a
+staff-only Reservation panel, explicit quantities, intentional confirmation,
+conflict handling, theme/320px behavior, and no serious accessibility findings.
+
+The browser harness must report that it selected a local database ending in
+`_test`. It refuses occupied application ports and unsafe/remote databases.
+Do not run destructive reservation tests against development, staging, or
+production data.
+
 ## Phase 13 amendment and change-request testing
 
 Start Docker Desktop and run the guarded database setup first:

@@ -1,5 +1,20 @@
 # Planned Domain Model
 
+## Implemented reservation models
+
+- `InventoryReservation` is the versioned one-per-order reservation aggregate.
+- `InventoryReservationItem` preserves each exact order-item target, reserved
+  quantity, shortfall, and BULK/SERIALIZED mode.
+- `InventoryReservationDelta` is the append-only quantity ledger for bulk
+  reservation and release changes.
+- `SerializedAssetAllocation` preserves active and released asset commitments.
+- `InventoryReservationActivity` records actor, action, reason, and safe
+  structured metadata.
+
+Reservation dates use UTC half-open ranges. These models reference immutable
+order items but do not change them and do not represent checkout, fulfilment,
+delivery, active rental, return, damage, or missing-item workflows.
+
 ## Implemented request revision and change models
 
 - `RentalRequestCustomerAccess` stores a request-scoped capability hash, expiry, and revocation state.

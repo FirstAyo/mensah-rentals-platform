@@ -1,5 +1,16 @@
 # Architecture
 
+## Phase 14 reservation architecture
+
+`InventoryReservation` is a separate aggregate between a confirmed order and
+future checkout. The API is the sole availability authority: it reloads live
+permissions and inventory, serializes bulk product/date mutations with database
+locks, and relies on PostgreSQL range exclusion for serialized allocations.
+Dates use UTC half-open `[start, end)` intervals. Allocation and delta history
+is append-only. The admin BFF exposes only fixed reservation paths; public DTOs
+and customer BFFs contain no reservation or availability data. See
+[Inventory reservations](inventory-reservations.md).
+
 ## Phase 13 amendment architecture
 
 The customer BFF has a fixed allowlist for request revision, amendment, active-catalogue, and formal change-request routes. It keeps request-scoped capabilities in HttpOnly, host-only, SameSite=Lax cookies; production requires Secure `__Host-` cookie names. The NestJS API is the capability and authorization boundary and emits only explicit customer DTOs with private/no-store behavior.

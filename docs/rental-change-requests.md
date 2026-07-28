@@ -1,5 +1,13 @@
 # Formal rental change requests
 
+## Phase 14 reservation boundary
+
+A submitted or reviewed formal change request never mutates an active
+reservation, accepted quote, or confirmed order. Reservation changes require a
+separate authorised order-reservation action. Automatic order revision and
+reservation reconciliation remain deferred so customer proposals cannot
+silently release or double-book inventory.
+
 A formal change request is separate from a rental-request amendment, quote revision, confirmed order revision, and inventory reservation. It is used only after a quote has been accepted or a rental order has been confirmed.
 
 ## Boundary

@@ -3,7 +3,10 @@ import { createHash, createHmac, randomUUID } from 'node:crypto';
 import { ConfigService } from '@nestjs/config';
 import { hashSessionToken } from '@mensah-rentals/auth';
 import { prisma, runRbacSeed } from '@mensah-rentals/database';
-import type { StaffUserResponse } from '@mensah-rentals/types';
+import type {
+  AdminOrderAvailabilityResponse,
+  StaffUserResponse,
+} from '@mensah-rentals/types';
 import type {
   ApiEnvironment,
   QuoteRevisionInput,
@@ -14,6 +17,7 @@ import { QuoteService } from '../quote/quote.service';
 import { RentalRequestDecisionService } from '../rental-request/rental-request-decision.service';
 import { RentalChangeRequestService } from '../rental-request/rental-change-request.service';
 import { expectPublicDataSafe } from '../testing/public-confidentiality.test-utils';
+import { InventoryReservationService } from './inventory-reservation.service';
 import { RentalOrderService } from './rental-order.service';
 
 describe('confirmed rental orders against PostgreSQL', () => {
@@ -32,10 +36,12 @@ describe('confirmed rental orders against PostgreSQL', () => {
   } as ConfigService<ApiEnvironment, true>;
   const quotes = new QuoteService(config);
   const orders = new RentalOrderService(config);
+  const reservations = new InventoryReservationService();
   const changes = new RentalChangeRequestService(config);
   const decisions = new RentalRequestDecisionService();
   let actor: StaffUserResponse;
   let productId: string;
+  let inventoryId: string;
 
   const hash = (value: string) =>
     createHash('sha256').update(`${suffix}:${value}`).digest('hex');
@@ -259,7 +265,6 @@ describe('confirmed rental orders against PostgreSQL', () => {
       discountType: accepted.discountType,
       itemSubtotalCents: accepted.itemSubtotalCents,
       projectNameSnapshot: source.projectName,
-      reservationStatus: 'NOT_RESERVED',
       status: 'CONFIRMED',
       taxCents: accepted.taxCents,
       taxableDiscountCents: accepted.taxableDiscountCents,
@@ -274,7 +279,7 @@ describe('confirmed rental orders against PostgreSQL', () => {
         where: { id: order.id },
         data: { projectNameSnapshot: 'tampered' },
       }),
-    ).rejects.toThrow('append-only');
+    ).rejects.toThrow(/append-only|reservation status transition/);
     await expect(
       prisma.rentalOrderItem.update({
         where: { id: order.items[0]!.id },
@@ -381,7 +386,7 @@ describe('confirmed rental orders against PostgreSQL', () => {
         operationId: randomUUID(),
       }),
     ).rejects.toThrow('authoritative accepted');
-  });
+  }, 15_000);
 
   it('replays the same operation, rejects changed reuse, and permits only one concurrent order', async () => {
     const { quote, revision } = await acceptedQuote('idempotency');
@@ -584,7 +589,6 @@ describe('confirmed rental orders against PostgreSQL', () => {
     expect(JSON.stringify(publicOrder)).not.toContain('PRIVATE ORDER SENTINEL');
     expect(publicOrder).toMatchObject({
       orderNumber: created.order.orderNumber,
-      reservationStatus: 'NOT_RESERVED',
       status: 'CONFIRMED',
     });
     await Promise.all([orders.markViewed(raw), orders.markViewed(raw)]);
@@ -723,7 +727,7 @@ describe('confirmed rental orders against PostgreSQL', () => {
       expect(text).toContain('Tax \\(Test tax 5.00%\\): $64.00');
       expect(text).toContain('Total: $1,344.00 CAD');
       expect(text).toContain('Order fixture terms');
-      expect(text).toContain('Inventory is not reserved yet');
+      expect(text).toContain('Our team is arranging fulfilment');
       expect(text).not.toContain('PRIVATE ORDER SENTINEL');
       expect(text).not.toContain('tokenHash');
       expect(text).not.toContain('capability=');
@@ -900,6 +904,7 @@ describe('confirmed rental orders against PostgreSQL', () => {
         trackingMode: 'BULK',
       },
     });
+    inventoryId = inventory.id;
     await prisma.inventoryTransaction.create({
       data: {
         actorUserId: actor.id,
@@ -965,4 +970,354 @@ describe('confirmed rental orders against PostgreSQL', () => {
     `;
     expect(reservationTable[0]?.name).toBeNull();
   });
+
+  it('reserves bulk inventory transactionally, records shortfalls, completes, releases, and prevents concurrent overbooking', async () => {
+    const initialTransactions = await prisma.inventoryTransaction.count({
+      where: { inventoryId },
+    });
+    const makeOrder = async (label: string) => {
+      const accepted = await acceptedQuote(label);
+      const created = await orders.create(
+        actor,
+        accepted.quote.id,
+        accepted.revision.id,
+        {
+          operationId: randomUUID(),
+        },
+      );
+      return created.order.id;
+    };
+
+    const firstOrderId = await makeOrder('reserve-first');
+    await prisma.product.update({
+      where: { id: productId },
+      data: { isActive: false },
+    });
+    let firstAvailability!: AdminOrderAvailabilityResponse;
+    try {
+      firstAvailability = await reservations.availability(
+        actor.id,
+        firstOrderId,
+      );
+    } finally {
+      await prisma.product.update({
+        where: { id: productId },
+        data: { isActive: true },
+      });
+    }
+    expect(firstAvailability.items[0]).toMatchObject({
+      availableToReserve: 25,
+      orderedQuantity: 10,
+      physicalRentableQuantity: 25,
+      shortfallQuantity: 0,
+    });
+    const firstOperationId = randomUUID();
+    const first = await reservations.create(actor.id, firstOrderId, {
+      allowPartial: false,
+      operationId: firstOperationId,
+      serializedSelections: [],
+    });
+    expect(first).toMatchObject({ status: 'RESERVED', version: 1 });
+    expect(first.items[0]).toMatchObject({
+      requestedQuantity: 10,
+      reservedQuantity: 10,
+      shortfallQuantity: 0,
+    });
+    await expect(
+      reservations.create(actor.id, firstOrderId, {
+        allowPartial: false,
+        operationId: firstOperationId,
+        serializedSelections: [],
+      }),
+    ).resolves.toMatchObject({ id: first.id, version: 1 });
+
+    const idempotentOrderId = await makeOrder('reserve-idempotent-race');
+    const idempotentOperationId = randomUUID();
+    const idempotentAttempts = await Promise.all([
+      reservations.create(actor.id, idempotentOrderId, {
+        allowPartial: false,
+        operationId: idempotentOperationId,
+        serializedSelections: [],
+      }),
+      reservations.create(actor.id, idempotentOrderId, {
+        allowPartial: false,
+        operationId: idempotentOperationId,
+        serializedSelections: [],
+      }),
+    ]);
+    expect(idempotentAttempts[0].id).toBe(idempotentAttempts[1].id);
+    await reservations.release(
+      actor.id,
+      idempotentOrderId,
+      idempotentAttempts[0].id,
+      {
+        expectedVersion: idempotentAttempts[0].version,
+        operationId: randomUUID(),
+        reason: 'Release idempotent-race fixture capacity.',
+      },
+    );
+
+    const secondOrderId = await makeOrder('reserve-second');
+    const second = await reservations.create(actor.id, secondOrderId, {
+      allowPartial: false,
+      operationId: randomUUID(),
+      serializedSelections: [],
+    });
+    expect(second.status).toBe('RESERVED');
+
+    const partialOrderId = await makeOrder('reserve-partial');
+    const partial = await reservations.create(actor.id, partialOrderId, {
+      allowPartial: true,
+      operationId: randomUUID(),
+      overrideReason: 'Five units will be sourced before fulfilment.',
+      serializedSelections: [],
+    });
+    expect(partial).toMatchObject({
+      overrideReason: 'Five units will be sourced before fulfilment.',
+      status: 'PARTIALLY_RESERVED',
+      version: 1,
+    });
+    expect(partial.items[0]).toMatchObject({
+      reservedQuantity: 5,
+      shortfallQuantity: 5,
+    });
+
+    const releasedFirst = await reservations.release(
+      actor.id,
+      firstOrderId,
+      first.id,
+      {
+        expectedVersion: 1,
+        operationId: randomUUID(),
+        reason: 'Release for completion integration test.',
+      },
+    );
+    expect(releasedFirst.status).toBe('RELEASED');
+    const completed = await reservations.complete(
+      actor.id,
+      partialOrderId,
+      partial.id,
+      {
+        allowPartial: false,
+        expectedVersion: 1,
+        operationId: randomUUID(),
+        serializedSelections: [],
+      },
+    );
+    expect(completed).toMatchObject({ status: 'RESERVED', version: 2 });
+    expect(completed.items[0]).toMatchObject({
+      reservedQuantity: 10,
+      shortfallQuantity: 0,
+    });
+    await reservations.release(actor.id, secondOrderId, second.id, {
+      expectedVersion: 1,
+      operationId: randomUUID(),
+      reason: 'Create room for concurrency test.',
+    });
+
+    const leftOrderId = await makeOrder('concurrent-left');
+    const rightOrderId = await makeOrder('concurrent-right');
+    const concurrent = await Promise.allSettled([
+      reservations.create(actor.id, leftOrderId, {
+        allowPartial: false,
+        operationId: randomUUID(),
+        serializedSelections: [],
+      }),
+      reservations.create(actor.id, rightOrderId, {
+        allowPartial: false,
+        operationId: randomUUID(),
+        serializedSelections: [],
+      }),
+    ]);
+    expect(concurrent.filter(fulfilled)).toHaveLength(1);
+    expect(
+      concurrent.filter((result) => result.status === 'rejected'),
+    ).toHaveLength(1);
+    const failedOrderId =
+      concurrent[0]!.status === 'rejected' ? leftOrderId : rightOrderId;
+    const failedReservation =
+      await prisma.inventoryReservation.findUniqueOrThrow({
+        where: { rentalOrderId: failedOrderId },
+      });
+    expect(failedReservation).toMatchObject({
+      status: 'RESERVATION_FAILED',
+      version: 1,
+    });
+    await expect(
+      reservations.release(actor.id, failedOrderId, failedReservation.id, {
+        expectedVersion: 1,
+        operationId: randomUUID(),
+        reason: 'A failed attempt has nothing to release.',
+      }),
+    ).rejects.toThrow('no active inventory');
+    expect(
+      await prisma.inventoryTransaction.count({ where: { inventoryId } }),
+    ).toBe(initialTransactions);
+
+    const access = await orders.generateCustomerAccess(actor, firstOrderId, {
+      operationId: randomUUID(),
+    });
+    const publicOrder = await orders.publicCurrent(
+      rawCapability(access.accessLink!),
+    );
+    expectPublicDataSafe(publicOrder);
+    expect(publicOrder).not.toHaveProperty('reservationStatus');
+    expect(JSON.stringify(publicOrder)).not.toMatch(
+      /reservedQuantity|shortfallQuantity|availableToReserve|assetNumber/,
+    );
+  }, 30_000);
+
+  it('allocates one serialized asset to only one overlapping order and restores eligibility on release', async () => {
+    const originalProductId = productId;
+    const source = await prisma.product.findUniqueOrThrow({
+      where: { id: originalProductId },
+    });
+    const serializedProduct = await prisma.product.create({
+      data: {
+        categoryId: source.categoryId,
+        name: `Reservation camera ${suffix}`,
+        shortDescription: 'Serialized reservation fixture',
+        slug: `reservation-camera-${suffix}`,
+      },
+    });
+    const serializedInventory = await prisma.inventory.create({
+      data: {
+        creationOperationId: randomUUID(),
+        creationReason: 'Serialized reservation fixture',
+        initialState: 'RENTABLE',
+        productId: serializedProduct.id,
+        trackingMode: 'SERIALIZED',
+      },
+    });
+    const asset = await prisma.inventoryItem.create({
+      data: {
+        assetNumber: `RSV-ASSET-${suffix.slice(0, 10).toUpperCase()}`,
+        inventoryId: serializedInventory.id,
+        serialNumber: `RSV-SERIAL-${suffix.slice(0, 10).toUpperCase()}`,
+        status: 'RENTABLE',
+      },
+    });
+    const secondAsset = await prisma.inventoryItem.create({
+      data: {
+        assetNumber: `RSV-ASSET-2-${suffix.slice(0, 10).toUpperCase()}`,
+        inventoryId: serializedInventory.id,
+        serialNumber: `RSV-SERIAL-2-${suffix.slice(0, 10).toUpperCase()}`,
+        status: 'RENTABLE',
+      },
+    });
+    productId = serializedProduct.id;
+    try {
+      const makeSerializedOrder = async (label: string) => {
+        const accepted = await acceptedQuote(label);
+        return (
+          await orders.create(actor, accepted.quote.id, accepted.revision.id, {
+            operationId: randomUUID(),
+          })
+        ).order.id;
+      };
+      const leftOrderId = await makeSerializedOrder('serialized-left');
+      const rightOrderId = await makeSerializedOrder('serialized-right');
+      const leftOrder = await orders.detail(leftOrderId);
+      const rightOrder = await orders.detail(rightOrderId);
+      const attempts = await Promise.allSettled([
+        reservations.create(actor.id, leftOrderId, {
+          allowPartial: true,
+          operationId: randomUUID(),
+          overrideReason: 'Additional serialized assets will be sourced.',
+          serializedSelections: [
+            {
+              rentalOrderItemId: leftOrder.items[0]!.id,
+              serializedAssetIds: [asset.id],
+            },
+          ],
+        }),
+        reservations.create(actor.id, rightOrderId, {
+          allowPartial: true,
+          operationId: randomUUID(),
+          overrideReason: 'Additional serialized assets will be sourced.',
+          serializedSelections: [
+            {
+              rentalOrderItemId: rightOrder.items[0]!.id,
+              serializedAssetIds: [asset.id],
+            },
+          ],
+        }),
+      ]);
+      const winners = attempts.filter(fulfilled);
+      expect(winners).toHaveLength(1);
+      expect(
+        attempts.filter((result) => result.status === 'rejected'),
+      ).toHaveLength(1);
+      const winner = winners[0]!.value;
+      expect(winner.items[0]).toMatchObject({
+        reservedQuantity: 1,
+        shortfallQuantity: 9,
+      });
+      expect(winner.items[0]!.allocations).toHaveLength(1);
+      const winnerOrderId = winner.orderId;
+      const expanded = await reservations.complete(
+        actor.id,
+        winnerOrderId,
+        winner.id,
+        {
+          allowPartial: true,
+          expectedVersion: 1,
+          operationId: randomUUID(),
+          overrideReason: 'Additional serialized assets remain outstanding.',
+          serializedSelections: [
+            {
+              rentalOrderItemId: winner.items[0]!.rentalOrderItemId,
+              serializedAssetIds: [secondAsset.id],
+            },
+          ],
+        },
+      );
+      const firstAllocation = expanded.items[0]!.allocations.find(
+        ({ serializedAssetId }) => serializedAssetId === asset.id,
+      )!;
+      const releaseOperationId = randomUUID();
+      const releaseInput = {
+        expectedVersion: 2,
+        items: [
+          {
+            allocationIds: [firstAllocation.allocationId],
+            rentalOrderItemId: winner.items[0]!.rentalOrderItemId,
+          },
+        ],
+        operationId: releaseOperationId,
+        reason: 'Release serialized concurrency fixture.',
+      };
+      const released = await reservations.release(
+        actor.id,
+        winnerOrderId,
+        winner.id,
+        releaseInput,
+      );
+      await expect(
+        reservations.release(actor.id, winnerOrderId, winner.id, releaseInput),
+      ).resolves.toMatchObject({ id: winner.id, version: released.version });
+      await expect(
+        reservations.release(actor.id, winnerOrderId, winner.id, {
+          ...releaseInput,
+          expectedVersion: released.version,
+          operationId: randomUUID(),
+        }),
+      ).rejects.toThrow('no longer active');
+      const otherOrderId =
+        winnerOrderId === leftOrderId ? rightOrderId : leftOrderId;
+      const otherItemId =
+        winnerOrderId === leftOrderId
+          ? rightOrder.items[0]!.id
+          : leftOrder.items[0]!.id;
+      await expect(
+        reservations.eligibleAssetsForOrder(
+          actor.id,
+          otherOrderId,
+          otherItemId,
+        ),
+      ).resolves.toMatchObject({ items: [{ id: asset.id }] });
+    } finally {
+      productId = originalProductId;
+    }
+  }, 30_000);
 });

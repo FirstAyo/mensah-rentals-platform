@@ -143,6 +143,41 @@ enum RentalOrderStatus {
 
 enum RentalOrderReservationStatus {
   NOT_RESERVED
+  PARTIALLY_RESERVED
+  RESERVED
+  RESERVATION_FAILED
+  RELEASED
+}
+
+enum InventoryReservationStatus {
+  PENDING
+  PARTIALLY_RESERVED
+  RESERVED
+  RESERVATION_FAILED
+  RELEASED
+}
+
+enum InventoryReservationItemType {
+  BULK
+  SERIALIZED
+}
+
+enum InventoryReservationOperationType {
+  RESERVATION_CREATED
+  RESERVATION_PARTIALLY_CREATED
+  RESERVATION_COMPLETED
+  RESERVATION_QUANTITY_ADDED
+  SERIALIZED_ASSET_ALLOCATED
+  SERIALIZED_ASSET_RELEASED
+  RESERVATION_QUANTITY_RELEASED
+  RESERVATION_RELEASED
+  RESERVATION_FAILED
+  RESERVATION_OVERRIDE_RECORDED
+}
+
+enum SerializedAssetAllocationStatus {
+  ACTIVE
+  RELEASED
 }
 
 enum RentalOrderActivityType {
@@ -155,35 +190,39 @@ enum RentalOrderActivityType {
 }
 
 model User {
-  id                               String                      @id @default(cuid())
-  email                            String                      @unique
+  id                               String                          @id @default(cuid())
+  email                            String                          @unique
   passwordHash                     String
   firstName                        String
   lastName                         String
-  status                           UserStatus                  @default(DISABLED)
-  lastLoginAt                      DateTime?                   @db.Timestamptz(3)
-  createdAt                        DateTime                    @default(now()) @db.Timestamptz(3)
-  updatedAt                        DateTime                    @updatedAt @db.Timestamptz(3)
+  status                           UserStatus                      @default(DISABLED)
+  lastLoginAt                      DateTime?                       @db.Timestamptz(3)
+  createdAt                        DateTime                        @default(now()) @db.Timestamptz(3)
+  updatedAt                        DateTime                        @updatedAt @db.Timestamptz(3)
   sessions                         StaffSession[]
-  roles                            UserRole[]                  @relation("UserRoles")
-  roleAssignmentsMade              UserRole[]                  @relation("UserRoleAssignedBy")
-  inventoryTransactions            InventoryTransaction[]      @relation("InventoryTransactionActor")
-  assignedRentalRequests           RentalRequest[]             @relation("RentalRequestAssignee")
-  rentalRequestNotes               RentalRequestInternalNote[] @relation("RentalRequestNoteAuthor")
-  rentalRequestActivities          RentalRequestActivity[]     @relation("RentalRequestActivityActor")
-  rentalRequestDecisions           RentalRequestDecision[]     @relation("RentalRequestDecisionActor")
-  rentalRequestPreviousAssignments RentalRequestActivity[]     @relation("RentalRequestActivityPreviousAssignee")
-  rentalRequestNewAssignments      RentalRequestActivity[]     @relation("RentalRequestActivityNewAssignee")
-  quotesCreated                    Quote[]                     @relation("QuoteCreator")
-  quoteRevisionsCreated            QuoteRevision[]             @relation("QuoteRevisionCreator")
-  quoteRevisionsSent               QuoteRevisionLifecycle[]    @relation("QuoteRevisionSender")
-  quoteActivities                  QuoteActivity[]             @relation("QuoteActivityActor")
-  quoteAccessCreated               QuoteCustomerAccess[]       @relation("QuoteAccessCreator")
-  rentalOrdersConfirmed            RentalOrder[]               @relation("RentalOrderConfirmer")
-  rentalOrderActivities            RentalOrderActivity[]       @relation("RentalOrderActivityActor")
-  orderAccessCreated               OrderCustomerAccess[]       @relation("OrderAccessCreator")
-  rentalRequestRevisionsCreated    RentalRequestRevision[]     @relation("RentalRequestRevisionStaffCreator")
-  rentalChangeRequestsReviewed     RentalChangeRequest[]       @relation("RentalChangeRequestReviewer")
+  roles                            UserRole[]                      @relation("UserRoles")
+  roleAssignmentsMade              UserRole[]                      @relation("UserRoleAssignedBy")
+  inventoryTransactions            InventoryTransaction[]          @relation("InventoryTransactionActor")
+  assignedRentalRequests           RentalRequest[]                 @relation("RentalRequestAssignee")
+  rentalRequestNotes               RentalRequestInternalNote[]     @relation("RentalRequestNoteAuthor")
+  rentalRequestActivities          RentalRequestActivity[]         @relation("RentalRequestActivityActor")
+  rentalRequestDecisions           RentalRequestDecision[]         @relation("RentalRequestDecisionActor")
+  rentalRequestPreviousAssignments RentalRequestActivity[]         @relation("RentalRequestActivityPreviousAssignee")
+  rentalRequestNewAssignments      RentalRequestActivity[]         @relation("RentalRequestActivityNewAssignee")
+  quotesCreated                    Quote[]                         @relation("QuoteCreator")
+  quoteRevisionsCreated            QuoteRevision[]                 @relation("QuoteRevisionCreator")
+  quoteRevisionsSent               QuoteRevisionLifecycle[]        @relation("QuoteRevisionSender")
+  quoteActivities                  QuoteActivity[]                 @relation("QuoteActivityActor")
+  quoteAccessCreated               QuoteCustomerAccess[]           @relation("QuoteAccessCreator")
+  rentalOrdersConfirmed            RentalOrder[]                   @relation("RentalOrderConfirmer")
+  rentalOrderActivities            RentalOrderActivity[]           @relation("RentalOrderActivityActor")
+  orderAccessCreated               OrderCustomerAccess[]           @relation("OrderAccessCreator")
+  inventoryReservationsCreated     InventoryReservation[]          @relation("InventoryReservationCreator")
+  inventoryReservationOperations   InventoryReservationOperation[] @relation("InventoryReservationOperationActor")
+  serializedAllocationsCreated     SerializedAssetAllocation[]     @relation("SerializedAssetAllocationCreator")
+  serializedAllocationsReleased    SerializedAssetAllocation[]     @relation("SerializedAssetAllocationReleaser")
+  rentalRequestRevisionsCreated    RentalRequestRevision[]         @relation("RentalRequestRevisionStaffCreator")
+  rentalChangeRequestsReviewed     RentalChangeRequest[]           @relation("RentalChangeRequestReviewer")
 }
 
 model StaffSession {
@@ -782,6 +821,7 @@ model RentalOrder {
   payloadHash                  String                         @db.Char(64)
   status                       RentalOrderStatus              @default(CONFIRMED)
   reservationStatus            RentalOrderReservationStatus   @default(NOT_RESERVED)
+  reservationVersion           Int                            @default(0)
   acceptedRevisionNumber       Int
   currency                     String                         @default("CAD") @db.Char(3)
   contactFirstNameSnapshot     String
@@ -824,6 +864,7 @@ model RentalOrder {
   activities                   RentalOrderActivity[]
   customerAccess               OrderCustomerAccess[]
   changeRequests               RentalChangeRequest[]
+  reservation                  InventoryReservation?
 
   @@index([status, confirmedAt, id])
   @@index([reservationStatus, confirmedAt, id])
@@ -833,9 +874,9 @@ model RentalOrder {
 }
 
 model RentalOrderItem {
-  id                        String      @id @default(cuid())
+  id                        String                    @id @default(cuid())
   rentalOrderId             String
-  sourceQuoteRevisionItemId String      @unique
+  sourceQuoteRevisionItemId String                    @unique
   productIdSnapshot         String
   productNameSnapshot       String
   productSlugSnapshot       String
@@ -848,8 +889,9 @@ model RentalOrderItem {
   lineSubtotalCents         BigInt
   taxable                   Boolean
   sortOrder                 Int
-  createdAt                 DateTime    @default(now()) @db.Timestamptz(3)
-  rentalOrder               RentalOrder @relation(fields: [rentalOrderId], references: [id], onDelete: Restrict)
+  createdAt                 DateTime                  @default(now()) @db.Timestamptz(3)
+  rentalOrder               RentalOrder               @relation(fields: [rentalOrderId], references: [id], onDelete: Restrict)
+  reservationItem           InventoryReservationItem?
 
   @@unique([rentalOrderId, sortOrder])
   @@index([rentalOrderId, createdAt, id])
@@ -989,34 +1031,148 @@ model RentalChangeRequestItem {
 }
 
 model Inventory {
-  id                  String                 @id @default(cuid())
-  productId           String                 @unique
-  creationOperationId String                 @unique
+  id                  String                     @id @default(cuid())
+  productId           String                     @unique
+  creationOperationId String                     @unique
   creationReason      String
   initialState        InventoryState
   trackingMode        InventoryTrackingMode
-  createdAt           DateTime               @default(now()) @db.Timestamptz(3)
-  updatedAt           DateTime               @updatedAt @db.Timestamptz(3)
-  product             Product                @relation(fields: [productId], references: [id], onDelete: Restrict)
+  createdAt           DateTime                   @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime                   @updatedAt @db.Timestamptz(3)
+  product             Product                    @relation(fields: [productId], references: [id], onDelete: Restrict)
   items               InventoryItem[]
   transactions        InventoryTransaction[]
+  reservationItems    InventoryReservationItem[]
 
   @@index([trackingMode, id])
 }
 
 model InventoryItem {
-  id           String                 @id @default(cuid())
-  inventoryId  String
-  assetNumber  String                 @unique
-  serialNumber String?
-  status       InventoryState         @default(RENTABLE)
-  createdAt    DateTime               @default(now()) @db.Timestamptz(3)
-  updatedAt    DateTime               @updatedAt @db.Timestamptz(3)
-  inventory    Inventory              @relation(fields: [inventoryId], references: [id], onDelete: Restrict)
-  transactions InventoryTransaction[]
+  id                        String                              @id @default(cuid())
+  inventoryId               String
+  assetNumber               String                              @unique
+  serialNumber              String?
+  status                    InventoryState                      @default(RENTABLE)
+  createdAt                 DateTime                            @default(now()) @db.Timestamptz(3)
+  updatedAt                 DateTime                            @updatedAt @db.Timestamptz(3)
+  inventory                 Inventory                           @relation(fields: [inventoryId], references: [id], onDelete: Restrict)
+  transactions              InventoryTransaction[]
+  reservationOperationItems InventoryReservationOperationItem[]
+  serializedAllocations     SerializedAssetAllocation[]
 
   @@index([inventoryId, status, id])
   @@index([serialNumber])
+}
+
+model InventoryReservation {
+  id                        String                          @id @default(cuid())
+  rentalOrderId             String                          @unique
+  reservationNumber         String                          @unique
+  status                    InventoryReservationStatus      @default(PENDING)
+  rentalStartDateSnapshot   DateTime                        @db.Date
+  rentalEndDateSnapshot     DateTime                        @db.Date
+  rangeStartUtc             DateTime                        @db.Timestamptz(3)
+  rangeEndExclusiveUtc      DateTime                        @db.Timestamptz(3)
+  requestedTimeZoneSnapshot String
+  version                   Int                             @default(0)
+  createdByUserId           String
+  createdAt                 DateTime                        @default(now()) @db.Timestamptz(3)
+  updatedAt                 DateTime                        @updatedAt @db.Timestamptz(3)
+  rentalOrder               RentalOrder                     @relation(fields: [rentalOrderId], references: [id], onDelete: Restrict)
+  createdBy                 User                            @relation("InventoryReservationCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  items                     InventoryReservationItem[]
+  operations                InventoryReservationOperation[]
+
+  @@index([status, rangeStartUtc, rangeEndExclusiveUtc, id])
+  @@index([createdByUserId, createdAt, id])
+}
+
+model InventoryReservationItem {
+  id                     String                              @id @default(cuid())
+  inventoryReservationId String
+  rentalOrderItemId      String                              @unique
+  inventoryId            String
+  productIdSnapshot      String
+  reservationType        InventoryReservationItemType
+  requestedQuantity      Int
+  reservedQuantity       Int                                 @default(0)
+  shortfallQuantity      Int
+  createdAt              DateTime                            @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime                            @updatedAt @db.Timestamptz(3)
+  inventoryReservation   InventoryReservation                @relation(fields: [inventoryReservationId], references: [id], onDelete: Restrict)
+  rentalOrderItem        RentalOrderItem                     @relation(fields: [rentalOrderItemId], references: [id], onDelete: Restrict)
+  inventory              Inventory                           @relation(fields: [inventoryId], references: [id], onDelete: Restrict)
+  operationItems         InventoryReservationOperationItem[]
+  serializedAllocations  SerializedAssetAllocation[]
+
+  @@unique([inventoryReservationId, rentalOrderItemId])
+  @@unique([inventoryReservationId, inventoryId])
+  @@index([inventoryReservationId, createdAt, id])
+  @@index([inventoryId, reservationType, id])
+}
+
+model InventoryReservationOperation {
+  id                     String                              @id @default(cuid())
+  inventoryReservationId String
+  type                   InventoryReservationOperationType
+  operationId            String                              @unique @db.Uuid
+  payloadHash            String                              @db.Char(64)
+  actorUserId            String
+  reason                 String?                             @db.Text
+  metadata               Json?
+  expectedVersion        Int
+  resultingVersion       Int
+  createdAt              DateTime                            @default(now()) @db.Timestamptz(3)
+  inventoryReservation   InventoryReservation                @relation(fields: [inventoryReservationId], references: [id], onDelete: Restrict)
+  actor                  User                                @relation("InventoryReservationOperationActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  items                  InventoryReservationOperationItem[]
+  serializedAllocations  SerializedAssetAllocation[]         @relation("SerializedAssetAllocationCreatedByOperation")
+  serializedReleases     SerializedAssetAllocation[]         @relation("SerializedAssetAllocationReleasedByOperation")
+
+  @@index([inventoryReservationId, createdAt, id])
+  @@index([actorUserId, createdAt, id])
+}
+
+model InventoryReservationOperationItem {
+  id                     String                        @id @default(cuid())
+  reservationOperationId String
+  reservationItemId      String
+  quantityDelta          Int
+  inventoryItemId        String?
+  createdAt              DateTime                      @default(now()) @db.Timestamptz(3)
+  reservationOperation   InventoryReservationOperation @relation(fields: [reservationOperationId], references: [id], onDelete: Restrict)
+  reservationItem        InventoryReservationItem      @relation(fields: [reservationItemId], references: [id], onDelete: Restrict)
+  inventoryItem          InventoryItem?                @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+
+  @@unique([reservationOperationId, reservationItemId, inventoryItemId])
+  @@index([reservationItemId, createdAt, id])
+  @@index([inventoryItemId, createdAt, id])
+}
+
+model SerializedAssetAllocation {
+  id                   String                          @id @default(cuid())
+  reservationItemId    String
+  inventoryItemId      String
+  allocatedOperationId String
+  releasedOperationId  String?
+  rangeStartUtc        DateTime                        @db.Timestamptz(3)
+  rangeEndExclusiveUtc DateTime                        @db.Timestamptz(3)
+  status               SerializedAssetAllocationStatus @default(ACTIVE)
+  allocatedAt          DateTime                        @default(now()) @db.Timestamptz(3)
+  releasedAt           DateTime?                       @db.Timestamptz(3)
+  allocatedByUserId    String
+  releasedByUserId     String?
+  reservationItem      InventoryReservationItem        @relation(fields: [reservationItemId], references: [id], onDelete: Restrict)
+  inventoryItem        InventoryItem                   @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+  allocatedOperation   InventoryReservationOperation   @relation("SerializedAssetAllocationCreatedByOperation", fields: [allocatedOperationId], references: [id], onDelete: Restrict)
+  releasedOperation    InventoryReservationOperation?  @relation("SerializedAssetAllocationReleasedByOperation", fields: [releasedOperationId], references: [id], onDelete: Restrict)
+  allocatedBy          User                            @relation("SerializedAssetAllocationCreator", fields: [allocatedByUserId], references: [id], onDelete: Restrict)
+  releasedBy           User?                           @relation("SerializedAssetAllocationReleaser", fields: [releasedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([reservationItemId, status, id])
+  @@index([inventoryItemId, status, rangeStartUtc, rangeEndExclusiveUtc, id])
+  @@index([allocatedOperationId])
+  @@index([releasedOperationId])
 }
 
 model InventoryTransaction {

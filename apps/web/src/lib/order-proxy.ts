@@ -35,7 +35,6 @@ const rootKeys = [
   'projectType',
   'rentalEndDate',
   'rentalStartDate',
-  'reservationStatus',
   'status',
   'subtotalCents',
   'tax',
@@ -87,7 +86,6 @@ export function isPublicRentalOrder(
   if (!object(value) || !exact(value, rootKeys)) return false;
   if (
     value.status !== 'CONFIRMED' ||
-    value.reservationStatus !== 'NOT_RESERVED' ||
     value.currency !== 'CAD' ||
     !['PICKUP', 'DELIVERY', 'DELIVERY_AND_SETUP'].includes(
       String(value.fulfillmentMethod),

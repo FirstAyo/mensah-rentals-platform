@@ -7,6 +7,7 @@ import type {
 import { Copy, FileDown, KeyRound, Link2, Send, Unlink } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { ReservationPanel } from './reservation-panel';
 
 const cad = new Intl.NumberFormat('en-CA', {
   style: 'currency',
@@ -27,9 +28,18 @@ const activityLabels: Record<
 
 export function RentalOrderDetail({
   canManageAccess,
+  reservationPermissions,
   id,
 }: {
   canManageAccess: boolean;
+  reservationPermissions: {
+    canComplete: boolean;
+    canCreate: boolean;
+    canOverride: boolean;
+    canRelease: boolean;
+    canViewAvailability: boolean;
+    canViewReservation: boolean;
+  };
   id: string;
 }) {
   const [order, setOrder] = useState<AdminRentalOrderDetailResponse | null>(
@@ -139,9 +149,12 @@ export function RentalOrderDetail({
             <span className="rounded-full bg-muted px-3 py-1.5 font-semibold">
               {order.status}
             </span>
-            <span className="rounded-full border px-3 py-1.5 text-sm font-semibold">
-              Inventory not reserved
-            </span>
+            {reservationPermissions.canViewReservation &&
+            order.reservationStatus ? (
+              <span className="rounded-full border px-3 py-1.5 text-sm font-semibold">
+                Reservation: {order.reservationStatus.replaceAll('_', ' ')}
+              </span>
+            ) : null}
           </div>
         </div>
       </header>
@@ -149,6 +162,8 @@ export function RentalOrderDetail({
       <p className="rounded-xl border bg-muted/40 p-4 font-medium">
         {order.notice}
       </p>
+
+      <ReservationPanel orderId={id} permissions={reservationPermissions} />
 
       <section className="rounded-xl border border-border bg-card p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">
@@ -332,7 +347,12 @@ export function RentalOrderDetail({
 
       <section className="rounded-xl border border-border bg-card p-5">
         <h2 className="text-xl font-semibold">Confirmed equipment</h2>
-        <div className="mt-4 overflow-x-auto">
+        <div
+          aria-label="Confirmed equipment table"
+          className="mt-4 overflow-x-auto"
+          role="region"
+          tabIndex={0}
+        >
           <table className="w-full min-w-[720px] text-left text-sm">
             <thead className="border-b text-muted-foreground">
               <tr>

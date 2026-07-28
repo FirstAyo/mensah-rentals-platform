@@ -1,5 +1,14 @@
 # Development Roadmap
 
+## Phase 14 — internal date-range reservations
+
+Implemented confirmed-order eligibility, UTC half-open overlap calculation,
+bulk full/partial reservations, serialized asset allocation, completion,
+release, append-only history, live RBAC, staff dashboard/order UI, guarded
+concurrency tests, and public confidentiality. Checkout, fulfilment, delivery,
+active rental, return, damage, missing-item, maintenance-resolution, payment,
+customer-account, and mobile workflows remain future phases.
+
 ## Phase 13 — customer amendments and formal change requests
 
 Implemented immutable complete request revisions, request-scoped customer access, full equipment-list replacement, staff comparisons and re-review, exact-revision decisions, stale quote handling, and formal change requests after acceptance/confirmation. This phase deliberately creates no reservation or inventory mutation.

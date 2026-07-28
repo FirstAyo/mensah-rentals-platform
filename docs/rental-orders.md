@@ -1,5 +1,17 @@
 # Confirmed Rental Orders
 
+## Phase 14 reservation handoff
+
+A newly confirmed order remains `NOT_RESERVED`. Authorised staff can separately
+create a full or intentional partial `InventoryReservation` for its exact order
+items and dates, complete a shortfall, or release committed capacity. Order item
+quantities, price/tax/discount snapshots, quote, decision, and request remain
+immutable. Reservation does not mark equipment checked out or fulfilled.
+
+Customer order responses and PDFs omit reservation status, availability,
+shortfall, allocation, and asset data. See
+[Inventory reservations](inventory-reservations.md).
+
 ## Changes after confirmation
 
 A confirmed rental order is immutable in Phase 13. Customer proposals are stored in a separate formal `RentalChangeRequest`; review never changes the order or creates a replacement automatically. Reservation status remains `NOT_RESERVED`, and no inventory mutation, availability calculation, or asset allocation occurs.

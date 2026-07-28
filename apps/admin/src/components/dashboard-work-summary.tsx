@@ -2,11 +2,13 @@
 
 import type { AdminWorkSummaryResponse } from '@mensah-rentals/types';
 import {
+  AlertTriangle,
   CalendarClock,
   ClipboardList,
   FileCheck2,
   FileClock,
   PackageCheck,
+  PackageOpen,
   Quote,
   ShoppingBag,
 } from 'lucide-react';
@@ -55,10 +57,33 @@ const cards = [
   {
     key: 'unreserved',
     label: 'Confirmed, not reserved',
-    permissions: ['order.view'],
+    permissions: ['order.view', 'inventory.reservation.view'],
     icon: PackageCheck,
     value: (data: AdminWorkSummaryResponse) =>
-      data.orders?.confirmedNotReserved,
+      data.reservations?.awaitingReservation,
+  },
+  {
+    key: 'partial-reservations',
+    label: 'Partially reserved orders',
+    permissions: ['order.view', 'inventory.reservation.view'],
+    icon: AlertTriangle,
+    value: (data: AdminWorkSummaryResponse) =>
+      data.reservations?.partiallyReserved,
+  },
+  {
+    key: 'full-reservations',
+    label: 'Fully reserved orders',
+    permissions: ['order.view', 'inventory.reservation.view'],
+    icon: PackageOpen,
+    value: (data: AdminWorkSummaryResponse) => data.reservations?.fullyReserved,
+  },
+  {
+    key: 'reservation-shortfall',
+    label: 'Unresolved shortfall quantity',
+    permissions: ['order.view', 'inventory.reservation.view'],
+    icon: AlertTriangle,
+    value: (data: AdminWorkSummaryResponse) =>
+      data.reservations?.unresolvedShortfallQuantity,
   },
   {
     key: 'upcoming',
@@ -66,6 +91,14 @@ const cards = [
     permissions: ['order.view'],
     icon: CalendarClock,
     value: (data: AdminWorkSummaryResponse) => data.orders?.upcomingRentalDates,
+  },
+  {
+    key: 'upcoming-reservations',
+    label: 'Upcoming active reservations',
+    permissions: ['order.view', 'inventory.reservation.view'],
+    icon: CalendarClock,
+    value: (data: AdminWorkSummaryResponse) =>
+      data.reservations?.upcomingReservations,
   },
 ] as const;
 

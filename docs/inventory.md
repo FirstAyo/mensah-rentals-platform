@@ -1,5 +1,18 @@
 # Inventory Foundation
 
+## Phase 14 date-range reservations
+
+Confirmed orders now commit operational capacity through a separate
+`InventoryReservation`; product descriptions and physical inventory totals are
+unchanged. Bulk availability subtracts non-rentable state and overlapping active
+reservation deltas. Serialized availability requires an eligible asset with no
+overlapping allocation. Intervals use UTC `[start, end)` semantics.
+
+Partial reservations preserve a real shortfall and require the independent
+override permission/reason. Releases append inverse deltas or release asset
+allocations; they never delete history. See
+[Inventory reservations](inventory-reservations.md).
+
 Phase 5 implements confidential present-state inventory. It does not implement rental reservations or requested-period availability.
 
 ## Model

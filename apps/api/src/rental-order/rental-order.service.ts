@@ -45,7 +45,7 @@ import {
 
 const unavailable = () => new NotFoundException('Order is unavailable');
 const notice =
-  'Your rental order is confirmed. Equipment allocation and fulfillment scheduling will be completed by our team. Inventory is not reserved yet.';
+  'Your rental order is confirmed. Our team is arranging fulfilment for the agreed rental period.';
 
 const orderInclude = {
   activities: {
@@ -73,7 +73,11 @@ export class RentalOrderService {
 
   async list(
     query: RentalOrderListQuery,
+    actor?: StaffUserResponse,
   ): Promise<PaginatedResponse<AdminRentalOrderSummaryResponse>> {
+    const includeReservationStatus = await this.mayViewReservations(actor);
+    if (query.reservationStatus && !includeReservationStatus)
+      throw new ForbiddenException('Insufficient permissions');
     const where: Prisma.RentalOrderWhereInput = {
       ...(query.status ? { status: query.status } : {}),
       ...(query.reservationStatus
@@ -156,7 +160,7 @@ export class RentalOrderService {
       prisma.rentalOrder.count({ where }),
     ]);
     return {
-      items: rows.map((row) => this.mapSummary(row)),
+      items: rows.map((row) => this.mapSummary(row, includeReservationStatus)),
       meta: {
         page: query.page,
         pageSize: query.pageSize,
@@ -166,13 +170,17 @@ export class RentalOrderService {
     };
   }
 
-  async detail(id: string): Promise<AdminRentalOrderDetailResponse> {
+  async detail(
+    id: string,
+    actor?: StaffUserResponse,
+  ): Promise<AdminRentalOrderDetailResponse> {
+    const includeReservationStatus = await this.mayViewReservations(actor);
     const order = await prisma.rentalOrder.findUnique({
       where: { id },
       include: orderInclude,
     });
     if (!order) throw new NotFoundException('Rental order not found');
-    return this.mapDetail(order);
+    return this.mapDetail(order, includeReservationStatus);
   }
 
   async create(
@@ -720,32 +728,35 @@ export class RentalOrderService {
     return access;
   }
 
-  private mapSummary(order: {
-    chargeTotalCents: bigint;
-    confirmedAt: Date;
-    contactFirstNameSnapshot: string;
-    contactLastNameSnapshot: string;
-    discountBaseCents: bigint;
-    discountCents: bigint;
-    discountRateBasisPoints: number | null;
-    discountType: 'FIXED_AMOUNT' | 'PERCENTAGE';
-    fulfillmentMethodSnapshot: AdminRentalOrderSummaryResponse['fulfillmentMethod'];
-    id: string;
-    itemSubtotalCents: bigint;
-    orderNumber: string;
-    quoteId: string;
-    quote: { quoteNumber: string };
-    rentalEndDateSnapshot: Date;
-    rentalRequestId: string;
-    rentalRequest: { referenceNumber: string };
-    rentalStartDateSnapshot: Date;
-    reservationStatus: 'NOT_RESERVED';
-    status: 'CONFIRMED';
-    subtotalCents: bigint;
-    taxCents: bigint;
-    taxableSubtotalCents: bigint;
-    totalCents: bigint;
-  }): AdminRentalOrderSummaryResponse {
+  private mapSummary(
+    order: {
+      chargeTotalCents: bigint;
+      confirmedAt: Date;
+      contactFirstNameSnapshot: string;
+      contactLastNameSnapshot: string;
+      discountBaseCents: bigint;
+      discountCents: bigint;
+      discountRateBasisPoints: number | null;
+      discountType: 'FIXED_AMOUNT' | 'PERCENTAGE';
+      fulfillmentMethodSnapshot: AdminRentalOrderSummaryResponse['fulfillmentMethod'];
+      id: string;
+      itemSubtotalCents: bigint;
+      orderNumber: string;
+      quoteId: string;
+      quote: { quoteNumber: string };
+      rentalEndDateSnapshot: Date;
+      rentalRequestId: string;
+      rentalRequest: { referenceNumber: string };
+      rentalStartDateSnapshot: Date;
+      reservationStatus: AdminRentalOrderSummaryResponse['reservationStatus'];
+      status: 'CONFIRMED';
+      subtotalCents: bigint;
+      taxCents: bigint;
+      taxableSubtotalCents: bigint;
+      totalCents: bigint;
+    },
+    includeReservationStatus = true,
+  ): AdminRentalOrderSummaryResponse {
     return {
       chargeTotalCents: this.safeNumber(order.chargeTotalCents),
       confirmedAt: order.confirmedAt.toISOString(),
@@ -764,7 +775,9 @@ export class RentalOrderService {
       rentalRequestId: order.rentalRequestId,
       rentalRequestReference: order.rentalRequest.referenceNumber,
       rentalStartDate: this.dateOnly(order.rentalStartDateSnapshot),
-      reservationStatus: order.reservationStatus,
+      ...(includeReservationStatus
+        ? { reservationStatus: order.reservationStatus }
+        : {}),
       status: order.status,
       subtotalCents: this.safeNumber(order.subtotalCents),
       taxableSubtotalCents: this.safeNumber(order.taxableSubtotalCents),
@@ -773,9 +786,12 @@ export class RentalOrderService {
     };
   }
 
-  private mapDetail(order: OrderRecord): AdminRentalOrderDetailResponse {
+  private mapDetail(
+    order: OrderRecord,
+    includeReservationStatus = true,
+  ): AdminRentalOrderDetailResponse {
     return {
-      ...this.mapSummary(order),
+      ...this.mapSummary(order, includeReservationStatus),
       acceptedQuoteRevisionId: order.acceptedQuoteRevisionId,
       acceptedRevisionNumber: order.acceptedRevisionNumber,
       activities: order.activities.map((activity) => ({
@@ -894,7 +910,6 @@ export class RentalOrderService {
       projectType: detail.project.type,
       rentalEndDate: detail.rentalEndDate,
       rentalStartDate: detail.rentalStartDate,
-      reservationStatus: 'NOT_RESERVED',
       status: 'CONFIRMED',
       subtotalCents: detail.subtotalCents,
       tax: detail.tax,
@@ -1304,5 +1319,29 @@ export class RentalOrderService {
     const keys = new Set(granted.map(({ key }) => key));
     if (permissions.some((permission) => !keys.has(permission)))
       throw new ForbiddenException('Insufficient permissions');
+  }
+
+  private async mayViewReservations(actor?: StaffUserResponse) {
+    if (!actor) return true;
+    return Boolean(
+      await prisma.user.findFirst({
+        where: {
+          id: actor.id,
+          status: UserStatus.ACTIVE,
+          roles: {
+            some: {
+              role: {
+                permissions: {
+                  some: {
+                    permission: { key: 'inventory.reservation.view' },
+                  },
+                },
+              },
+            },
+          },
+        },
+        select: { id: true },
+      }),
+    );
   }
 }

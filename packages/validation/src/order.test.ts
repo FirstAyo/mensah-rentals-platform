@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  completeInventoryReservationSchema,
+  createInventoryReservationSchema,
   createRentalOrderSchema,
   orderCustomerAccessSchema,
+  releaseInventoryReservationSchema,
   rentalOrderListQuerySchema,
 } from './order';
 
@@ -64,6 +67,83 @@ describe('rental order validation', () => {
       orderCustomerAccessSchema.safeParse({
         capability: valid,
         orderId: 'leak',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('requires an override reason exactly for intentional partial reservation', () => {
+    const operationId = '8cbf58fb-b706-4bb2-aef1-205b1d1e4d00';
+    expect(
+      createInventoryReservationSchema.safeParse({
+        allowPartial: true,
+        operationId,
+      }).success,
+    ).toBe(false);
+    expect(
+      createInventoryReservationSchema.safeParse({
+        allowPartial: true,
+        operationId,
+        overrideReason:
+          'Supplier shortfall will be resolved before fulfilment.',
+      }).success,
+    ).toBe(true);
+    expect(
+      completeInventoryReservationSchema.safeParse({
+        allowPartial: false,
+        expectedVersion: 1,
+        operationId,
+        overrideReason: 'Not allowed for a full attempt.',
+      }).success,
+    ).toBe(false);
+  });
+
+  it('rejects duplicate serialized assets across order items', () => {
+    const assetId = 'cm1abcdefghijklmnopqrst';
+    const parsed = createInventoryReservationSchema.safeParse({
+      allowPartial: false,
+      operationId: '8cbf58fb-b706-4bb2-aef1-205b1d1e4d00',
+      serializedSelections: [
+        {
+          rentalOrderItemId: 'cm1abcdefghijklmnopqrstu',
+          serializedAssetIds: [assetId],
+        },
+        {
+          rentalOrderItemId: 'cm1abcdefghijklmnopqrstv',
+          serializedAssetIds: [assetId],
+        },
+      ],
+    });
+    expect(parsed.success).toBe(false);
+  });
+
+  it('requires unique release items and exactly one release mechanism', () => {
+    const operationId = '8cbf58fb-b706-4bb2-aef1-205b1d1e4d00';
+    const itemId = 'cm1abcdefghijklmnopqrstu';
+    const allocationId = 'cm1abcdefghijklmnopqrst';
+    const base = {
+      expectedVersion: 1,
+      operationId,
+      reason: 'Release validation fixture.',
+    };
+    expect(
+      releaseInventoryReservationSchema.safeParse({
+        ...base,
+        items: [
+          {
+            allocationIds: [allocationId],
+            quantity: 1,
+            rentalOrderItemId: itemId,
+          },
+        ],
+      }).success,
+    ).toBe(false);
+    expect(
+      releaseInventoryReservationSchema.safeParse({
+        ...base,
+        items: [
+          { allocationIds: [], quantity: 1, rentalOrderItemId: itemId },
+          { allocationIds: [], quantity: 1, rentalOrderItemId: itemId },
+        ],
       }).success,
     ).toBe(false);
   });

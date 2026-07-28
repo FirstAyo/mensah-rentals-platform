@@ -1,5 +1,22 @@
 # Permissions and Roles
 
+## Phase 14 permissions
+
+- `inventory.reservation.view`: view internal reservation aggregates/history.
+- `inventory.reservation.create`: create a reservation for a confirmed order.
+- `inventory.reservation.update`: complete a recorded shortfall.
+- `inventory.reservation.release`: release bulk quantities/assets.
+- `inventory.reservation.override`: intentionally record partial/shortfall
+  outcomes with a reason.
+- `inventory.availability.view`: view internal date-range availability and
+  eligible serialized assets.
+
+`SUPER_ADMIN` and `ADMIN` receive all six. `SALES_PERSON` and `EDITOR` receive
+none by default. Reservation
+authority is never inferred from `order.create`, `order.update`,
+`inventory.view`, or frontend visibility. Dashboard reservation metrics are
+omitted without `inventory.reservation.view`.
+
 ## Phase 13 permissions
 
 - `rental_request_revision.view`
@@ -32,7 +49,7 @@ Authorization is permission-based. Roles collect permissions; users may have mul
 
 ### SUPER_ADMIN
 
-Receives all 45 catalogue permissions. The seed additively grants any newly introduced catalogue permission to this role.
+Receives all 56 catalogue permissions. The seed additively grants any newly introduced catalogue permission to this role.
 
 ### ADMIN
 

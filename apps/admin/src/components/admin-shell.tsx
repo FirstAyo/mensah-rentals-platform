@@ -98,6 +98,10 @@ export function AdminShell({
                 <Icon className="h-4 w-4" aria-hidden="true" />
                 <span className="min-w-0 flex-1 truncate">{label}</span>
                 {href === '/rental-requests' ? <ActionableWorkBadge /> : null}
+                {href === '/orders' &&
+                permissions.has('inventory.reservation.view') ? (
+                  <ActionableWorkBadge kind="reservations" />
+                ) : null}
               </Link>
             ))}
           </nav>
@@ -118,6 +122,10 @@ export function AdminShell({
                     <span>{label}</span>
                     {href === '/rental-requests' ? (
                       <ActionableWorkBadge compact />
+                    ) : null}
+                    {href === '/orders' &&
+                    permissions.has('inventory.reservation.view') ? (
+                      <ActionableWorkBadge compact kind="reservations" />
                     ) : null}
                   </Link>
                 ))}

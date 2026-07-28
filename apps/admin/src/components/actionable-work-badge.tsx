@@ -4,18 +4,28 @@ import { useWorkSummary } from '@/lib/work-summary';
 
 export function ActionableWorkBadge({
   compact = false,
+  kind = 'requests',
 }: {
   compact?: boolean;
+  kind?: 'requests' | 'reservations';
 }) {
   const { data } = useWorkSummary();
-  const count = data?.rentalRequests?.submittedAwaitingReview ?? 0;
+  const count =
+    kind === 'requests'
+      ? (data?.rentalRequests?.submittedAwaitingReview ?? 0)
+      : (data?.reservations?.awaitingReservation ?? 0) +
+        (data?.reservations?.partiallyReserved ?? 0);
   if (count === 0) return null;
   const display = count > 99 ? '99+' : String(count);
+  const label =
+    kind === 'requests'
+      ? `${count} submitted rental ${count === 1 ? 'request' : 'requests'} awaiting review`
+      : `${count} rental ${count === 1 ? 'order requires' : 'orders require'} reservation work`;
   return (
     <span
-      aria-label={`${count} submitted rental ${count === 1 ? 'request' : 'requests'} awaiting review`}
+      aria-label={label}
       className={`inline-flex shrink-0 items-center justify-center rounded-full bg-primary font-bold text-primary-foreground ${compact ? 'min-w-5 px-1.5 py-0.5 text-[10px]' : 'min-w-6 px-2 py-0.5 text-xs'}`}
-      title={`${count} awaiting review`}
+      title={label}
     >
       {display}
     </span>

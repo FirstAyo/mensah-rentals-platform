@@ -13,7 +13,7 @@ describe('RBAC seed against PostgreSQL', () => {
     const first = await runRbacSeed(prisma);
     const second = await runRbacSeed(prisma);
     expect(second).toMatchObject({
-      permissions: 50,
+      permissions: 56,
       roles: SYSTEM_ROLES.length,
     });
     expect(second.permissions).toBe(first.permissions);
@@ -25,10 +25,61 @@ describe('RBAC seed against PostgreSQL', () => {
       include: { permissions: true },
       where: { name: SUPER_ADMIN_ROLE_NAME },
     });
-    expect(role?.permissions).toHaveLength(50);
+    expect(role?.permissions).toHaveLength(56);
     expect(
       new Set(role?.permissions.map(({ permissionId }) => permissionId)).size,
-    ).toBe(50);
+    ).toBe(56);
+  });
+
+  it('adds only newly introduced defaults to existing roles', async () => {
+    const admin = await prisma.role.findUniqueOrThrow({
+      where: { name: 'ADMIN' },
+    });
+    const oldPermission = await prisma.permission.findUniqueOrThrow({
+      where: { key: 'product.view' },
+    });
+    const newPermission = await prisma.permission.findUniqueOrThrow({
+      where: { key: 'inventory.reservation.create' },
+    });
+    await prisma.rolePermission.deleteMany({
+      where: {
+        OR: [
+          { roleId: admin.id, permissionId: oldPermission.id },
+          { permissionId: newPermission.id },
+        ],
+      },
+    });
+    await prisma.permission.delete({ where: { id: newPermission.id } });
+
+    await runRbacSeed(prisma);
+
+    const restoredNew = await prisma.permission.findUniqueOrThrow({
+      where: { key: 'inventory.reservation.create' },
+    });
+    await expect(
+      prisma.rolePermission.findUnique({
+        where: {
+          roleId_permissionId: {
+            roleId: admin.id,
+            permissionId: restoredNew.id,
+          },
+        },
+      }),
+    ).resolves.not.toBeNull();
+    await expect(
+      prisma.rolePermission.findUnique({
+        where: {
+          roleId_permissionId: {
+            roleId: admin.id,
+            permissionId: oldPermission.id,
+          },
+        },
+      }),
+    ).resolves.toBeNull();
+
+    await prisma.rolePermission.create({
+      data: { roleId: admin.id, permissionId: oldPermission.id },
+    });
   });
 
   it('keeps the configured active bootstrap user as SUPER_ADMIN', async () => {

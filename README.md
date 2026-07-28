@@ -1,5 +1,14 @@
 # Mensah Rentals Platform
 
+## Phase 14: internal inventory reservations
+
+Authorised staff can now commit bulk quantities and selected serialized assets
+to a confirmed rental order for a UTC date range. Full, intentional partial,
+shortfall completion, and release actions preserve append-only history and use
+transaction/database safeguards against double-booking. These internal
+operations never change the order's commercial snapshot or expose inventory to
+customers. See [Inventory reservations](docs/inventory-reservations.md).
+
 ## Phase 13: request amendments
 
 Customers with private request access can submit an immutable replacement revision before quote acceptance. Accepted quotes and confirmed orders use a separate formal change-request workflow. Neither workflow reserves or mutates inventory. See [rental request amendments](docs/rental-request-amendments.md) and [formal change requests](docs/rental-change-requests.md).

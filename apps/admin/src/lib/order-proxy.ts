@@ -17,6 +17,26 @@ const routes = [
     pattern: new RegExp(`^${id}/customer-access/(revoke|rotate|resend)$`),
     methods: new Set(['POST']),
   },
+  {
+    pattern: new RegExp(`^${id}/(reservation|availability)$`),
+    methods: new Set(['GET']),
+  },
+  {
+    pattern: new RegExp(`^${id}/eligible-assets$`),
+    methods: new Set(['GET']),
+  },
+  {
+    pattern: new RegExp(`^${id}/reservations$`),
+    methods: new Set(['POST']),
+  },
+  {
+    pattern: new RegExp(`^${id}/reservations/${id}/(complete|release)$`),
+    methods: new Set(['POST']),
+  },
+  {
+    pattern: new RegExp(`^${id}/reservations/${id}/eligible-assets$`),
+    methods: new Set(['GET']),
+  },
 ] as const;
 
 const queryKeys = new Set([
@@ -30,6 +50,7 @@ const queryKeys = new Set([
   'rentalStartTo',
   'sortBy',
   'sortDirection',
+  'rentalOrderItemId',
 ]);
 
 export async function proxyOrder(
@@ -67,8 +88,17 @@ export async function proxyOrder(
         { message: 'Content-Type must be application/json' },
         { status: 415 },
       );
+    const declaredLength = request.headers.get('content-length');
+    if (
+      declaredLength !== null &&
+      (!/^\d+$/.test(declaredLength) || Number(declaredLength) > 32 * 1024)
+    )
+      return Response.json(
+        { message: 'Request body is too large' },
+        { status: 413 },
+      );
     body = await request.text();
-    if (new TextEncoder().encode(body).byteLength > 8 * 1024)
+    if (new TextEncoder().encode(body).byteLength > 32 * 1024)
       return Response.json(
         { message: 'Request body is too large' },
         { status: 413 },

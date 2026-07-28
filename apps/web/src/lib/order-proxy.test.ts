@@ -47,7 +47,6 @@ const publicOrder = {
   projectType: 'Event',
   rentalEndDate: '2027-01-03',
   rentalStartDate: '2027-01-02',
-  reservationStatus: 'NOT_RESERVED',
   status: 'CONFIRMED',
   subtotalCents: 12_000,
   tax: {

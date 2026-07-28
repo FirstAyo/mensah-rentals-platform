@@ -17,7 +17,11 @@ const cad = new Intl.NumberFormat('en-CA', {
   currency: 'CAD',
 });
 
-function RentalOrderListContent() {
+function RentalOrderListContent({
+  canViewReservations,
+}: {
+  canViewReservations: boolean;
+}) {
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
   const [reservationStatus, setReservationStatus] = useState('');
@@ -38,12 +42,14 @@ function RentalOrderListContent() {
     });
     if (search) query.set('search', search);
     if (status) query.set('status', status);
-    if (reservationStatus) query.set('reservationStatus', reservationStatus);
+    if (canViewReservations && reservationStatus)
+      query.set('reservationStatus', reservationStatus);
     if (fulfillmentMethod) query.set('fulfillmentMethod', fulfillmentMethod);
     if (rentalStartFrom) query.set('rentalStartFrom', rentalStartFrom);
     if (rentalStartTo) query.set('rentalStartTo', rentalStartTo);
     return query.toString();
   }, [
+    canViewReservations,
     fulfillmentMethod,
     page,
     rentalStartFrom,
@@ -94,20 +100,26 @@ function RentalOrderListContent() {
             value={search}
           />
         </label>
-        <label>
-          <span className="sr-only">Filter by reservation status</span>
-          <select
-            className="w-full rounded-lg border bg-background px-3 py-2"
-            onChange={(event) => {
-              setReservationStatus(event.target.value);
-              setPage(1);
-            }}
-            value={reservationStatus}
-          >
-            <option value="">All reservation states</option>
-            <option value="NOT_RESERVED">Not reserved</option>
-          </select>
-        </label>
+        {canViewReservations ? (
+          <label>
+            <span className="sr-only">Filter by reservation status</span>
+            <select
+              className="w-full rounded-lg border bg-background px-3 py-2"
+              onChange={(event) => {
+                setReservationStatus(event.target.value);
+                setPage(1);
+              }}
+              value={reservationStatus}
+            >
+              <option value="">All reservation states</option>
+              <option value="NOT_RESERVED">Not reserved</option>
+              <option value="PARTIALLY_RESERVED">Partially reserved</option>
+              <option value="RESERVED">Reserved</option>
+              <option value="RESERVATION_FAILED">Reservation failed</option>
+              <option value="RELEASED">Released</option>
+            </select>
+          </label>
+        ) : null}
         <label>
           <span className="sr-only">Filter by fulfillment method</span>
           <select
@@ -237,11 +249,11 @@ function RentalOrderListContent() {
             <span className="text-sm text-muted-foreground">
               {order.fulfillmentMethod.replaceAll('_', ' ')}
             </span>
-            <span className="text-sm font-semibold text-muted-foreground">
-              {order.reservationStatus === 'NOT_RESERVED'
-                ? 'Inventory not reserved'
-                : order.reservationStatus}
-            </span>
+            {canViewReservations && order.reservationStatus ? (
+              <span className="text-sm font-semibold text-muted-foreground">
+                {order.reservationStatus.replaceAll('_', ' ')}
+              </span>
+            ) : null}
             <p className="font-bold">{cad.format(order.totalCents / 100)}</p>
             <p className="text-sm text-muted-foreground">
               Confirmed {new Date(order.confirmedAt).toLocaleString()}
@@ -278,11 +290,15 @@ function RentalOrderListContent() {
   );
 }
 
-export function RentalOrderList() {
+export function RentalOrderList({
+  canViewReservations,
+}: {
+  canViewReservations: boolean;
+}) {
   const [client] = useState(() => new QueryClient());
   return (
     <QueryClientProvider client={client}>
-      <RentalOrderListContent />
+      <RentalOrderListContent canViewReservations={canViewReservations} />
     </QueryClientProvider>
   );
 }

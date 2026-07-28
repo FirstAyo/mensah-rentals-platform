@@ -37,16 +37,20 @@ export class AdminRentalOrderController {
   @Get()
   @RequirePermissions('order.view')
   list(
+    @CurrentStaffUser() actor: StaffUserResponse,
     @Query(new RentalOrderZodPipe(rentalOrderListQuerySchema))
     query: RentalOrderListQuery,
   ) {
-    return this.orders.list(query);
+    return this.orders.list(query, actor);
   }
 
   @Get(':id')
   @RequirePermissions('order.view')
-  detail(@Param('id', new RentalOrderZodPipe(cuidParamSchema)) id: string) {
-    return this.orders.detail(id);
+  detail(
+    @CurrentStaffUser() actor: StaffUserResponse,
+    @Param('id', new RentalOrderZodPipe(cuidParamSchema)) id: string,
+  ) {
+    return this.orders.detail(id, actor);
   }
 
   @Get(':id/pdf')

@@ -598,7 +598,12 @@ export interface PublicQuoteResponse extends QuoteMoneyResponse {
 }
 
 export type RentalOrderStatusResponse = 'CONFIRMED';
-export type RentalOrderReservationStatusResponse = 'NOT_RESERVED';
+export type RentalOrderReservationStatusResponse =
+  | 'NOT_RESERVED'
+  | 'PARTIALLY_RESERVED'
+  | 'RESERVED'
+  | 'RESERVATION_FAILED'
+  | 'RELEASED';
 
 export interface AdminRentalOrderSummaryResponse extends QuoteMoneyResponse {
   confirmedAt: string;
@@ -612,7 +617,7 @@ export interface AdminRentalOrderSummaryResponse extends QuoteMoneyResponse {
   rentalRequestId: string;
   rentalRequestReference: string;
   rentalStartDate: string;
-  reservationStatus: RentalOrderReservationStatusResponse;
+  reservationStatus?: RentalOrderReservationStatusResponse;
   status: RentalOrderStatusResponse;
 }
 
@@ -718,7 +723,6 @@ export interface PublicRentalOrderResponse extends QuoteMoneyResponse {
   projectType: string;
   rentalEndDate: string;
   rentalStartDate: string;
-  reservationStatus: RentalOrderReservationStatusResponse;
   status: RentalOrderStatusResponse;
   tax: AdminQuoteRevisionResponse['tax'];
   terms: string | null;
@@ -736,9 +740,113 @@ export interface AdminWorkSummaryResponse {
     sentAwaitingResponse: number;
   };
   orders?: {
-    confirmedNotReserved: number;
     upcomingRentalDates: number;
   };
+  reservations?: {
+    awaitingReservation: number;
+    fullyReserved: number;
+    partiallyReserved: number;
+    unresolvedShortfallQuantity: number;
+    upcomingReservations: number;
+  };
+}
+
+export type InventoryReservationStatusResponse =
+  | 'PENDING'
+  | 'PARTIALLY_RESERVED'
+  | 'RESERVED'
+  | 'RELEASED'
+  | 'RESERVATION_FAILED';
+
+export interface AdminAvailabilityItemResponse {
+  availableToReserve: number;
+  eligibleSerializedAssetCount: number | null;
+  inventoryId: string | null;
+  orderedQuantity: number;
+  overlappingReservedQuantity: number;
+  physicalRentableQuantity: number;
+  productId: string;
+  productName: string;
+  rentalOrderItemId: string;
+  shortfallQuantity: number;
+  trackingMode: InventoryTrackingModeResponse | null;
+}
+
+export interface AdminOrderAvailabilityResponse {
+  calculatedAt: string;
+  items: AdminAvailabilityItemResponse[];
+  notice: string;
+  orderId: string;
+  rentalEndDate: string;
+  rentalStartDate: string;
+  requestedTimeZone: string;
+}
+
+export interface AdminReservationAllocationResponse {
+  allocatedAt: string;
+  allocationId: string;
+  assetNumber: string;
+  releasedAt: string | null;
+  serialNumber: string | null;
+  serializedAssetId: string;
+  status: 'ACTIVE' | 'RELEASED';
+}
+
+export interface AdminReservationItemResponse {
+  allocations: AdminReservationAllocationResponse[];
+  productId: string;
+  productName: string;
+  rentalOrderItemId: string;
+  requestedQuantity: number;
+  reservedQuantity: number;
+  shortfallQuantity: number;
+  trackingMode: InventoryTrackingModeResponse;
+}
+
+export interface AdminReservationActivityResponse {
+  actor: AdminRentalRequestStaffSummary | null;
+  createdAt: string;
+  id: string;
+  metadata: Record<string, unknown> | null;
+  reason: string | null;
+  type:
+    | 'RESERVATION_CREATED'
+    | 'RESERVATION_PARTIALLY_CREATED'
+    | 'RESERVATION_COMPLETED'
+    | 'RESERVATION_QUANTITY_ADDED'
+    | 'SERIALIZED_ASSET_ALLOCATED'
+    | 'SERIALIZED_ASSET_RELEASED'
+    | 'RESERVATION_QUANTITY_RELEASED'
+    | 'RESERVATION_RELEASED'
+    | 'RESERVATION_FAILED'
+    | 'RESERVATION_OVERRIDE_RECORDED';
+}
+
+export interface AdminInventoryReservationResponse {
+  activities: AdminReservationActivityResponse[];
+  createdAt: string;
+  id: string;
+  items: AdminReservationItemResponse[];
+  orderId: string;
+  orderNumber: string;
+  overrideReason: string | null;
+  rentalEndDate: string;
+  rentalStartDate: string;
+  reservationNumber: string;
+  status: InventoryReservationStatusResponse;
+  updatedAt: string;
+  version: number;
+}
+
+export interface AdminEligibleSerializedAssetResponse {
+  assetNumber: string;
+  id: string;
+  serialNumber: string | null;
+}
+
+export interface AdminEligibleAssetsResponse {
+  items: AdminEligibleSerializedAssetResponse[];
+  rentalOrderItemId: string;
 }
 
 export type InventoryTrackingModeResponse = 'BULK' | 'SERIALIZED';

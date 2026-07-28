@@ -3,11 +3,15 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
   quoteCount,
+  inventoryReservationCount,
+  inventoryReservationItemAggregate,
   rentalOrderCount,
   rentalRequestCount,
   rentalRequestFindMany,
 } = vi.hoisted(() => ({
   quoteCount: vi.fn(),
+  inventoryReservationCount: vi.fn(),
+  inventoryReservationItemAggregate: vi.fn(),
   rentalOrderCount: vi.fn(),
   rentalRequestCount: vi.fn(),
   rentalRequestFindMany: vi.fn(),
@@ -16,6 +20,8 @@ const {
 vi.mock('@mensah-rentals/database', () => ({
   prisma: {
     quote: { count: quoteCount },
+    inventoryReservation: { count: inventoryReservationCount },
+    inventoryReservationItem: { aggregate: inventoryReservationItemAggregate },
     rentalOrder: { count: rentalOrderCount },
     rentalRequest: {
       count: rentalRequestCount,
@@ -60,7 +66,7 @@ describe('WorkSummaryService', () => {
       },
     ]);
     quoteCount.mockResolvedValueOnce(3).mockResolvedValueOnce(5);
-    rentalOrderCount.mockResolvedValueOnce(6).mockResolvedValueOnce(7);
+    rentalOrderCount.mockResolvedValueOnce(7);
 
     const result = await new WorkSummaryService().get(
       actor([
@@ -73,7 +79,7 @@ describe('WorkSummaryService', () => {
     );
 
     expect(result).toMatchObject({
-      orders: { confirmedNotReserved: 6, upcomingRentalDates: 7 },
+      orders: { upcomingRentalDates: 7 },
       quotes: { acceptedAwaitingOrder: 5, sentAwaitingResponse: 3 },
       rentalRequests: {
         approvedAwaitingQuote: 1,
@@ -86,6 +92,36 @@ describe('WorkSummaryService', () => {
     });
   });
 
+  it('exposes reservation metrics only with the reservation permission', async () => {
+    rentalOrderCount
+      .mockResolvedValueOnce(2)
+      .mockResolvedValueOnce(3)
+      .mockResolvedValueOnce(4);
+    inventoryReservationItemAggregate.mockResolvedValueOnce({
+      _sum: { shortfallQuantity: 12 },
+    });
+    inventoryReservationCount.mockResolvedValueOnce(5);
+    const result = await new WorkSummaryService().get(
+      actor(['inventory.reservation.view']),
+    );
+    expect(result.reservations).toEqual({
+      awaitingReservation: 2,
+      fullyReserved: 4,
+      partiallyReserved: 3,
+      unresolvedShortfallQuantity: 12,
+      upcomingReservations: 5,
+    });
+    expect(rentalOrderCount).toHaveBeenNthCalledWith(1, {
+      where: {
+        rentalEndDateSnapshot: { gte: expect.any(Date) },
+        reservationStatus: {
+          in: ['NOT_RESERVED', 'RESERVATION_FAILED'],
+        },
+        status: 'CONFIRMED',
+      },
+    });
+  });
+
   it('does not query or disclose sections without their view permission', async () => {
     await expect(new WorkSummaryService().get(actor([]))).resolves.toEqual({
       generatedAt: expect.any(String),
@@ -93,5 +129,6 @@ describe('WorkSummaryService', () => {
     expect(rentalRequestCount).not.toHaveBeenCalled();
     expect(quoteCount).not.toHaveBeenCalled();
     expect(rentalOrderCount).not.toHaveBeenCalled();
+    expect(inventoryReservationCount).not.toHaveBeenCalled();
   });
 });

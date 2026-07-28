@@ -1,5 +1,19 @@
 # API Data Visibility
 
+## Phase 14 reservation visibility
+
+Reservation and date-range availability endpoints exist only under
+`/admin/orders`. They require staff authentication plus exact live permissions.
+Administrative responses may include ordered, reserved, shortfall, physical
+rentable, available-to-reserve, overlapping reservation, asset, and internal
+activity data only when permitted.
+
+Public request, quote, order, PDF, and catalogue responses must not contain
+reservation state, reservation IDs, reserved/available/shortfall quantities,
+overlap results, asset/serial identifiers, activity, override reasons, or
+availability calculations. Customer wording remains neutral: fulfilment is
+being arranged. No reservation endpoint exists in the public namespace.
+
 ## Phase 13 private customer responses
 
 Private revision and change-request APIs require a request-scoped capability. Customer revision DTOs may include the customer-provided contact, company, project, fulfilment, delivery, notes, dates, and customer-safe item snapshots needed to edit the request. They exclude staff identities, assignment, internal notes/reasons, RBAC data, operational IDs/hashes, capability data, quote/order internals, inventory quantities/states, availability, reservations, and serialized assets. Missing, invalid, expired, revoked, and mismatched capabilities use the same unavailable response.

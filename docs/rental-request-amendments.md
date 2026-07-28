@@ -1,5 +1,14 @@
 # Rental request amendments
 
+## Phase 14 reservation boundary
+
+Amending a request still creates an immutable request revision and supersedes
+the applicable decision/quote workflow; it does not create or change an
+inventory reservation. Once a confirmed order has an active reservation, a
+future approved order-change workflow must explicitly coordinate reservation
+release/replacement. Phase 14 does not infer reservation changes from a
+customer proposal.
+
 Phase 13 lets a customer who holds a valid request-scoped capability submit a complete replacement version of a submitted rental request. A reference number, customer name, project name, email address, or phone number is never an access credential.
 
 ## Lifecycle and eligibility

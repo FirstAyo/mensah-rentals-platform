@@ -10,6 +10,7 @@ import { AuthModule } from '../auth/auth.module';
 import { AuthService } from '../auth/auth.service';
 import { RentalOrderModule } from './rental-order.module';
 import { RentalOrderService } from './rental-order.service';
+import { InventoryReservationService } from './inventory-reservation.service';
 
 const id = 'cm00000000000000000000000';
 const revisionId = 'cm00000000000000000000001';
@@ -55,6 +56,15 @@ describe('rental order HTTP authorization and validation', () => {
       throw new NotFoundException('Order is unavailable');
     }),
   };
+  const reservationService = {
+    availability: vi.fn(async () => ({ items: [], orderId: id })),
+    complete: vi.fn(async () => ({ id: revisionId })),
+    create: vi.fn(async () => ({ id: revisionId })),
+    eligibleAssets: vi.fn(async () => ({ items: [] })),
+    eligibleAssetsForOrder: vi.fn(async () => ({ items: [] })),
+    get: vi.fn(async () => ({ id: revisionId })),
+    release: vi.fn(async () => ({ id: revisionId })),
+  };
 
   beforeAll(async () => {
     const module = await Test.createTestingModule({
@@ -81,6 +91,8 @@ describe('rental order HTTP authorization and validation', () => {
       })
       .overrideProvider(RentalOrderService)
       .useValue(service)
+      .overrideProvider(InventoryReservationService)
+      .useValue(reservationService)
       .compile();
     app = module.createNestApplication();
     app.use(cookieParser());
@@ -135,6 +147,74 @@ describe('rental order HTTP authorization and validation', () => {
     await call().expect(403);
     current = { ...base, permissionKeys: ['order.view', 'order.update'] };
     await call().expect(201).expect('Cache-Control', 'private, no-store');
+  });
+
+  it('enforces each reservation permission independently', async () => {
+    const get = (path: string) =>
+      request(app.getHttpServer()).get(path).set('Cookie', cookie);
+    current = { ...base, permissionKeys: ['order.view'] };
+    await get(`/admin/orders/${id}/reservation`).expect(403);
+    await get(`/admin/orders/${id}/availability`).expect(403);
+
+    current = {
+      ...base,
+      permissionKeys: ['inventory.reservation.view'],
+    };
+    await get(`/admin/orders/${id}/reservation`).expect(200);
+    await get(`/admin/orders/${id}/availability`).expect(403);
+
+    current = {
+      ...base,
+      permissionKeys: ['inventory.availability.view'],
+    };
+    await get(`/admin/orders/${id}/availability`).expect(200);
+    await get(
+      `/admin/orders/${id}/eligible-assets?rentalOrderItemId=${revisionId}`,
+    ).expect(200);
+
+    const create = () =>
+      request(app.getHttpServer())
+        .post(`/admin/orders/${id}/reservations`)
+        .set('Cookie', cookie)
+        .set('Origin', 'http://localhost:3001')
+        .send({
+          allowPartial: false,
+          operationId: '00000000-0000-4000-8000-000000000000',
+          serializedSelections: [],
+        });
+    current = { ...base, permissionKeys: ['inventory.reservation.view'] };
+    await create().expect(403);
+    current = { ...base, permissionKeys: ['inventory.reservation.create'] };
+    await create().expect(201);
+
+    const complete = () =>
+      request(app.getHttpServer())
+        .post(`/admin/orders/${id}/reservations/${revisionId}/complete`)
+        .set('Cookie', cookie)
+        .set('Origin', 'http://localhost:3001')
+        .send({
+          allowPartial: false,
+          expectedVersion: 1,
+          operationId: '10000000-0000-4000-8000-000000000000',
+          serializedSelections: [],
+        });
+    await complete().expect(403);
+    current = { ...base, permissionKeys: ['inventory.reservation.update'] };
+    await complete().expect(201);
+
+    const release = () =>
+      request(app.getHttpServer())
+        .post(`/admin/orders/${id}/reservations/${revisionId}/release`)
+        .set('Cookie', cookie)
+        .set('Origin', 'http://localhost:3001')
+        .send({
+          expectedVersion: 1,
+          operationId: '20000000-0000-4000-8000-000000000000',
+          reason: 'Authorization test release.',
+        });
+    await release().expect(403);
+    current = { ...base, permissionKeys: ['inventory.reservation.release'] };
+    await release().expect(201);
   });
 
   it('protects staff PDFs and serves them as private PDF attachments', async () => {

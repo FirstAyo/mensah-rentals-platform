@@ -12,6 +12,13 @@ vi.mock('@/lib/work-summary', () => ({
     data: {
       generatedAt: '2026-07-27T00:00:00.000Z',
       rentalRequests: { submittedAwaitingReview: 7, underReview: 2 },
+      reservations: {
+        awaitingReservation: 3,
+        fullyReserved: 1,
+        partiallyReserved: 2,
+        unresolvedShortfallQuantity: 4,
+        upcomingReservations: 3,
+      },
     },
     error: null,
     loading: false,
@@ -52,6 +59,12 @@ describe('permission-aware admin shell', () => {
 
   it('shows rental orders only to staff with order.view', () => {
     expect(render(['order.view'])).toContain('href="/orders"');
+    expect(render(['order.view'])).not.toContain(
+      'rental orders require reservation work',
+    );
+    expect(render(['order.view', 'inventory.reservation.view'])).toContain(
+      '5 rental orders require reservation work',
+    );
     expect(render([])).not.toContain('href="/orders"');
   });
 });

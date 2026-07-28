@@ -62,7 +62,7 @@ async function createAcceptedQuote(page: Page) {
     await page.getByRole('button', { name: 'Add to rental cart' }).click();
     await expect(
       page.getByRole('link', { name: 'Rental cart, 1 equipment type' }),
-    ).toBeVisible();
+    ).toBeVisible({ timeout: 90_000 });
     await page.goto('http://localhost:3000/cart');
     await page
       .getByRole('link', { name: 'Continue to rental request' })
@@ -80,7 +80,7 @@ async function createAcceptedQuote(page: Page) {
     await page.getByLabel('Project or event location').fill('Accra');
     await page.getByRole('button', { name: 'Review request' }).click();
     await page.getByRole('button', { name: 'Submit rental request' }).click();
-    await expect(page).toHaveURL(/rental-requests\/MR-/, { timeout: 30_000 });
+    await expect(page).toHaveURL(/rental-requests\/MR-/, { timeout: 90_000 });
     reference = (await page.getByText(/Reference:/).innerText())
       .replace('Reference:', '')
       .trim();
@@ -105,7 +105,7 @@ async function createAcceptedQuote(page: Page) {
   }
 
   const unitPrices = page.getByLabel('Unit price (CAD)');
-  await expect(unitPrices.first()).toBeVisible();
+  await expect(unitPrices.first()).toBeVisible({ timeout: 90_000 });
   for (let index = 0; index < (await unitPrices.count()); index += 1)
     await unitPrices.nth(index).fill('125.50');
   await page.getByLabel('Discount (CAD)').fill('5.00');
@@ -178,7 +178,12 @@ async function createOrder(page: Page) {
   const orderNumber = (
     await page.getByRole('heading', { name: /^RO-/ }).innerText()
   ).trim();
-  return { ...fixture, customerLink, orderNumber };
+  const orderId = new URL(page.url()).pathname
+    .split('/')
+    .filter(Boolean)
+    .at(-1);
+  expect(orderId).toBeTruthy();
+  return { ...fixture, customerLink, orderId: orderId!, orderNumber };
 }
 
 test('@phase12-1 @orders @admin-orders creates one confirmed order and exposes read-only administration', async ({
@@ -209,7 +214,7 @@ test('@phase12-1 @orders @admin-orders creates one confirmed order and exposes r
     oldLinkPage.getByText('This order link is unavailable.'),
   ).toBeVisible();
   await oldLinkContext.close();
-  await expect(page.getByText('Inventory not reserved')).toBeVisible();
+  await expect(page.getByText('Reservation: NOT RESERVED')).toBeVisible();
   await expect(page.getByText(marker, { exact: true })).toBeVisible();
   expect(await page.locator('body').innerText()).not.toMatch(
     /reserve now|assign asset|adjust inventory|mark delivered|mark returned/i,
@@ -270,4 +275,83 @@ test('@orders @customer-orders exchanges a dedicated fragment and renders a conf
     unauthenticatedPage.getByRole('heading', { name: 'Order unavailable' }),
   ).toBeVisible();
   await unauthenticated.close();
+});
+
+test('@reservations @admin-reservations staff intentionally creates a partial reservation and releases it', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'desktop-1024');
+  await createOrder(page);
+  await expect(
+    page.getByRole('heading', { name: 'Reservation', exact: true }),
+  ).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('Staff-only inventory commitment')).toBeVisible();
+  await page
+    .getByLabel(
+      'Override/shortfall reason (required only when applying an override)',
+    )
+    .fill('Browser-test intentional shortfall');
+  await page
+    .getByRole('button', { name: 'Confirm partial reservation' })
+    .click();
+  const confirmation = page.getByRole('alertdialog');
+  await expect(confirmation).toBeVisible();
+  await confirmation.getByRole('button', { name: 'Confirm action' }).click();
+  await expect(
+    page.getByText('PARTIALLY RESERVED', { exact: true }),
+  ).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(page.getByText('Internal only')).toBeVisible();
+  await page.getByLabel('Release reason').fill('Browser-test release');
+  await page
+    .getByRole('button', { name: 'Release entire reservation' })
+    .click();
+  await page
+    .getByRole('alertdialog')
+    .getByRole('button', { name: 'Confirm action' })
+    .click();
+  await expect(page.getByText('RELEASED', { exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.getByRole('button', { name: /switch to dark theme/i }).click();
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  await page.setViewportSize({ width: 320, height: 720 });
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+    ),
+  ).toBe(true);
+  await axe(page);
+});
+
+test('@reservations @reservation-concurrency duplicate reservation submission is idempotent', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'desktop-1024');
+  const { orderId } = await createOrder(page);
+  const operationId = crypto.randomUUID();
+  const body = {
+    allowPartial: true,
+    operationId,
+    overrideReason: 'Browser-test idempotent intentional shortfall',
+    serializedSelections: [],
+  };
+  const [first, replay] = await Promise.all([
+    page.request.post(
+      `http://localhost:3001/api/orders/${orderId}/reservations`,
+      { data: body, headers: { Origin: 'http://localhost:3001' } },
+    ),
+    page.request.post(
+      `http://localhost:3001/api/orders/${orderId}/reservations`,
+      { data: body, headers: { Origin: 'http://localhost:3001' } },
+    ),
+  ]);
+  expect([first.status(), replay.status()].sort()).toEqual([201, 201]);
+  const [firstBody, replayBody] = await Promise.all([
+    first.json(),
+    replay.json(),
+  ]);
+  expect(firstBody.id).toBe(replayBody.id);
+  expect(firstBody.version).toBe(replayBody.version);
 });

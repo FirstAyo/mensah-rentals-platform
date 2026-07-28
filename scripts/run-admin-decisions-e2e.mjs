@@ -19,6 +19,9 @@ const modes = new Set([
   'phase12-1-layout',
   'phase12-1-quote',
   'phase12-1-order',
+  'reservations-admin',
+  'reservations-concurrency',
+  'reservations-all',
 ]);
 if (!modes.has(mode)) throw new Error(`Unknown decision browser mode: ${mode}`);
 
@@ -158,6 +161,38 @@ if (
   ))
 )
   throw new Error('The isolated browser staff fixture failed verification.');
+if (mode.startsWith('reservations-')) {
+  const products = await prisma.product.findMany({
+    where: { isActive: true },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+  });
+  for (const product of products) {
+    const existing = await prisma.inventory.findUnique({
+      where: { productId: product.id },
+    });
+    if (existing) continue;
+    const inventory = await prisma.inventory.create({
+      data: {
+        creationOperationId: randomUUID(),
+        creationReason: 'Isolated Phase 14 browser fixture',
+        initialState: 'RENTABLE',
+        productId: product.id,
+        trackingMode: 'BULK',
+      },
+    });
+    await prisma.inventoryTransaction.create({
+      data: {
+        actorUserId: fixture.id,
+        inventoryId: inventory.id,
+        kind: 'INITIAL_STOCK',
+        operationId: randomUUID(),
+        quantity: 2,
+        reason: 'Isolated Phase 14 browser fixture',
+        toState: 'RENTABLE',
+      },
+    });
+  }
+}
 if (mode === 'phase12-1-layout') {
   const product = await prisma.product.findFirstOrThrow({
     where: { isActive: true },
@@ -290,7 +325,8 @@ if (mode === 'phase12-1-quote' || mode === 'phase12-1-order') {
 await prisma.$disconnect();
 
 const phase121Mode = mode.startsWith('phase12-1-');
-if (phase121Mode)
+const reservationMode = mode.startsWith('reservations-');
+if (phase121Mode || reservationMode)
   run(
     pnpm,
     [
@@ -328,23 +364,29 @@ try {
   const isPhase121Quote = mode === 'phase12-1-quote';
   const isQuoteMode = mode.startsWith('quotes-');
   const isOrderMode = mode.startsWith('orders-');
-  const grep = isPhase121
-    ? '@phase12-1'
-    : isOrderMode
-      ? mode === 'orders-all'
-        ? '@orders'
-        : mode === 'orders-admin'
-          ? '@admin-orders'
-          : '@customer-orders'
-      : isQuoteMode
-        ? mode === 'quotes-all'
-          ? '@quotes'
-          : mode === 'quotes-admin'
-            ? '@admin-quotes'
-            : '@customer-quotes'
-        : mode === 'all'
-          ? '@admin-decisions'
-          : `@admin-decisions-${mode}`;
+  const grep = reservationMode
+    ? mode === 'reservations-all'
+      ? '@reservations'
+      : mode === 'reservations-concurrency'
+        ? '@reservation-concurrency'
+        : '@admin-reservations'
+    : isPhase121
+      ? '@phase12-1'
+      : isOrderMode
+        ? mode === 'orders-all'
+          ? '@orders'
+          : mode === 'orders-admin'
+            ? '@admin-orders'
+            : '@customer-orders'
+        : isQuoteMode
+          ? mode === 'quotes-all'
+            ? '@quotes'
+            : mode === 'quotes-admin'
+              ? '@admin-quotes'
+              : '@customer-quotes'
+          : mode === 'all'
+            ? '@admin-decisions'
+            : `@admin-decisions-${mode}`;
   const grepArgument =
     process.platform === 'win32' && grep.includes('|') ? `"${grep}"` : grep;
   run(
@@ -355,21 +397,23 @@ try {
       'exec',
       'playwright',
       'test',
-      ...(isPhase121
-        ? [
-            isPhase121Layout
-              ? 'e2e/phase12-1.spec.ts'
-              : isPhase121Quote
-                ? 'e2e/quotes.spec.ts'
-                : 'e2e/orders.spec.ts',
-          ]
-        : [
-            isOrderMode
-              ? 'e2e/orders.spec.ts'
-              : isQuoteMode
-                ? 'e2e/quotes.spec.ts'
-                : 'e2e/admin-decisions.spec.ts',
-          ]),
+      ...(reservationMode
+        ? ['e2e/orders.spec.ts']
+        : isPhase121
+          ? [
+              isPhase121Layout
+                ? 'e2e/phase12-1.spec.ts'
+                : isPhase121Quote
+                  ? 'e2e/quotes.spec.ts'
+                  : 'e2e/orders.spec.ts',
+            ]
+          : [
+              isOrderMode
+                ? 'e2e/orders.spec.ts'
+                : isQuoteMode
+                  ? 'e2e/quotes.spec.ts'
+                  : 'e2e/admin-decisions.spec.ts',
+            ]),
       '--grep',
       grepArgument,
     ],

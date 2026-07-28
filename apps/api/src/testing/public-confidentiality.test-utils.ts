@@ -59,6 +59,12 @@ export const FORBIDDEN_PUBLIC_KEYS = [
   'rentalRequestDecisionId',
   'lifecycleVersion',
   'reservationId',
+  'reservationStatus',
+  'shortfallQuantity',
+  'availableToReserve',
+  'overlappingReservedQuantity',
+  'serializedAssetId',
+  'allocationId',
   'rentalOrderId',
 ] as const;
 

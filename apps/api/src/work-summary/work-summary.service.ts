@@ -113,18 +113,61 @@ export class WorkSummaryService {
     }
 
     if (permissions.has('order.view')) {
-      const [confirmedNotReserved, upcomingRentalDates] = await Promise.all([
+      const upcomingRentalDates = await prisma.rentalOrder.count({
+        where: {
+          status: 'CONFIRMED',
+          rentalStartDateSnapshot: { gte: todayUtc },
+        },
+      });
+      response.orders = { upcomingRentalDates };
+    }
+
+    if (permissions.has('inventory.reservation.view')) {
+      const [
+        awaitingReservation,
+        partiallyReserved,
+        fullyReserved,
+        shortfall,
+        upcomingReservations,
+      ] = await Promise.all([
         prisma.rentalOrder.count({
-          where: { status: 'CONFIRMED', reservationStatus: 'NOT_RESERVED' },
+          where: {
+            status: 'CONFIRMED',
+            reservationStatus: {
+              in: ['NOT_RESERVED', 'RESERVATION_FAILED'],
+            },
+            rentalEndDateSnapshot: { gte: todayUtc },
+          },
         }),
         prisma.rentalOrder.count({
           where: {
             status: 'CONFIRMED',
+            reservationStatus: 'PARTIALLY_RESERVED',
+          },
+        }),
+        prisma.rentalOrder.count({
+          where: { status: 'CONFIRMED', reservationStatus: 'RESERVED' },
+        }),
+        prisma.inventoryReservationItem.aggregate({
+          where: {
+            inventoryReservation: { status: 'PARTIALLY_RESERVED' },
+          },
+          _sum: { shortfallQuantity: true },
+        }),
+        prisma.inventoryReservation.count({
+          where: {
+            status: { in: ['PARTIALLY_RESERVED', 'RESERVED'] },
             rentalStartDateSnapshot: { gte: todayUtc },
           },
         }),
       ]);
-      response.orders = { confirmedNotReserved, upcomingRentalDates };
+      response.reservations = {
+        awaitingReservation,
+        fullyReserved,
+        partiallyReserved,
+        unresolvedShortfallQuantity: shortfall._sum.shortfallQuantity ?? 0,
+        upcomingReservations,
+      };
     }
 
     return response;
