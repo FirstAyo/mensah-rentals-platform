@@ -9,6 +9,7 @@ export default async function QuoteDetailPage({
   const user = await requireStaffPermission('quote.view');
   return (
     <QuoteDetail
+      canCreateOrder={user.permissionKeys.includes('order.create')}
       canSend={user.permissionKeys.includes('quote.send')}
       canUpdate={user.permissionKeys.includes('quote.update')}
       id={(await params).id}

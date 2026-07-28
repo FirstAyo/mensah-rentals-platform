@@ -16,6 +16,7 @@ export default function robots(): MetadataRoute.Robots {
               '/rental-requests',
               '/track-request',
               '/quote',
+              '/order',
               '/api',
             ],
           },

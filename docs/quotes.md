@@ -118,3 +118,11 @@ The quote browser runner refuses occupied application ports, validates a distinc
 ## Deferred work
 
 Transactional email, distributed public rate limiting for multiple API instances, business-approved tax configuration, order conversion, reservations, date availability, inventory mutation, payments, and customer accounts are deferred. Redis remains unjustified for this local/single-VPS foundation.
+
+## Phase 12 continuation
+
+Acceptance still creates no order automatically. Staff with live
+`order.create` may explicitly convert the authoritative accepted revision.
+Once accepted, that customer revision cannot be replaced or revised. The order
+copies and verifies exact accepted snapshots and stays `NOT_RESERVED`; see
+[Confirmed rental orders](rental-orders.md). Reservations remain deferred.

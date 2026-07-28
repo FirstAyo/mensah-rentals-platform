@@ -89,10 +89,11 @@ Approval and partial approval derive `quoteEligible: true` for administrative
 use; rejection derives false. This is a read-only signal. No quote entity is
 created. Public tracking does not expose the flag.
 
-Decision code never calls inventory mutation services. The migrations add no
-quote, order, or reservation model. Tests compare inventory transaction counts
-before and after decisions. Current inventory context remains advisory and is
-not requested-date availability.
+Decision code never calls inventory mutation services. The Phase 10 decision
+migrations add no quote, order, or reservation records; later phases keep those
+as separate models and explicit transitions. Tests compare inventory
+transaction counts before and after decisions. Current inventory context
+remains advisory and is not requested-date availability.
 
 ## Local verification
 
@@ -136,3 +137,12 @@ pnpm test:e2e:admin-decisions:reject
 ## Quote continuation
 
 Phase 11 consumes the immutable decision as quote source. It never changes requested or approved quantities. Positive approved lines must appear in each quote revision; zero-approved lines remain historical only. A quote customer response does not alter the decision or request status. See [Custom quotes](quotes.md).
+
+## Confirmed-order continuation
+
+Phase 12 can explicitly convert the quote's authoritative, timely accepted
+revision into one immutable confirmed rental order. Conversion copies the
+decision and accepted-quote snapshots; it does not update the original request
+or decision quantities. Quote acceptance alone still creates no order, and
+order creation still creates no reservation or inventory transaction. See
+[Confirmed rental orders](rental-orders.md).

@@ -17,6 +17,10 @@ const routes = [
     pattern: new RegExp(`^${id}/revisions/${id}/send$`),
     methods: new Set(['POST']),
   },
+  {
+    pattern: new RegExp(`^${id}/revisions/${id}/order$`),
+    methods: new Set(['POST']),
+  },
   { pattern: new RegExp(`^request/${id}$`), methods: new Set(['POST']) },
 ] as const;
 const queryKeys = new Set([

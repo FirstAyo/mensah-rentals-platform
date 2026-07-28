@@ -99,4 +99,41 @@ describe('admin quote BFF', () => {
       'mensah_staff_session=safe',
     );
   });
+
+  it('proxies only the fixed accepted-revision order conversion route', async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(
+      Response.json({
+        customerAccessLink: 'http://localhost:3000/order/access#capability=x',
+        order: { id: 'order-id', orderNumber: 'RO-123' },
+      }),
+    );
+    const segments = [
+      'cm00000000000000000000000',
+      'revisions',
+      'cm00000000000000000000001',
+      'order',
+    ];
+    const response = await proxyQuote(
+      new Request(`http://localhost:3001/api/quotes/${segments.join('/')}`, {
+        method: 'POST',
+        headers: {
+          origin: 'http://localhost:3001',
+          'content-type': 'application/json',
+          cookie: 'mensah_staff_session=safe',
+        },
+        body: JSON.stringify({
+          operationId: '00000000-0000-4000-8000-000000000000',
+        }),
+      }),
+      segments,
+      fetcher,
+    );
+    expect(response.status).toBe(200);
+    expect(String(fetcher.mock.calls[0]![0])).toBe(
+      'http://localhost:4000/admin/quotes/cm00000000000000000000000/revisions/cm00000000000000000000001/order',
+    );
+    expect(new Headers(fetcher.mock.calls[0]![1]?.headers).get('cookie')).toBe(
+      'mensah_staff_session=safe',
+    );
+  });
 });

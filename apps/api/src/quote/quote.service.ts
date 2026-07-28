@@ -184,10 +184,14 @@ export class QuoteService {
     };
   }
 
-  async detail(id: string): Promise<AdminQuoteDetailResponse> {
+  async detail(
+    id: string,
+    includeOrder = false,
+  ): Promise<AdminQuoteDetailResponse> {
     const quote = await prisma.quote.findUnique({
       where: { id },
       include: {
+        rentalOrder: { select: { id: true, orderNumber: true } },
         rentalRequest: true,
         revisions: {
           include: revisionInclude,
@@ -206,6 +210,7 @@ export class QuoteService {
       id: quote.id,
       latestRevisionId: quote.latestRevisionId!,
       notice,
+      order: includeOrder ? quote.rentalOrder : null,
       quoteNumber: quote.quoteNumber,
       rentalRequest: {
         id: quote.rentalRequest.id,
@@ -353,7 +358,9 @@ export class QuoteService {
         const quote = await tx.quote.findUnique({
           where: { id: quoteId },
           include: {
+            customerRevision: { include: { lifecycle: true } },
             latestRevision: { include: { lifecycle: true } },
+            rentalOrder: true,
             rentalRequest: {
               include: {
                 decision: {
@@ -365,6 +372,14 @@ export class QuoteService {
         });
         if (!quote?.latestRevision || !quote.rentalRequest.decision)
           throw new NotFoundException('Quote not found');
+        if (
+          quote.rentalOrder ||
+          quote.customerRevision?.lifecycle?.state ===
+            QuoteRevisionState.ACCEPTED
+        )
+          throw new ConflictException(
+            'An accepted quote cannot receive another revision',
+          );
         if (
           quote.latestRevision.revisionNumber !==
           input.expectedLatestRevisionNumber
@@ -469,6 +484,10 @@ export class QuoteService {
       });
       if (!quote?.latestRevision || quote.latestRevision.id !== revisionId)
         throw new ConflictException('Only the latest revision can be sent');
+      if (
+        quote.customerRevision?.lifecycle?.state === QuoteRevisionState.ACCEPTED
+      )
+        throw new ConflictException('An accepted quote cannot be replaced');
       if (
         quote.latestRevision.lifecycle?.state !== QuoteRevisionState.DRAFT ||
         quote.latestRevision.lifecycle.lifecycleVersion !==
@@ -648,6 +667,7 @@ export class QuoteService {
             payloadHash,
             quoteRevisionId: access.quoteRevisionId,
             response: input.response,
+            respondedAt: now,
           },
         });
         await tx.quoteRevisionLifecycle.update({

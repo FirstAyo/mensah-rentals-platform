@@ -209,6 +209,84 @@ Preserve local database data and stop the container:
 docker compose down
 ```
 
+## 29. Run the Phase 12 confirmed-rental-order flow
+
+These commands are for Windows PowerShell at the repository root. Open Docker
+Desktop first. If your ignored `.env` predates Phase 12, copy these values from
+`.env.example` and replace the local secret with your own long development
+value. Do not reuse it in production or commit `.env`:
+
+```text
+PUBLIC_ORDER_ACCESS_SECRET=choose-a-different-local-order-secret-at-least-32-characters
+PUBLIC_ORDER_ACCESS_TTL_DAYS=90
+PUBLIC_ORDER_COOKIE_NAME=mensah_order_access
+PUBLIC_ORDER_COOKIE_SECURE=false
+```
+
+Apply and verify the migration and RBAC catalogue:
+
+```powershell
+docker compose up -d postgres
+pnpm install
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+pnpm staff:bootstrap
+pnpm catalogue:seed
+```
+
+`db:status` must include
+`20260728090000_confirmed_rental_order_foundation` and report no pending
+migration. Start everything:
+
+```powershell
+pnpm dev
+```
+
+Then complete this exact browser flow:
+
+1. Sign in at `http://localhost:3001/login` using values stored only in `.env`.
+2. Submit a guest request through `http://localhost:3000/rentals` and `/cart`.
+3. Open it in admin, start review, and approve or partially approve it.
+4. Create and send a quote; copy the private quote link.
+5. Open that link in a separate/private browser and accept the quote.
+6. Return to the accepted admin quote and choose **Create confirmed order**.
+7. Review the accessible confirmation and confirm. It must state that inventory
+   is not reserved.
+8. Open the resulting `/orders/{id}` detail. Verify customer/project/date and
+   exact accepted money snapshots, `CONFIRMED`, and **Inventory not reserved**.
+9. Copy the private order link, open it in a private browser, and confirm the
+   fragment disappears before `/order` loads.
+10. Refresh `/order`; the dedicated HttpOnly cookie should retain access.
+11. Open `/order` in another browser without that cookie and expect the generic
+    unavailable state. An order number alone must not work.
+12. Confirm neither page offers reserve, availability, asset, delivery, return,
+    payment, or inventory controls.
+
+Production requires HTTPS, `PUBLIC_ORDER_COOKIE_SECURE=true`, a cookie name
+beginning `__Host-`, and a unique non-development secret different from quote
+access. The order access expiry is independent from the old quote validity.
+
+For isolated browser automation, stop normal dev servers first, install
+Chromium once, and run:
+
+```powershell
+pnpm --filter @mensah-rentals/web exec playwright install chromium
+pnpm test:e2e:admin-orders
+pnpm test:e2e:customer-orders
+pnpm test:e2e:orders
+```
+
+The runner owns ports 3000, 3001, and 4000 and resets only the guarded local
+database whose name ends in `_test`. Common failures are occupied ports,
+Docker Desktop being closed, missing Chromium, missing Phase 12 environment
+values, an unaccepted/non-current quote revision, or insufficient
+`order.create`/`order.view` permission. A `409` after another staff member
+created the order is resolved by refreshing and following the existing order.
+
 ## Phase 11 custom quotes on Windows
 
 Add these safe local values to the ignored `.env` file (never put a real production secret in `.env.example`):

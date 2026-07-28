@@ -2,9 +2,10 @@
 
 import type {
   AdminQuoteDetailResponse,
+  AdminRentalOrderCreateResponse,
   AdminQuoteSendResponse,
 } from '@mensah-rentals/types';
-import { Copy, Send } from 'lucide-react';
+import { Copy, Send, ShoppingBag, X } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { QuoteEditor } from './quote-editor';
@@ -15,10 +16,12 @@ const cad = new Intl.NumberFormat('en-CA', {
 });
 
 export function QuoteDetail({
+  canCreateOrder,
   canSend,
   canUpdate,
   id,
 }: {
+  canCreateOrder: boolean;
   canSend: boolean;
   canUpdate: boolean;
   id: string;
@@ -28,7 +31,13 @@ export function QuoteDetail({
   const [pending, setPending] = useState(false);
   const [accessLink, setAccessLink] = useState<string | null>(null);
   const [revising, setRevising] = useState(false);
+  const [orderAccessLink, setOrderAccessLink] = useState<string | null>(null);
+  const [createdOrder, setCreatedOrder] = useState<
+    AdminRentalOrderCreateResponse['order'] | null
+  >(null);
   const sendOperation = useRef<{ id: string; key: string } | null>(null);
+  const orderOperation = useRef<{ id: string; key: string } | null>(null);
+  const orderDialog = useRef<HTMLDialogElement | null>(null);
   const load = useCallback(async () => {
     const response = await fetch(`/api/quotes/${id}`, { cache: 'no-store' });
     if (!response.ok) throw new Error();
@@ -86,6 +95,56 @@ export function QuoteDetail({
       setPending(false);
     }
   }
+  async function createOrder() {
+    if (!quote) return;
+    const currentQuote = quote;
+    const revision = currentQuote.revisions.find(
+      (candidate) => candidate.id === currentQuote.customerRevisionId,
+    );
+    if (!revision || revision.status !== 'ACCEPTED' || pending) return;
+    setPending(true);
+    setError(null);
+    try {
+      const operationKey = `${currentQuote.id}:${revision.id}`;
+      if (orderOperation.current?.key !== operationKey)
+        orderOperation.current = {
+          id: crypto.randomUUID(),
+          key: operationKey,
+        };
+      const response = await fetch(
+        `/api/quotes/${currentQuote.id}/revisions/${revision.id}/order`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ operationId: orderOperation.current.id }),
+        },
+      );
+      if (!response.ok) {
+        if (response.status === 409) await load();
+        const message =
+          response.status === 409
+            ? 'This quote changed or already has an order. Refresh and review it before trying again.'
+            : response.status === 422
+              ? 'This accepted quote is no longer eligible for conversion.'
+              : 'The rental order could not be created.';
+        throw new Error(message);
+      }
+      const result = (await response.json()) as AdminRentalOrderCreateResponse;
+      setCreatedOrder(result.order);
+      setOrderAccessLink(result.customerAccessLink);
+      orderDialog.current?.close();
+      await load();
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : 'The rental order could not be created.',
+      );
+      orderDialog.current?.close();
+    } finally {
+      setPending(false);
+    }
+  }
   if (!quote)
     return (
       <p aria-live="polite" className="rounded-xl border p-8">
@@ -93,6 +152,11 @@ export function QuoteDetail({
       </p>
     );
   const latest = quote.revisions[0]!;
+  const acceptedRevision = quote.revisions.find(
+    (revision) =>
+      revision.id === quote.customerRevisionId &&
+      revision.status === 'ACCEPTED',
+  );
   return (
     <div className="space-y-7">
       <header>
@@ -126,6 +190,16 @@ export function QuoteDetail({
         </p>
       ) : null}
       <div className="flex flex-wrap gap-3">
+        {canCreateOrder && acceptedRevision && !quote.order ? (
+          <button
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground disabled:opacity-50"
+            disabled={pending}
+            onClick={() => orderDialog.current?.showModal()}
+          >
+            <ShoppingBag className="h-4 w-4" aria-hidden="true" />
+            Create rental order
+          </button>
+        ) : null}
         {canSend && latest.status === 'DRAFT' ? (
           <button
             className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground disabled:opacity-50"
@@ -145,6 +219,51 @@ export function QuoteDetail({
           </button>
         ) : null}
       </div>
+      {quote.order ? (
+        <section className="rounded-xl border border-border bg-card p-5">
+          <h2 className="font-semibold">Confirmed rental order</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            This accepted quote has already been converted. Creating the order
+            did not reserve inventory.
+          </p>
+          <Link
+            className="mt-3 inline-flex min-h-11 items-center rounded-lg border px-4 py-2 font-semibold"
+            href={`/orders/${quote.order.id}`}
+          >
+            View {quote.order.orderNumber}
+          </Link>
+        </section>
+      ) : null}
+      {createdOrder && orderAccessLink ? (
+        <section className="rounded-xl border border-border bg-card p-5">
+          <h2 className="font-semibold">Secure customer order link</h2>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Shown only after order creation or its idempotent retry. Share it
+            through an approved private channel. It is separate from the quote
+            access link.
+          </p>
+          <Link
+            className="mt-3 inline-block font-semibold underline"
+            href={`/orders/${createdOrder.id}`}
+          >
+            Open {createdOrder.orderNumber}
+          </Link>
+          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+            <code className="min-w-0 flex-1 break-all rounded bg-muted p-3 text-xs">
+              {orderAccessLink}
+            </code>
+            <button
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border px-4"
+              onClick={() =>
+                void navigator.clipboard.writeText(orderAccessLink)
+              }
+            >
+              <Copy className="h-4 w-4" aria-hidden="true" />
+              Copy
+            </button>
+          </div>
+        </section>
+      ) : null}
       {accessLink ? (
         <section className="rounded-xl border border-border bg-card p-5">
           <h2 className="font-semibold">Secure customer link</h2>
@@ -179,6 +298,74 @@ export function QuoteDetail({
             requestId={quote.rentalRequest.id}
           />
         </section>
+      ) : null}
+      {acceptedRevision ? (
+        <dialog
+          aria-describedby="create-order-description"
+          aria-labelledby="create-order-title"
+          aria-modal="true"
+          className="w-[min(34rem,calc(100%-2rem))] rounded-xl border border-border bg-card p-6 text-foreground shadow-xl backdrop:bg-black/60"
+          onCancel={(event) => {
+            if (pending) event.preventDefault();
+          }}
+          ref={orderDialog}
+        >
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-semibold" id="create-order-title">
+                Create confirmed rental order?
+              </h2>
+              <p
+                className="mt-2 text-sm text-muted-foreground"
+                id="create-order-description"
+              >
+                This explicitly converts accepted revision{' '}
+                {acceptedRevision.revisionNumber} for{' '}
+                {cad.format(acceptedRevision.totalCents / 100)} into an
+                immutable order snapshot.
+              </p>
+            </div>
+            <button
+              aria-label="Close create order dialog"
+              className="rounded-lg p-2 hover:bg-muted"
+              disabled={pending}
+              onClick={() => orderDialog.current?.close()}
+            >
+              <X className="h-5 w-5" aria-hidden="true" />
+            </button>
+          </div>
+          <p className="mt-4 rounded-lg border border-border bg-muted/50 p-4 text-sm font-medium">
+            This action does not reserve inventory, calculate availability,
+            assign assets, or change inventory quantities.
+          </p>
+          <dl className="mt-4 grid grid-cols-2 gap-2 text-sm">
+            <dt className="text-muted-foreground">Quote</dt>
+            <dd>{quote.quoteNumber}</dd>
+            <dt className="text-muted-foreground">Rental period</dt>
+            <dd>
+              {new Date(quote.rentalRequest.rentalStartDate).toLocaleString()} –{' '}
+              {new Date(quote.rentalRequest.rentalEndDate).toLocaleString()}
+            </dd>
+          </dl>
+          <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <button
+              autoFocus
+              className="min-h-11 rounded-lg border px-4 py-2 font-semibold"
+              disabled={pending}
+              onClick={() => orderDialog.current?.close()}
+            >
+              Cancel
+            </button>
+            <button
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground disabled:opacity-50"
+              disabled={pending}
+              onClick={() => void createOrder()}
+            >
+              <ShoppingBag className="h-4 w-4" aria-hidden="true" />
+              {pending ? 'Creating order...' : 'Confirm and create order'}
+            </button>
+          </div>
+        </dialog>
       ) : null}
       <section>
         <h2 className="text-2xl font-semibold">Immutable revision history</h2>

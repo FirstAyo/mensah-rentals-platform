@@ -13,6 +13,9 @@ const modes = new Set([
   'quotes-admin',
   'quotes-customer',
   'quotes-all',
+  'orders-admin',
+  'orders-customer',
+  'orders-all',
 ]);
 if (!modes.has(mode)) throw new Error(`Unknown decision browser mode: ${mode}`);
 
@@ -189,15 +192,22 @@ try {
       `The isolated API rejected its verified test fixture (HTTP ${loginCheck.status}).`,
     );
   const isQuoteMode = mode.startsWith('quotes-');
-  const grep = isQuoteMode
-    ? mode === 'quotes-all'
-      ? '@quotes'
-      : mode === 'quotes-admin'
-        ? '@admin-quotes'
-        : '@customer-quotes'
-    : mode === 'all'
-      ? '@admin-decisions'
-      : `@admin-decisions-${mode}`;
+  const isOrderMode = mode.startsWith('orders-');
+  const grep = isOrderMode
+    ? mode === 'orders-all'
+      ? '@orders'
+      : mode === 'orders-admin'
+        ? '@admin-orders'
+        : '@customer-orders'
+    : isQuoteMode
+      ? mode === 'quotes-all'
+        ? '@quotes'
+        : mode === 'quotes-admin'
+          ? '@admin-quotes'
+          : '@customer-quotes'
+      : mode === 'all'
+        ? '@admin-decisions'
+        : `@admin-decisions-${mode}`;
   run(
     pnpm,
     [
@@ -206,7 +216,11 @@ try {
       'exec',
       'playwright',
       'test',
-      isQuoteMode ? 'e2e/quotes.spec.ts' : 'e2e/admin-decisions.spec.ts',
+      isOrderMode
+        ? 'e2e/orders.spec.ts'
+        : isQuoteMode
+          ? 'e2e/quotes.spec.ts'
+          : 'e2e/admin-decisions.spec.ts',
       '--grep',
       grep,
     ],

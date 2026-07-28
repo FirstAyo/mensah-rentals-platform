@@ -42,3 +42,8 @@ Run `pnpm rbac:seed`. The seed is idempotent and non-destructive as described in
 Phase 3 supplies APIs, not a polished role-management screen. A later screen can list catalogue entries and call these contracts. Future custom-role creation, metadata update, and deletion APIs must protect system roles.
 
 The future audit module must record role assignment/removal and permission changes with actor, target user/role, previous and new IDs, time, and safe request context. It must also record future custom-role creation and archival. Passwords, session tokens, and secrets must never enter audit metadata.
+
+Phase 12 uses existing order permissions without changing the seed:
+SUPER_ADMIN and ADMIN can view/create orders; SALES_PERSON and EDITOR cannot by
+default. The API checks `order.create` rather than inferring authority from a
+quote permission and repeats the check inside the conversion transaction.

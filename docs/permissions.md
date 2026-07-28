@@ -102,3 +102,13 @@ none.
 - `quote.approve`: remains catalogued but intentionally unused in Phase 11 because no managerial approval gate was specified.
 
 SUPER_ADMIN has all five. ADMIN has all five under the existing broad mapping. SALES_PERSON has view/create/update/send but not approve. EDITOR has no quote permissions. Every mutation rechecks ACTIVE status and exact live permissions inside its transaction, so disabling a user or revoking permission takes effect before mutation/replay.
+
+## Phase 12 confirmed-order enforcement
+
+- `order.view`: list/view immutable internal confirmed-order snapshots.
+- `order.create`: explicitly convert the authoritative accepted revision.
+- `order.update`: reserved for a future reviewed lifecycle; unused now.
+
+SUPER_ADMIN and ADMIN have all three. SALES_PERSON and EDITOR have none by
+default; quote permissions never imply order authority. Conversion rechecks
+active status and live `order.create` inside the locked transaction.

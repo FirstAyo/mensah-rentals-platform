@@ -37,3 +37,8 @@ Routes are under `/admin/inventory`. There is no `/public/inventory` route. Admi
 ## Explicit deferrals
 
 Reservations, date ranges, overlap calculations, order allocation, double-booking protection, delivery, return, and maintenance workflows are not part of Phase 5. The future reservation phase will use UTC half-open ranges and dedicated bulk/serialized concurrency controls.
+
+Phase 12 confirmed orders remain non-reserving. Conversion and order reads do
+not query or mutate inventory records or calculate availability. `NOT_RESERVED`
+is an order workflow fact, not an inventory state. Date-based reservation is a
+separate future phase.

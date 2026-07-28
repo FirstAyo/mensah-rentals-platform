@@ -109,6 +109,8 @@ Then open:
 - Admin rental-request queue: http://localhost:3001/rental-requests
 - Admin quotes: http://localhost:3001/quotes
 - Private customer quote: http://localhost:3000/quote (valid capability required)
+- Admin confirmed orders: http://localhost:3001/orders
+- Private customer order: http://localhost:3000/order (valid capability required)
 - API liveness: http://localhost:4000/health
 - PostgreSQL readiness: http://localhost:4000/health/database
 
@@ -143,6 +145,9 @@ pnpm test:e2e:admin-decisions:reject  # Isolated rejection check
 pnpm test:e2e:admin-quotes     # Isolated quote creation/send checks
 pnpm test:e2e:customer-quotes  # Isolated private customer quote checks
 pnpm test:e2e:quotes           # Both quote browser suites in one reset
+pnpm test:e2e:admin-orders     # Isolated confirmed-order admin checks
+pnpm test:e2e:customer-orders  # Isolated private customer order checks
+pnpm test:e2e:orders           # Both order browser suites in one reset
 ```
 
 `pnpm test` includes database-backed integration tests. It automatically uses
@@ -176,6 +181,7 @@ through a development API.
 - [Inventory foundation](docs/inventory.md)
 - [Rental-request decisions](docs/rental-request-decisions.md)
 - [Custom quotes](docs/quotes.md)
+- [Confirmed rental orders](docs/rental-orders.md)
 
 Phase 10 adds permission-separated approval, partial approval, and rejection,
 immutable decision history, separate approved quantities, and customer-safe
@@ -183,5 +189,9 @@ tracking updates. Decisions create no quote, order, reservation, or inventory
 mutation.
 
 Phase 11 creates immutable custom quote revisions, secure customer access, and
-accept/reject history. Confirmed orders, inventory reservations, date-based
-allocation, and inventory mutation remain deferred to later phases.
+accept/reject history.
+
+Phase 12 explicitly converts a timely accepted quote into an immutable
+confirmed order with separate private customer access. The order remains
+`NOT_RESERVED`; date-based reservations, availability, asset allocation, and
+inventory mutation remain the next separate phase.

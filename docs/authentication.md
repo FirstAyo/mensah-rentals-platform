@@ -155,3 +155,11 @@ The `User` identity relates to implemented `Role`, `Permission`, `UserRole`, and
 `RolePermission` models. The authentication guard establishes current identity;
 the authorization guard checks named permissions at protected backend actions.
 No customer identity has been added.
+
+## Confirmed-order customer access
+
+Phase 12 adds no customer account and does not reuse staff authentication.
+Private order viewing uses a dedicated order-scoped, hash-only capability and a
+separate HttpOnly cookie. Exact Origin/JSON checks protect mutations, and all
+missing, expired, revoked, or invalid capabilities receive one unavailable
+result. Quote cookie state does not authorize a confirmed order.

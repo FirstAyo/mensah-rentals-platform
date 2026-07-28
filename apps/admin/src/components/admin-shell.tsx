@@ -7,6 +7,7 @@ import {
   LayoutDashboard,
   Warehouse,
   FileText,
+  ShoppingBag,
 } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -37,6 +38,12 @@ const links = [
     icon: FileText,
     label: 'Quotes',
     permission: 'quote.view',
+  },
+  {
+    href: '/orders',
+    icon: ShoppingBag,
+    label: 'Rental Orders',
+    permission: 'order.view',
   },
   {
     href: '/categories',

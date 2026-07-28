@@ -99,6 +99,20 @@ enum QuoteActivityType {
   QUOTE_SUPERSEDED
 }
 
+enum RentalOrderStatus {
+  CONFIRMED
+}
+
+enum RentalOrderReservationStatus {
+  NOT_RESERVED
+}
+
+enum RentalOrderActivityType {
+  ORDER_CREATED
+  ORDER_CUSTOMER_ACCESS_CREATED
+  ORDER_VIEWED
+}
+
 model User {
   id           String         @id @default(cuid())
   email        String         @unique
@@ -123,6 +137,8 @@ model User {
   quoteRevisionsCreated QuoteRevision[] @relation("QuoteRevisionCreator")
   quoteRevisionsSent QuoteRevisionLifecycle[] @relation("QuoteRevisionSender")
   quoteActivities QuoteActivity[] @relation("QuoteActivityActor")
+  rentalOrdersConfirmed RentalOrder[] @relation("RentalOrderConfirmer")
+  rentalOrderActivities RentalOrderActivity[] @relation("RentalOrderActivityActor")
 }
 
 model StaffSession {
@@ -289,6 +305,7 @@ model RentalRequest {
   activities            RentalRequestActivity[]
   decision              RentalRequestDecision?
   quote                 Quote?
+  rentalOrder           RentalOrder?
 
   @@index([guestSessionId, submittedAt, id])
   @@index([status, submittedAt, id])
@@ -374,6 +391,7 @@ model RentalRequestDecision {
   items               RentalRequestDecisionItem[]
   activity            RentalRequestActivity?
   quoteRevisions      QuoteRevision[]
+  rentalOrder         RentalOrder?
 
   @@index([decidedByUserId, decidedAt, id])
   @@index([outcome, decidedAt, id])
@@ -409,6 +427,7 @@ model Quote {
   latestRevision     QuoteRevision?  @relation("QuoteLatestRevision", fields: [latestRevisionId], references: [id], onDelete: Restrict)
   customerRevision   QuoteRevision?  @relation("QuoteCustomerRevision", fields: [customerRevisionId], references: [id], onDelete: Restrict)
   activities         QuoteActivity[]
+  rentalOrder        RentalOrder?
 
   @@index([createdAt, id])
   @@index([createdByUserId, createdAt, id])
@@ -448,6 +467,7 @@ model QuoteRevision {
   customerAccess          QuoteCustomerAccess?
   customerResponse        QuoteCustomerResponse?
   activities              QuoteActivity[]
+  rentalOrder             RentalOrder?
 
   @@unique([quoteId, revisionNumber])
   @@index([rentalRequestDecisionId, createdAt, id])
@@ -558,6 +578,139 @@ model QuoteActivity {
 
   @@index([quoteId, createdAt, id])
   @@index([quoteRevisionId, createdAt, id])
+}
+
+model RentalOrder {
+  id                        String                       @id @default(cuid())
+  orderNumber               String                       @unique
+  quoteId                   String                       @unique
+  acceptedQuoteRevisionId   String                       @unique
+  rentalRequestId           String                       @unique
+  rentalRequestDecisionId   String                       @unique
+  confirmedByUserId         String
+  operationId               String                       @unique
+  payloadHash               String                       @db.Char(64)
+  status                    RentalOrderStatus            @default(CONFIRMED)
+  reservationStatus         RentalOrderReservationStatus @default(NOT_RESERVED)
+  acceptedRevisionNumber    Int
+  currency                  String                       @default("CAD") @db.Char(3)
+  contactFirstNameSnapshot  String
+  contactLastNameSnapshot   String
+  companyNameSnapshot       String?
+  contactEmailSnapshot      String
+  contactPhoneSnapshot      String
+  projectNameSnapshot       String
+  projectTypeSnapshot       String
+  projectLocationSnapshot   String
+  fulfillmentMethodSnapshot RentalRequestFulfillmentMethod
+  deliveryAddressSnapshot   String?                      @db.Text
+  rentalStartDateSnapshot   DateTime                     @db.Date
+  rentalEndDateSnapshot     DateTime                     @db.Date
+  requestedTimeZoneSnapshot String
+  requestCustomerNotesSnapshot String?                   @db.Text
+  quoteCustomerNotesSnapshot String?                     @db.Text
+  termsSnapshot             String?                      @db.Text
+  itemSubtotalCents         BigInt
+  chargeTotalCents          BigInt
+  subtotalCents             BigInt
+  discountCents             BigInt
+  discountTaxable           Boolean
+  taxableSubtotalCents      BigInt
+  taxCents                  BigInt
+  totalCents                BigInt
+  confirmedAt               DateTime                     @default(now()) @db.Timestamptz(3)
+  quote                     Quote                        @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  acceptedQuoteRevision     QuoteRevision                @relation(fields: [acceptedQuoteRevisionId], references: [id], onDelete: Restrict)
+  rentalRequest             RentalRequest                @relation(fields: [rentalRequestId], references: [id], onDelete: Restrict)
+  rentalRequestDecision     RentalRequestDecision        @relation(fields: [rentalRequestDecisionId], references: [id], onDelete: Restrict)
+  confirmedBy               User                         @relation("RentalOrderConfirmer", fields: [confirmedByUserId], references: [id], onDelete: Restrict)
+  items                     RentalOrderItem[]
+  charges                   RentalOrderCharge[]
+  tax                       RentalOrderTax?
+  activities                RentalOrderActivity[]
+  customerAccess            OrderCustomerAccess?
+
+  @@index([status, confirmedAt, id])
+  @@index([reservationStatus, confirmedAt, id])
+  @@index([rentalStartDateSnapshot, rentalEndDateSnapshot, id])
+  @@index([confirmedByUserId, confirmedAt, id])
+  @@index([contactEmailSnapshot, confirmedAt, id])
+}
+
+model RentalOrderItem {
+  id                            String            @id @default(cuid())
+  rentalOrderId                 String
+  sourceQuoteRevisionItemId     String            @unique
+  productIdSnapshot             String
+  productNameSnapshot           String
+  productSlugSnapshot           String
+  categoryNameSnapshot          String
+  categorySlugSnapshot          String
+  rentalUnitSnapshot            String
+  approvedQuantitySnapshot      Int
+  quotedQuantity                Int
+  unitPriceCents                BigInt
+  lineSubtotalCents             BigInt
+  taxable                       Boolean
+  sortOrder                     Int
+  createdAt                     DateTime          @default(now()) @db.Timestamptz(3)
+  rentalOrder                   RentalOrder       @relation(fields: [rentalOrderId], references: [id], onDelete: Restrict)
+
+  @@unique([rentalOrderId, sortOrder])
+  @@index([rentalOrderId, createdAt, id])
+}
+
+model RentalOrderCharge {
+  id                          String          @id @default(cuid())
+  rentalOrderId               String
+  sourceQuoteRevisionChargeId String          @unique
+  type                        QuoteChargeType
+  label                       String
+  amountCents                 BigInt
+  taxable                     Boolean
+  sortOrder                   Int
+  createdAt                   DateTime        @default(now()) @db.Timestamptz(3)
+  rentalOrder                 RentalOrder     @relation(fields: [rentalOrderId], references: [id], onDelete: Restrict)
+
+  @@unique([rentalOrderId, sortOrder])
+}
+
+model RentalOrderTax {
+  id                       String      @id @default(cuid())
+  rentalOrderId            String      @unique
+  sourceQuoteRevisionTaxId String      @unique
+  name                     String
+  rateBasisPoints          Int
+  taxableAmountCents       BigInt
+  taxAmountCents           BigInt
+  createdAt                DateTime    @default(now()) @db.Timestamptz(3)
+  rentalOrder              RentalOrder @relation(fields: [rentalOrderId], references: [id], onDelete: Restrict)
+}
+
+model RentalOrderActivity {
+  id            String                  @id @default(cuid())
+  rentalOrderId String
+  actorUserId   String?
+  type          RentalOrderActivityType
+  createdAt     DateTime                @default(now()) @db.Timestamptz(3)
+  rentalOrder   RentalOrder             @relation(fields: [rentalOrderId], references: [id], onDelete: Restrict)
+  actor         User?                   @relation("RentalOrderActivityActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([rentalOrderId, createdAt, id])
+  @@index([actorUserId, createdAt, id])
+}
+
+model OrderCustomerAccess {
+  id            String      @id @default(uuid()) @db.Uuid
+  rentalOrderId String      @unique
+  tokenHash     String      @unique @db.Char(64)
+  expiresAt     DateTime    @db.Timestamptz(3)
+  revokedAt     DateTime?   @db.Timestamptz(3)
+  firstViewedAt DateTime?   @db.Timestamptz(3)
+  createdAt     DateTime    @default(now()) @db.Timestamptz(3)
+  rentalOrder   RentalOrder @relation(fields: [rentalOrderId], references: [id], onDelete: Restrict)
+
+  @@index([expiresAt, id])
 }
 
 model Inventory {

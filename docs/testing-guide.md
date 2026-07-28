@@ -819,3 +819,51 @@ pnpm test:e2e:quotes
 ```
 
 The admin-focused coverage creates, validates, prices, double-submits safely, adds a charge and tax, verifies the exact total, sends, checks non-reservation wording, exercises dark mode and 320px overflow, and runs axe. The customer coverage exchanges a fragment capability, checks private content, accepts, refreshes terminal state, verifies 320px overflow, and runs axe. The combined command additionally creates an immutable replacement revision, checks history, proves old access is revoked, and rejects the replacement. Expiry is deterministic in PostgreSQL integration coverage rather than delayed in the browser suite. The runner refuses a non-local database, a name not ending `_test`, development/test URL equality, or occupied ports. Common failures are Docker Desktop closed, missing Playwright Chromium (`pnpm exec playwright install chromium`), stale applications using ports 3000/3001/4000, or unsafe/missing `.env` test URLs.
+
+## Phase 12 confirmed-order tests
+
+Run the database and complete non-browser gate:
+
+```powershell
+docker compose up -d postgres postgres-test
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+Success means the Phase 12 migration applies, no migration is pending, the
+RBAC mappings remain idempotent, every code gate exits 0, and production builds
+finish. Automated coverage verifies strict DTOs, 401/403/authorized behavior,
+accepted-revision eligibility, explicit-only conversion, exact immutable
+snapshots and bigint money, idempotency/concurrency, append-only constraints,
+hash-only capability access, uniform unavailable responses, first-view
+deduplication, public confidentiality, and unchanged inventory records.
+
+Stop normal applications and run each guarded browser group:
+
+```powershell
+pnpm test:e2e:admin-orders
+pnpm test:e2e:customer-orders
+pnpm test:e2e:orders
+```
+
+Admin success creates its own request/decision/accepted quote, confirms the
+order through the explicit dialog, verifies exact totals and source links,
+checks `NOT_RESERVED`, and finds no prohibited operational controls. Customer
+success exchanges the fragment, refreshes through the HttpOnly cookie, renders
+only allowlisted snapshots, and rejects access without the capability. The
+suites include dark theme, 320-pixel no-overflow, and serious/critical axe
+checks. The combined command performs both flows after one isolated reset.
+
+Do not call the feature verified if Docker, migration, unit/integration,
+production build, or browser execution was skipped. Common browser failures are
+occupied ports, unsafe `TEST_DATABASE_URL`, Docker Desktop closed, missing
+Chromium, or a stale generated Prisma Client.

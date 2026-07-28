@@ -38,4 +38,9 @@ describe('permission-aware admin shell', () => {
     );
     expect(render([])).not.toContain('href="/rental-requests"');
   });
+
+  it('shows rental orders only to staff with order.view', () => {
+    expect(render(['order.view'])).toContain('href="/orders"');
+    expect(render([])).not.toContain('href="/orders"');
+  });
 });

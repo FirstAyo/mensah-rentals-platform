@@ -15,12 +15,13 @@ describe('rental-request decisions against PostgreSQL', () => {
   let productIds: string[];
   let inventoryIds: string[];
   let inventoryBaseline: unknown;
+  const requestIds: string[] = [];
 
   const digest = (value: string) =>
     createHash('sha256').update(`${suffix}:${value}`).digest('hex');
 
   async function request(label: string, quantities = [10, 4]) {
-    return prisma.rentalRequest.create({
+    const created = await prisma.rentalRequest.create({
       data: {
         contactEmail: `${label}-${suffix}@example.test`,
         contactFirstName: 'Decision',
@@ -54,6 +55,8 @@ describe('rental-request decisions against PostgreSQL', () => {
       },
       include: { items: { orderBy: { productName: 'asc' } } },
     });
+    requestIds.push(created.id);
+    return created;
   }
 
   async function inventorySnapshot() {
@@ -415,7 +418,7 @@ describe('rental-request decisions against PostgreSQL', () => {
     expect(await inventorySnapshot()).toEqual(inventoryBaseline);
   });
 
-  it('keeps Phase 10 decisions separate from orders and reservations after quotes are introduced', async () => {
+  it('keeps decisions separate from quotes, orders, and reservations', async () => {
     const [tables] = await prisma.$queryRaw<
       Array<{
         order_table: string | null;
@@ -427,9 +430,14 @@ describe('rental-request decisions against PostgreSQL', () => {
       to_regclass('public."RentalOrder"')::text AS order_table,
       to_regclass('public."Reservation"')::text AS reservation_table`;
     expect(tables).toEqual({
-      order_table: null,
+      order_table: '"RentalOrder"',
       quote_table: '"Quote"',
       reservation_table: null,
     });
+    expect(
+      await prisma.rentalOrder.count({
+        where: { rentalRequestId: { in: requestIds } },
+      }),
+    ).toBe(0);
   });
 });

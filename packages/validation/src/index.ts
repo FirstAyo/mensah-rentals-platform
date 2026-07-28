@@ -1,6 +1,7 @@
 import { z } from 'zod';
 
 export * from './quote';
+export * from './order';
 
 const environmentBoolean = z
   .enum(['true', 'false'])
@@ -186,6 +187,21 @@ export const apiEnvironmentSchema = z
       .min(1)
       .max(90)
       .default(30),
+    PUBLIC_ORDER_ACCESS_SECRET: z
+      .string()
+      .min(32)
+      .default('development-only-change-this-order-secret'),
+    PUBLIC_ORDER_ACCESS_TTL_DAYS: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(365)
+      .default(90),
+    PUBLIC_ORDER_COOKIE_NAME: z
+      .string()
+      .regex(/^[A-Za-z0-9_-]+$/)
+      .default('mensah_order_access'),
+    PUBLIC_ORDER_COOKIE_SECURE: environmentBoolean.default('false'),
     STAFF_SESSION_COOKIE_NAME: z
       .string()
       .regex(/^[A-Za-z0-9_-]+$/)
@@ -258,6 +274,41 @@ export const apiEnvironmentSchema = z
         code: z.ZodIssueCode.custom,
         message: 'Production quote access requires a unique secret',
         path: ['PUBLIC_QUOTE_ACCESS_SECRET'],
+      });
+    }
+
+    if (environment.PUBLIC_ORDER_ACCESS_SECRET.startsWith('development-only')) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Production order access requires a unique secret',
+        path: ['PUBLIC_ORDER_ACCESS_SECRET'],
+      });
+    }
+
+    if (!environment.PUBLIC_ORDER_COOKIE_SECURE) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'PUBLIC_ORDER_COOKIE_SECURE must be true in production',
+        path: ['PUBLIC_ORDER_COOKIE_SECURE'],
+      });
+    }
+
+    if (!environment.PUBLIC_ORDER_COOKIE_NAME.startsWith('__Host-')) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Production order cookies must use the __Host- prefix',
+        path: ['PUBLIC_ORDER_COOKIE_NAME'],
+      });
+    }
+
+    if (
+      environment.PUBLIC_ORDER_ACCESS_SECRET ===
+      environment.PUBLIC_QUOTE_ACCESS_SECRET
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Order and quote access secrets must be different',
+        path: ['PUBLIC_ORDER_ACCESS_SECRET'],
       });
     }
 

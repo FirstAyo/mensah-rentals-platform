@@ -52,6 +52,11 @@ describe('quote HTTP authorization', () => {
     })),
     createFirst: vi.fn(async () => ({ id })),
     createRevision: vi.fn(async () => ({ id: revisionId })),
+    detail: vi.fn(async (_id: string, includeOrder: boolean) => ({
+      id,
+      order: includeOrder ? { id: 'order-id', orderNumber: 'RO-TEST' } : null,
+      revisions: [],
+    })),
     send: vi.fn(async () => ({ status: 'SENT' })),
   };
   beforeAll(async () => {
@@ -109,6 +114,26 @@ describe('quote HTTP authorization', () => {
       .get('/admin/quotes/not-a-cuid')
       .set('Cookie', cookie)
       .expect(422);
+  });
+  it('does not expose order identifiers without order.view', async () => {
+    current = { ...base, permissionKeys: ['quote.view'] };
+    await request(app.getHttpServer())
+      .get(`/admin/quotes/${id}`)
+      .set('Cookie', cookie)
+      .expect(200)
+      .expect(({ body }) => {
+        if (body.order !== null)
+          throw new Error('quote.view leaked rental-order identifiers');
+      });
+    current = { ...base, permissionKeys: ['quote.view', 'order.view'] };
+    await request(app.getHttpServer())
+      .get(`/admin/quotes/${id}`)
+      .set('Cookie', cookie)
+      .expect(200)
+      .expect(({ body }) => {
+        if (body.order?.orderNumber !== 'RO-TEST')
+          throw new Error('order.view did not receive the order reference');
+      });
   });
   it('requires rental_request.view and quote.create independently', async () => {
     const call = () =>

@@ -320,3 +320,18 @@ The API now owns a quote aggregate composed of one `Quote` thread, immutable com
 Admin mutations pass through fixed Next.js BFF allowlists and require live backend permissions both at the guard and inside the database transaction. Customer access uses a separate revision-scoped HMAC capability, hash-only persistence, fragment bootstrap, and HttpOnly cookie. Customer responses never traverse the staff-auth boundary. All private responses are no-store/noindex. Explicit public mappers and a fail-closed web parser prevent internal quote, decision, staff, RBAC, or inventory fields from crossing the public boundary.
 
 Quote calculations are server-owned integer-cent/basis-point operations and PostgreSQL verifies stored aggregates at transaction commit. No quote code imports an order, reservation, allocation, or inventory mutation service. See [Custom quotes](quotes.md).
+
+## Phase 12 confirmed-order architecture
+
+An accepted quote remains separate from a confirmed order. An authorized staff
+mutation locks the quote, revalidates live `order.create`, verifies the current
+customer revision and response, recalculates stored money, and creates immutable
+order snapshots, activity, and dedicated customer access atomically. Database
+uniqueness and deferred source/total triggers back the transaction.
+
+Admin reads and conversion use fixed same-origin BFF routes. Customer access
+uses an order-specific hash-only HMAC capability, fragment bootstrap, separate
+HttpOnly cookie, public mapper, and fail-closed web validator. Private responses
+are no-store/noindex. The order is `CONFIRMED` and `NOT_RESERVED`; this module
+has no inventory, availability, allocation, or reservation dependency. See
+[Confirmed rental orders](rental-orders.md).

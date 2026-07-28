@@ -39,14 +39,17 @@ export class AdminQuoteController {
 
   @Get(':id')
   @RequirePermissions('quote.view')
-  detail(@Param('id', new QuoteZodPipe(cuidParamSchema)) id: string) {
-    return this.quotes.detail(id);
+  detail(
+    @CurrentStaffUser() actor: StaffUserResponse,
+    @Param('id', new QuoteZodPipe(cuidParamSchema)) id: string,
+  ) {
+    return this.quotes.detail(id, actor.permissionKeys.includes('order.view'));
   }
 
   @Get(':id/revisions')
   @RequirePermissions('quote.view')
   async revisions(@Param('id', new QuoteZodPipe(cuidParamSchema)) id: string) {
-    return (await this.quotes.detail(id)).revisions;
+    return (await this.quotes.detail(id, false)).revisions;
   }
 
   @Get(':id/revisions/:revisionId')
@@ -55,7 +58,7 @@ export class AdminQuoteController {
     @Param('id', new QuoteZodPipe(cuidParamSchema)) id: string,
     @Param('revisionId', new QuoteZodPipe(cuidParamSchema)) revisionId: string,
   ) {
-    const quote = await this.quotes.detail(id);
+    const quote = await this.quotes.detail(id, false);
     const revision = quote.revisions.find(
       (candidate) => candidate.id === revisionId,
     );

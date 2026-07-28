@@ -15,7 +15,7 @@ database, API, authorization, UI, documentation, and tests where applicable.
 9. **Administrative rental-request review (complete):** protected server-side queue, eligible-staff assignment with optimistic concurrency, append-only internal notes/activity, the non-decision `SUBMITTED -> UNDER_REVIEW` transition, and permission-gated current inventory context. No requested-date availability, reservation, decision, or dashboard metrics are included.
 10. **Approval decisions (complete):** permission-separated approve, partial approval, and rejection; immutable decision records; separate approved quantities; customer-safe explanations; concurrency/idempotency protection; and explicit non-reservation proof.
 11. **Quotes (complete):** decision-derived immutable revisions, exact CAD cents and basis-point tax, secure sending, revision-scoped customer capabilities, accept/reject responses, public confidentiality, and non-reservation proof.
-12. **Confirmed rental orders:** accepted-quote conversion and operational order lifecycle.
+12. **Confirmed rental orders (complete):** explicit accepted-revision conversion, immutable exact snapshots, dedicated customer access, confirmed/non-reserved status, and non-inventory regression proof.
 13. **Date-based reservations:** half-open UTC ranges, concurrency-safe bulk/serialized allocation, overlap and double-booking tests.
 14. **Operations:** calendar, deliveries, returns, and maintenance in separate slices.
 15. **Content management:** pages, sections, galleries, FAQs, testimonials, SEO, EDITOR permissions.

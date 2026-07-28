@@ -14,6 +14,7 @@ import { InventoryModule } from './inventory/inventory.module';
 import { CartModule } from './cart/cart.module';
 import { RentalRequestModule } from './rental-request/rental-request.module';
 import { QuoteModule } from './quote/quote.module';
+import { RentalOrderModule } from './rental-order/rental-order.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { QuoteModule } from './quote/quote.module';
     CartModule,
     RentalRequestModule,
     QuoteModule,
+    RentalOrderModule,
   ],
   controllers: [HealthController],
   providers: [DatabaseService, HealthService],

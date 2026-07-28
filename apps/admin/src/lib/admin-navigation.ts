@@ -9,6 +9,7 @@ export const ADMIN_NAVIGATION: readonly AdminNavigationItem[] = [
   { label: 'Inventory', requiredPermission: 'inventory.view' },
   { label: 'Rental Requests', requiredPermission: 'rental_request.view' },
   { label: 'Quotes', requiredPermission: 'quote.view' },
+  { label: 'Rental Orders', requiredPermission: 'order.view' },
   { label: 'Users', requiredPermission: 'user.view' },
   { label: 'Roles', requiredPermission: 'role.view' },
 ];

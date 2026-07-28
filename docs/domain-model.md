@@ -129,3 +129,14 @@ one-decision policy intentionally defers revision/supersession semantics.
 `Quote` is the one-per-request commercial thread and stores only identity, display number, latest/customer revision pointers, creator, and timestamps. `QuoteRevision` is an immutable proposal tied to the authoritative eligible decision. `QuoteRevisionItem`, `QuoteRevisionCharge`, and `QuoteRevisionTax` are immutable financial snapshots. `QuoteRevisionLifecycle` is the narrowly mutable state machine. `QuoteCustomerAccess` holds only a capability hash and expiry/revocation. `QuoteCustomerResponse` records exactly one immutable accept/reject response. `QuoteActivity` is append-only internal history.
 
 Rental Request, Decision, Quote, Revision, Customer Response, future Confirmed Rental Order, and future Inventory Reservation remain different models. Acceptance does not change the terminal request decision and does not create either future model.
+
+## Implemented confirmed rental order aggregate
+
+`RentalOrder` is created explicitly from the authoritative accepted revision.
+`RentalOrderItem`, `RentalOrderCharge`, and `RentalOrderTax` copy immutable
+commercial/customer snapshots. `RentalOrderActivity` is append-only, and
+`OrderCustomerAccess` stores only a hash of a separate expiring capability.
+
+Only `CONFIRMED` and `NOT_RESERVED` exist in Phase 12. There is no inventory
+quantity, asset assignment, availability calculation, or reservation relation.
+A future `InventoryReservation` remains a separate aggregate.

@@ -32,6 +32,10 @@ export {
   QuoteChargeType,
   QuoteCustomerResponseKind,
   QuoteRevisionState,
+  RentalOrderActivityType,
+  RentalOrderReservationStatus,
+  RentalOrderStatus,
   UserStatus,
+  Prisma,
 } from '@prisma/client';
-export type { Prisma, PrismaClient } from '@prisma/client';
+export type { PrismaClient } from '@prisma/client';

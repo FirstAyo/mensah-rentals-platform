@@ -413,6 +413,7 @@ export interface AdminQuoteDetailResponse {
   id: string;
   latestRevisionId: string;
   notice: string;
+  order: { id: string; orderNumber: string } | null;
   quoteNumber: string;
   rentalRequest: {
     id: string;
@@ -464,6 +465,110 @@ export interface PublicQuoteResponse extends QuoteMoneyResponse {
   };
   terms: string | null;
   validUntil: string;
+}
+
+export type RentalOrderStatusResponse = 'CONFIRMED';
+export type RentalOrderReservationStatusResponse = 'NOT_RESERVED';
+
+export interface AdminRentalOrderSummaryResponse extends QuoteMoneyResponse {
+  confirmedAt: string;
+  customerName: string;
+  fulfillmentMethod: PublicRentalRequestFulfillmentMethod;
+  id: string;
+  orderNumber: string;
+  quoteId: string;
+  quoteNumber: string;
+  rentalEndDate: string;
+  rentalRequestId: string;
+  rentalRequestReference: string;
+  rentalStartDate: string;
+  reservationStatus: RentalOrderReservationStatusResponse;
+  status: RentalOrderStatusResponse;
+}
+
+export interface AdminRentalOrderItemResponse
+  extends Omit<AdminQuoteItemResponse, 'decisionItemId'> {
+  sourceQuoteRevisionItemId: string;
+}
+
+export interface AdminRentalOrderDetailResponse
+  extends AdminRentalOrderSummaryResponse {
+  acceptedQuoteRevisionId: string;
+  acceptedRevisionNumber: number;
+  activities: Array<{
+    actor: AdminRentalRequestStaffSummary | null;
+    createdAt: string;
+    id: string;
+    type: 'ORDER_CREATED' | 'ORDER_CUSTOMER_ACCESS_CREATED' | 'ORDER_VIEWED';
+  }>;
+  charges: AdminQuoteChargeResponse[];
+  confirmedBy: AdminRentalRequestStaffSummary;
+  currency: 'CAD';
+  customer: {
+    companyName: string | null;
+    email: string;
+    firstName: string;
+    lastName: string;
+    phone: string;
+  };
+  deliveryAddress: string | null;
+  discountTaxable: boolean;
+  items: AdminRentalOrderItemResponse[];
+  notice: string;
+  project: {
+    customerNotes: string | null;
+    location: string;
+    name: string;
+    requestedTimeZone: string;
+    type: string;
+  };
+  quoteCustomerNotes: string | null;
+  rentalRequestDecisionId: string;
+  tax: AdminQuoteRevisionResponse['tax'];
+  terms: string | null;
+}
+
+export interface AdminRentalOrderCreateResponse {
+  customerAccessLink: string;
+  order: { id: string; orderNumber: string };
+}
+
+export interface PublicRentalOrderResponse extends QuoteMoneyResponse {
+  charges: Array<{
+    amountCents: number;
+    label: string;
+    taxable: boolean;
+    type: AdminQuoteChargeResponse['type'];
+  }>;
+  companyName: string | null;
+  confirmedAt: string;
+  currency: 'CAD';
+  customerName: string;
+  customerNotes: string | null;
+  deliveryAddress: string | null;
+  fulfillmentMethod: PublicRentalRequestFulfillmentMethod;
+  items: Array<{
+    approvedQuantity: number;
+    lineSubtotalCents: number;
+    productName: string;
+    productSlug: string;
+    quotedQuantity: number;
+    rentalUnit: string;
+    taxable: boolean;
+    unitPriceCents: number;
+  }>;
+  notice: string;
+  orderNumber: string;
+  projectLocation: string;
+  projectName: string;
+  projectNotes: string | null;
+  projectType: string;
+  rentalEndDate: string;
+  rentalStartDate: string;
+  reservationStatus: RentalOrderReservationStatusResponse;
+  status: RentalOrderStatusResponse;
+  tax: AdminQuoteRevisionResponse['tax'];
+  terms: string | null;
 }
 
 export type InventoryTrackingModeResponse = 'BULK' | 'SERIALIZED';

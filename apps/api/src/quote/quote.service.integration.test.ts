@@ -312,7 +312,7 @@ describe('custom quotes against PostgreSQL', () => {
     ).rejects.toThrow('approved');
   });
 
-  it('sends using a hash-only capability and accepts idempotently without orders or reservations', async () => {
+  it('accepts idempotently without automatically creating orders or reservations', async () => {
     const source = await approved('send');
     const quote = await quoteService.createFirst(
       actor,
@@ -354,10 +354,15 @@ describe('custom quotes against PostgreSQL', () => {
     expect(accepted.status).toBe('ACCEPTED');
     expect(acceptedReplay.status).toBe('ACCEPTED');
     expect(await prisma.inventoryTransaction.count()).toBe(inventoryBefore);
-    const tables = await prisma.$queryRaw<
+    expect(
+      await prisma.rentalOrder.count({ where: { quoteId: quote.id } }),
+    ).toBe(0);
+    const [reservation] = await prisma.$queryRaw<
       Array<{ name: string | null }>
-    >`SELECT to_regclass('public."RentalOrder"')::TEXT AS name UNION ALL SELECT to_regclass('public."Reservation"')::TEXT`;
-    expect(tables.every(({ name }) => name === null)).toBe(true);
+    >`
+      SELECT to_regclass('public."Reservation"')::TEXT AS name
+    `;
+    expect(reservation?.name).toBeNull();
   });
 
   it('serializes concurrent first-quote creation for one rental request', async () => {
