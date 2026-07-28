@@ -1,5 +1,9 @@
 # Confirmed Rental Orders
 
+## Changes after confirmation
+
+A confirmed rental order is immutable in Phase 13. Customer proposals are stored in a separate formal `RentalChangeRequest`; review never changes the order or creates a replacement automatically. Reservation status remains `NOT_RESERVED`, and no inventory mutation, availability calculation, or asset allocation occurs.
+
 Phase 12 implements explicit conversion of an authoritative accepted quote
 revision into an immutable confirmed rental order. It does not reserve
 inventory, calculate date availability, allocate assets, or start delivery,

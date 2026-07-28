@@ -34,13 +34,14 @@ const decisionSelect = {
     select: {
       approvedQuantity: true,
       id: true,
-      rentalRequestItemId: true,
+      rentalRequestRevisionItemId: true,
       requestedQuantitySnapshot: true,
     },
   },
   outcome: true,
   reviewVersionAfter: true,
   reviewVersionBefore: true,
+  supersededAt: true,
 } satisfies Prisma.RentalRequestDecisionSelect;
 
 type SelectedDecision = Prisma.RentalRequestDecisionGetPayload<{
@@ -100,8 +101,16 @@ export class RentalRequestDecisionService {
     rentalRequestId: string,
   ): Promise<AdminRentalRequestDecisionResponse | null> {
     await this.ensureRequest(rentalRequestId);
-    const decision = await prisma.rentalRequestDecision.findUnique({
-      where: { rentalRequestId },
+    const request = await prisma.rentalRequest.findUnique({
+      where: { id: rentalRequestId },
+      select: { currentRevisionId: true },
+    });
+    const decision = await prisma.rentalRequestDecision.findFirst({
+      where: {
+        rentalRequestId,
+        rentalRequestRevisionId: request?.currentRevisionId ?? '__none__',
+        supersededAt: null,
+      },
       select: decisionSelect,
     });
     return decision ? this.map(decision) : null;
@@ -178,12 +187,13 @@ export class RentalRequestDecisionService {
             outcome: decisionInput.outcome,
             payloadHash,
             rentalRequestId,
+            rentalRequestRevisionId: request.currentRevisionId,
             reviewVersionAfter,
             reviewVersionBefore: request.reviewVersion,
             items: {
               create: request.items.map((item) => ({
                 approvedQuantity: quantities.get(item.id)!,
-                rentalRequestItemId: item.id,
+                rentalRequestRevisionItemId: item.id,
                 requestedQuantitySnapshot: item.requestedQuantity,
               })),
             },
@@ -309,17 +319,30 @@ export class RentalRequestDecisionService {
       SELECT "id" FROM "RentalRequest" WHERE "id" = ${id} FOR UPDATE
     `;
     if (!locked.length) throw new NotFoundException('Rental request not found');
-    return tx.rentalRequest.findUniqueOrThrow({
+    const request = await tx.rentalRequest.findUniqueOrThrow({
       where: { id },
       select: {
-        items: {
-          orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
-          select: { id: true, requestedQuantity: true },
+        currentRevisionId: true,
+        currentRevision: {
+          select: {
+            items: {
+              orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+              select: { id: true, requestedQuantity: true },
+            },
+          },
         },
         reviewVersion: true,
         status: true,
       },
     });
+    if (!request.currentRevisionId || !request.currentRevision)
+      throw new ConflictException('This request has no current revision');
+    return {
+      currentRevisionId: request.currentRevisionId,
+      items: request.currentRevision.items,
+      reviewVersion: request.reviewVersion,
+      status: request.status,
+    };
   }
 
   private async requireActor(
@@ -369,9 +392,13 @@ export class RentalRequestDecisionService {
       decidedBy: decision.decidedBy,
       id: decision.id,
       internalReason: decision.internalReason,
-      items: decision.items,
+      items: decision.items.map(({ rentalRequestRevisionItemId, ...item }) => ({
+        ...item,
+        rentalRequestItemId: rentalRequestRevisionItemId,
+      })),
       outcome: decision.outcome,
-      quoteEligible: decision.outcome !== 'REJECTED',
+      quoteEligible:
+        decision.outcome !== 'REJECTED' && decision.supersededAt === null,
       reviewVersionAfter: decision.reviewVersionAfter,
       reviewVersionBefore: decision.reviewVersionBefore,
     };

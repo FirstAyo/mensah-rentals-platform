@@ -191,7 +191,14 @@ export class RentalOrderService {
         const result = await prisma.$transaction(
           async (tx) => {
             await this.requireActor(tx, actor.id, ['order.create']);
+            const quoteIdentity = await tx.quote.findUnique({
+              where: { id: quoteId },
+              select: { rentalRequestId: true },
+            });
+            if (!quoteIdentity) throw new NotFoundException('Quote not found');
+            await this.lockRentalRequest(tx, quoteIdentity.rentalRequestId);
             await this.lockQuote(tx, quoteId);
+            await this.lockOrderForRequest(tx, quoteIdentity.rentalRequestId);
             const replay = await tx.rentalOrder.findUnique({
               where: { operationId: input.operationId },
             });
@@ -214,7 +221,16 @@ export class RentalOrderService {
               where: { id: quoteId },
               include: {
                 rentalOrder: true,
-                rentalRequest: { include: { decision: true } },
+                rentalRequest: {
+                  include: {
+                    currentRevision: true,
+                    decisions: {
+                      where: { supersededAt: null },
+                      orderBy: { decidedAt: 'desc' },
+                      take: 1,
+                    },
+                  },
+                },
                 customerRevision: {
                   include: {
                     charges: { orderBy: { sortOrder: 'asc' } },
@@ -241,14 +257,18 @@ export class RentalOrderService {
             const revision = quote.customerRevision;
             const response = revision.customerResponse;
             const lifecycle = revision.lifecycle;
-            const decision = quote.rentalRequest.decision;
+            const decision = quote.rentalRequest.decisions[0];
+            const requestRevision = quote.rentalRequest.currentRevision;
             if (
               lifecycle?.state !== QuoteRevisionState.ACCEPTED ||
               response?.response !== 'ACCEPTED' ||
               response.respondedAt > revision.validUntil ||
               !lifecycle.terminalAt ||
               !decision ||
+              !requestRevision ||
               decision.id !== revision.rentalRequestDecisionId ||
+              decision.rentalRequestRevisionId !==
+                quote.rentalRequest.currentRevisionId ||
               decision.rentalRequestId !== quote.rentalRequestId ||
               (quote.rentalRequest.status !== RentalRequestStatus.APPROVED &&
                 quote.rentalRequest.status !==
@@ -256,6 +276,21 @@ export class RentalOrderService {
             )
               throw new ConflictException(
                 'The quote revision is not eligible for order conversion',
+              );
+            const actionableChangeRequest =
+              await tx.rentalChangeRequest.findFirst({
+                where: {
+                  acceptedQuoteRevisionId: revisionId,
+                  rentalRequestId: quote.rentalRequestId,
+                  status: {
+                    in: ['SUBMITTED', 'UNDER_REVIEW', 'APPROVED_FOR_REQUOTE'],
+                  },
+                },
+                select: { id: true },
+              });
+            if (actionableChangeRequest)
+              throw new ConflictException(
+                'This accepted quote has a pending formal change request and cannot become an order',
               );
             this.verifyMoney(revision);
             const orderId = this.cuidLike();
@@ -266,38 +301,36 @@ export class RentalOrderService {
                 acceptedQuoteRevisionId: revision.id,
                 acceptedRevisionNumber: revision.revisionNumber,
                 chargeTotalCents: revision.chargeTotalCents,
-                companyNameSnapshot: quote.rentalRequest.companyName,
+                companyNameSnapshot: requestRevision.companyName,
                 confirmedAt: now,
                 confirmedByUserId: actor.id,
-                contactEmailSnapshot: quote.rentalRequest.contactEmail,
-                contactFirstNameSnapshot: quote.rentalRequest.contactFirstName,
-                contactLastNameSnapshot: quote.rentalRequest.contactLastName,
-                contactPhoneSnapshot: quote.rentalRequest.contactPhone,
+                contactEmailSnapshot: requestRevision.contactEmail,
+                contactFirstNameSnapshot: requestRevision.contactFirstName,
+                contactLastNameSnapshot: requestRevision.contactLastName,
+                contactPhoneSnapshot: requestRevision.contactPhone,
                 currency: revision.currency,
-                deliveryAddressSnapshot: quote.rentalRequest.deliveryAddress,
+                deliveryAddressSnapshot: requestRevision.deliveryAddress,
                 discountCents: revision.discountCents,
                 discountBaseCents: revision.discountBaseCents,
                 discountRateBasisPoints: revision.discountRateBasisPoints,
                 discountTaxable: revision.discountTaxable,
                 discountType: revision.discountType,
-                fulfillmentMethodSnapshot:
-                  quote.rentalRequest.fulfillmentMethod,
+                fulfillmentMethodSnapshot: requestRevision.fulfillmentMethod,
                 itemSubtotalCents: revision.itemSubtotalCents,
                 operationId: input.operationId,
                 orderNumber: this.orderNumber(),
                 payloadHash,
-                projectLocationSnapshot: quote.rentalRequest.projectLocation,
-                projectNameSnapshot: quote.rentalRequest.projectName,
-                projectTypeSnapshot: quote.rentalRequest.projectType,
+                projectLocationSnapshot: requestRevision.projectLocation,
+                projectNameSnapshot: requestRevision.projectName,
+                projectTypeSnapshot: requestRevision.projectType,
                 quoteCustomerNotesSnapshot: revision.customerNotes,
                 quoteId,
-                rentalEndDateSnapshot: quote.rentalRequest.rentalEndDate,
+                rentalEndDateSnapshot: requestRevision.rentalEndDate,
                 rentalRequestDecisionId: decision.id,
                 rentalRequestId: quote.rentalRequestId,
-                rentalStartDateSnapshot: quote.rentalRequest.rentalStartDate,
-                requestCustomerNotesSnapshot: quote.rentalRequest.customerNotes,
-                requestedTimeZoneSnapshot:
-                  quote.rentalRequest.requestedTimeZone,
+                rentalStartDateSnapshot: requestRevision.rentalStartDate,
+                requestCustomerNotesSnapshot: requestRevision.customerNotes,
+                requestedTimeZoneSnapshot: requestRevision.requestedTimeZone,
                 subtotalCents: revision.subtotalCents,
                 taxCents: revision.taxCents,
                 taxableDiscountCents: revision.taxableDiscountCents,
@@ -360,6 +393,7 @@ export class RentalOrderService {
           order: { id: result.orderId, orderNumber: result.orderNumber },
         };
       } catch (error) {
+        if (this.code(error) === 'P2034' && attempt < 4) continue;
         if (this.isOrderNumberCollision(error) && attempt < 4) continue;
         if (this.isOrderNumberCollision(error))
           throw new ConflictException(
@@ -1219,6 +1253,22 @@ export class RentalOrderService {
       SELECT "id" FROM "Quote" WHERE "id"=${id} FOR UPDATE
     `;
     if (!rows.length) throw new NotFoundException('Quote not found');
+  }
+  private async lockRentalRequest(tx: Prisma.TransactionClient, id: string) {
+    const rows = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "RentalRequest" WHERE "id"=${id} FOR UPDATE
+    `;
+    if (!rows.length) throw new NotFoundException('Rental request not found');
+  }
+  private async lockOrderForRequest(
+    tx: Prisma.TransactionClient,
+    rentalRequestId: string,
+  ) {
+    await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "RentalOrder"
+      WHERE "rentalRequestId"=${rentalRequestId}
+      FOR UPDATE
+    `;
   }
   private async lockOrder(tx: Prisma.TransactionClient, id: string) {
     const rows = await tx.$queryRaw<Array<{ id: string }>>`

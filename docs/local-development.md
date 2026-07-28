@@ -1,5 +1,29 @@
 # Local Development on Windows
 
+## Phase 13 amendments on Windows
+
+Run these commands from the repository root in PowerShell after copying `.env.example` to `.env` and starting Docker Desktop:
+
+```powershell
+docker compose up -d postgres
+pnpm install
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+pnpm dev
+```
+
+The Phase 13 migrations are `20260728210000_phase13_request_amendments`, `20260728211000_phase13_current_revision_trigger_fix`, and `20260728212000_phase13_decision_item_trigger_fix`. The final corrective migration also aligns the review-state constraint with `RE_REVIEW_REQUIRED`. `db:status` should report 25 migrations and say the database schema is up to date. The idempotent RBAC seed adds the amendment/change-request permissions to the intended system roles without replacing custom-role mappings.
+
+Use `http://localhost:3000` for the customer site, `http://localhost:3001` for staff, and `http://localhost:4000` for the API. Submit a normal rental request first. Its tracking page establishes request-scoped private access in an HttpOnly cookie. Select **Amend this request**, change equipment and details, review the warning, and submit. Staff can then open **Rental Requests**, see the badge, compare revisions, start re-review, and create a new decision.
+
+After an accepted quote or confirmed order, the tracking page offers **Submit a formal change request** instead. The original quote/order remains unchanged.
+
+If the amendment page says access is unavailable, return to the private tracking page in the same browser profile. Do not paste capability cookies into terminals, screenshots, or tickets. If a stale `409` appears, reload the current revision and reapply the intended changes. Do not reset a shared/staging/production database; the guarded reset instructions elsewhere in this document are for disposable local development data only.
+
 These instructions assume no prior monorepo, pnpm, Docker, or Prisma
 experience. Run commands in **PowerShell** from the repository root unless a
 step says otherwise.

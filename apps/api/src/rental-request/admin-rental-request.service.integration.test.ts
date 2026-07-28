@@ -51,39 +51,82 @@ describe('administrative rental-request review against PostgreSQL', () => {
     quantity = 3,
     rentalStartDate = new Date('2026-09-01T00:00:00.000Z'),
   ) {
-    return prisma.rentalRequest.create({
-      data: {
-        referenceNumber: `MR-2026-${digest(label).slice(0, 10).toUpperCase()}`,
-        submissionKeyHash: digest(`${label}:submission`),
-        submissionPayloadHash: digest(`${label}:payload`),
-        sourceCartTokenHash: digest(`${label}:cart`),
-        fulfillmentMethod: label.includes('delivery') ? 'DELIVERY' : 'PICKUP',
-        contactFirstName: label.includes('search') ? 'Needle' : 'Ama',
-        contactLastName: `Tester-${label}`,
-        contactEmail: `${label}-${suffix}@example.test`,
-        contactPhone: '+233 20 000 0000',
-        projectName: `Project ${label}`,
-        projectType: 'Event',
-        projectLocation: 'Accra',
-        deliveryAddress: label.includes('delivery') ? 'Accra Central' : null,
-        rentalStartDate,
-        rentalEndDate: new Date(
-          rentalStartDate.getTime() + 2 * 24 * 60 * 60 * 1000,
-        ),
-        requestedTimeZone: 'Africa/Accra',
-        items: {
-          create: {
-            productId,
-            requestedQuantity: quantity,
-            productName: `Snapshot chair ${label}`,
-            productSlug: `snapshot-chair-${label}`,
-            categoryName: 'Snapshot seating',
-            categorySlug: 'snapshot-seating',
-            rentalUnit: 'each',
+    return prisma.$transaction(async (tx) => {
+      const created = await tx.rentalRequest.create({
+        data: {
+          referenceNumber: `MR-2026-${digest(label).slice(0, 10).toUpperCase()}`,
+          submissionKeyHash: digest(`${label}:submission`),
+          submissionPayloadHash: digest(`${label}:payload`),
+          sourceCartTokenHash: digest(`${label}:cart`),
+          fulfillmentMethod: label.includes('delivery') ? 'DELIVERY' : 'PICKUP',
+          contactFirstName: label.includes('search') ? 'Needle' : 'Ama',
+          contactLastName: `Tester-${label}`,
+          contactEmail: `${label}-${suffix}@example.test`,
+          contactPhone: '+233 20 000 0000',
+          projectName: `Project ${label}`,
+          projectType: 'Event',
+          projectLocation: 'Accra',
+          deliveryAddress: label.includes('delivery') ? 'Accra Central' : null,
+          rentalStartDate,
+          rentalEndDate: new Date(
+            rentalStartDate.getTime() + 2 * 24 * 60 * 60 * 1000,
+          ),
+          requestedTimeZone: 'Africa/Accra',
+          items: {
+            create: {
+              productId,
+              requestedQuantity: quantity,
+              productName: `Snapshot chair ${label}`,
+              productSlug: `snapshot-chair-${label}`,
+              categoryName: 'Snapshot seating',
+              categorySlug: 'snapshot-seating',
+              rentalUnit: 'each',
+            },
           },
         },
-      },
-      include: { items: true },
+        include: { items: true },
+      });
+      const revision = await tx.rentalRequestRevision.create({
+        data: {
+          rentalRequestId: created.id,
+          revisionNumber: 1,
+          submittedByType: 'ORIGINAL_SUBMISSION',
+          operationId: randomUUID(),
+          payloadHash: digest(`${label}:revision`),
+          contactFirstName: created.contactFirstName,
+          contactLastName: created.contactLastName,
+          contactEmail: created.contactEmail,
+          contactPhone: created.contactPhone,
+          companyName: created.companyName,
+          projectName: created.projectName,
+          projectType: created.projectType,
+          projectLocation: created.projectLocation,
+          fulfillmentMethod: created.fulfillmentMethod,
+          deliveryAddress: created.deliveryAddress,
+          rentalStartDate: created.rentalStartDate,
+          rentalEndDate: created.rentalEndDate,
+          requestedTimeZone: created.requestedTimeZone,
+          customerNotes: created.customerNotes,
+          items: {
+            create: created.items.map((item, sortOrder) => ({
+              productId: item.productId,
+              productNameSnapshot: item.productName,
+              productSlugSnapshot: item.productSlug,
+              categoryNameSnapshot: item.categoryName,
+              categorySlugSnapshot: item.categorySlug,
+              rentalUnitSnapshot: item.rentalUnit,
+              requestedQuantity: item.requestedQuantity,
+              sortOrder,
+            })),
+          },
+        },
+        include: { items: { orderBy: { sortOrder: 'asc' } } },
+      });
+      await tx.rentalRequest.update({
+        where: { id: created.id },
+        data: { currentRevisionId: revision.id },
+      });
+      return { ...created, items: revision.items };
     });
   }
 
@@ -192,7 +235,12 @@ describe('administrative rental-request review against PostgreSQL', () => {
     ).toContain(second.id);
     const sorted = await service.list(
       actor,
-      listQuery({ sortBy: 'rentalStartDate', sortDirection: 'asc' }),
+      listQuery({
+        pageSize: 100,
+        search: suffix,
+        sortBy: 'rentalStartDate',
+        sortDirection: 'asc',
+      }),
     );
     expect(sorted.items.findIndex(({ id }) => id === first.id)).toBeLessThan(
       sorted.items.findIndex(({ id }) => id === second.id),

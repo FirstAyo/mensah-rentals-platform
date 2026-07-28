@@ -26,6 +26,11 @@ export class PublicRentalRequestRateLimitGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest<Request>();
     const tracking = request.method === 'GET';
+    const requestUrl = request.originalUrl ?? request.url ?? '';
+    const requestCapabilityOperation =
+      tracking ||
+      requestUrl.includes('/current/amendments') ||
+      requestUrl.includes('/rental-change-requests');
     const limit = this.config.get(
       tracking
         ? 'PUBLIC_REQUEST_TRACK_RATE_LIMIT'
@@ -40,11 +45,17 @@ export class PublicRentalRequestRateLimitGuard implements CanActivate {
     );
     const rawCapability = String(
       request.headers[
-        tracking ? 'x-rental-request-token' : 'x-rental-cart-token'
+        requestCapabilityOperation
+          ? 'x-rental-request-token'
+          : 'x-rental-cart-token'
       ] ?? '',
     );
     const now = Date.now();
-    const operation = tracking ? 'track' : 'submit';
+    const operation = tracking
+      ? 'track'
+      : requestCapabilityOperation
+        ? 'change'
+        : 'submit';
     this.counters.consume(
       'rental-request:global',
       this.config.get('PUBLIC_REQUEST_GLOBAL_RATE_LIMIT', { infer: true }),

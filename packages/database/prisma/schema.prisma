@@ -35,6 +35,7 @@ enum InventoryTransactionKind {
 
 enum RentalRequestStatus {
   SUBMITTED
+  RE_REVIEW_REQUIRED
   UNDER_REVIEW
   APPROVED
   PARTIALLY_APPROVED
@@ -50,6 +51,35 @@ enum RentalRequestActivityType {
   APPROVED
   PARTIALLY_APPROVED
   REJECTED
+  AMENDMENT_SUBMITTED
+  RE_REVIEW_STARTED
+  DECISION_SUPERSEDED
+  QUOTE_SUPERSEDED
+  QUOTE_ACCESS_REVOKED
+  CHANGE_REQUEST_SUBMITTED
+  CHANGE_REQUEST_REVIEWED
+}
+
+enum RentalRequestRevisionSubmitterType {
+  ORIGINAL_SUBMISSION
+  CUSTOMER
+  STAFF
+}
+
+enum RentalChangeRequestStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  APPROVED_FOR_REQUOTE
+  REJECTED
+  WITHDRAWN
+  SUPERSEDED
+}
+
+enum RentalChangeRequestItemType {
+  ADDED
+  REMOVED
+  QUANTITY_CHANGED
+  UNCHANGED
 }
 
 enum RentalRequestDecisionOutcome {
@@ -125,33 +155,35 @@ enum RentalOrderActivityType {
 }
 
 model User {
-  id           String         @id @default(cuid())
-  email        String         @unique
-  passwordHash String
-  firstName    String
-  lastName     String
-  status       UserStatus     @default(DISABLED)
-  lastLoginAt  DateTime?      @db.Timestamptz(3)
-  createdAt    DateTime       @default(now()) @db.Timestamptz(3)
-  updatedAt    DateTime       @updatedAt @db.Timestamptz(3)
-  sessions     StaffSession[]
-  roles        UserRole[]     @relation("UserRoles")
-  roleAssignmentsMade UserRole[] @relation("UserRoleAssignedBy")
-  inventoryTransactions InventoryTransaction[] @relation("InventoryTransactionActor")
-  assignedRentalRequests RentalRequest[] @relation("RentalRequestAssignee")
-  rentalRequestNotes RentalRequestInternalNote[] @relation("RentalRequestNoteAuthor")
-  rentalRequestActivities RentalRequestActivity[] @relation("RentalRequestActivityActor")
-  rentalRequestDecisions RentalRequestDecision[] @relation("RentalRequestDecisionActor")
-  rentalRequestPreviousAssignments RentalRequestActivity[] @relation("RentalRequestActivityPreviousAssignee")
-  rentalRequestNewAssignments RentalRequestActivity[] @relation("RentalRequestActivityNewAssignee")
-  quotesCreated Quote[] @relation("QuoteCreator")
-  quoteRevisionsCreated QuoteRevision[] @relation("QuoteRevisionCreator")
-  quoteRevisionsSent QuoteRevisionLifecycle[] @relation("QuoteRevisionSender")
-  quoteActivities QuoteActivity[] @relation("QuoteActivityActor")
-  quoteAccessCreated QuoteCustomerAccess[] @relation("QuoteAccessCreator")
-  rentalOrdersConfirmed RentalOrder[] @relation("RentalOrderConfirmer")
-  rentalOrderActivities RentalOrderActivity[] @relation("RentalOrderActivityActor")
-  orderAccessCreated OrderCustomerAccess[] @relation("OrderAccessCreator")
+  id                               String                      @id @default(cuid())
+  email                            String                      @unique
+  passwordHash                     String
+  firstName                        String
+  lastName                         String
+  status                           UserStatus                  @default(DISABLED)
+  lastLoginAt                      DateTime?                   @db.Timestamptz(3)
+  createdAt                        DateTime                    @default(now()) @db.Timestamptz(3)
+  updatedAt                        DateTime                    @updatedAt @db.Timestamptz(3)
+  sessions                         StaffSession[]
+  roles                            UserRole[]                  @relation("UserRoles")
+  roleAssignmentsMade              UserRole[]                  @relation("UserRoleAssignedBy")
+  inventoryTransactions            InventoryTransaction[]      @relation("InventoryTransactionActor")
+  assignedRentalRequests           RentalRequest[]             @relation("RentalRequestAssignee")
+  rentalRequestNotes               RentalRequestInternalNote[] @relation("RentalRequestNoteAuthor")
+  rentalRequestActivities          RentalRequestActivity[]     @relation("RentalRequestActivityActor")
+  rentalRequestDecisions           RentalRequestDecision[]     @relation("RentalRequestDecisionActor")
+  rentalRequestPreviousAssignments RentalRequestActivity[]     @relation("RentalRequestActivityPreviousAssignee")
+  rentalRequestNewAssignments      RentalRequestActivity[]     @relation("RentalRequestActivityNewAssignee")
+  quotesCreated                    Quote[]                     @relation("QuoteCreator")
+  quoteRevisionsCreated            QuoteRevision[]             @relation("QuoteRevisionCreator")
+  quoteRevisionsSent               QuoteRevisionLifecycle[]    @relation("QuoteRevisionSender")
+  quoteActivities                  QuoteActivity[]             @relation("QuoteActivityActor")
+  quoteAccessCreated               QuoteCustomerAccess[]       @relation("QuoteAccessCreator")
+  rentalOrdersConfirmed            RentalOrder[]               @relation("RentalOrderConfirmer")
+  rentalOrderActivities            RentalOrderActivity[]       @relation("RentalOrderActivityActor")
+  orderAccessCreated               OrderCustomerAccess[]       @relation("OrderAccessCreator")
+  rentalRequestRevisionsCreated    RentalRequestRevision[]     @relation("RentalRequestRevisionStaffCreator")
+  rentalChangeRequestsReviewed     RentalChangeRequest[]       @relation("RentalChangeRequestReviewer")
 }
 
 model StaffSession {
@@ -226,23 +258,25 @@ model Category {
 }
 
 model Product {
-  id               String                 @id @default(cuid())
-  name             String
-  slug             String                 @unique
-  shortDescription String
-  description      String?                @db.Text
-  rentalUnit       String                 @default("each")
-  categoryId       String
-  isActive         Boolean                @default(true)
-  isFeatured       Boolean                @default(false)
-  createdAt        DateTime               @default(now()) @db.Timestamptz(3)
-  updatedAt        DateTime               @updatedAt @db.Timestamptz(3)
-  category         Category               @relation(fields: [categoryId], references: [id], onDelete: Restrict)
-  images           ProductImage[]
-  specifications   ProductSpecification[]
-  inventory        Inventory?
-  cartItems        CartItem[]
-  rentalRequestItems RentalRequestItem[]
+  id                         String                      @id @default(cuid())
+  name                       String
+  slug                       String                      @unique
+  shortDescription           String
+  description                String?                     @db.Text
+  rentalUnit                 String                      @default("each")
+  categoryId                 String
+  isActive                   Boolean                     @default(true)
+  isFeatured                 Boolean                     @default(false)
+  createdAt                  DateTime                    @default(now()) @db.Timestamptz(3)
+  updatedAt                  DateTime                    @updatedAt @db.Timestamptz(3)
+  category                   Category                    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  images                     ProductImage[]
+  specifications             ProductSpecification[]
+  inventory                  Inventory?
+  cartItems                  CartItem[]
+  rentalRequestItems         RentalRequestItem[]
+  rentalRequestRevisionItems RentalRequestRevisionItem[]
+  rentalChangeRequestItems   RentalChangeRequestItem[]
 
   @@index([categoryId, isActive, name, id])
   @@index([isActive, isFeatured, updatedAt, id])
@@ -283,6 +317,24 @@ model GuestRequestSession {
   @@index([expiresAt, id])
 }
 
+model RentalRequestCustomerAccess {
+  id              String                   @id @default(cuid())
+  rentalRequestId String
+  tokenHash       String                   @db.Char(64)
+  expiresAt       DateTime                 @db.Timestamptz(3)
+  revokedAt       DateTime?                @db.Timestamptz(3)
+  createdAt       DateTime                 @default(now()) @db.Timestamptz(3)
+  lastUsedAt      DateTime?                @db.Timestamptz(3)
+  rentalRequest   RentalRequest            @relation(fields: [rentalRequestId], references: [id], onDelete: Restrict)
+  revisions       RentalRequestRevision[]
+  amendments      RentalRequestAmendment[]
+  changeRequests  RentalChangeRequest[]
+
+  @@unique([rentalRequestId, tokenHash])
+  @@index([tokenHash, expiresAt, id])
+  @@index([rentalRequestId, expiresAt, id])
+}
+
 model RentalRequest {
   id                    String                         @id @default(cuid())
   referenceNumber       String                         @unique
@@ -310,15 +362,21 @@ model RentalRequest {
   assignedAt            DateTime?                      @db.Timestamptz(3)
   reviewStartedAt       DateTime?                      @db.Timestamptz(3)
   reviewVersion         Int                            @default(0)
+  currentRevisionId     String?                        @unique
   updatedAt             DateTime                       @updatedAt @db.Timestamptz(3)
   guestSession          GuestRequestSession?           @relation(fields: [guestSessionId], references: [id], onDelete: SetNull)
   assignedTo            User?                          @relation("RentalRequestAssignee", fields: [assignedToUserId], references: [id], onDelete: Restrict)
   items                 RentalRequestItem[]
   internalNotes         RentalRequestInternalNote[]
   activities            RentalRequestActivity[]
-  decision              RentalRequestDecision?
+  currentRevision       RentalRequestRevision?         @relation("RentalRequestCurrentRevision", fields: [currentRevisionId], references: [id], onDelete: Restrict)
+  revisions             RentalRequestRevision[]        @relation("RentalRequestRevisions")
+  customerAccess        RentalRequestCustomerAccess[]
+  amendments            RentalRequestAmendment[]
+  decisions             RentalRequestDecision[]
   quote                 Quote?
   rentalOrder           RentalOrder?
+  changeRequests        RentalChangeRequest[]
 
   @@index([guestSessionId, submittedAt, id])
   @@index([status, submittedAt, id])
@@ -328,15 +386,100 @@ model RentalRequest {
   @@index([contactEmail, submittedAt])
 }
 
+model RentalRequestRevision {
+  id                          String                             @id @default(cuid())
+  rentalRequestId             String
+  revisionNumber              Int
+  submittedByType             RentalRequestRevisionSubmitterType
+  submittedByCustomerAccessId String?
+  createdByStaffUserId        String?
+  amendmentReason             String?                            @db.Text
+  contactFirstName            String
+  contactLastName             String
+  contactEmail                String
+  contactPhone                String
+  companyName                 String?
+  projectName                 String
+  projectType                 String
+  projectLocation             String
+  fulfillmentMethod           RentalRequestFulfillmentMethod
+  deliveryAddress             String?                            @db.Text
+  rentalStartDate             DateTime                           @db.Date
+  rentalEndDate               DateTime                           @db.Date
+  requestedTimeZone           String
+  customerNotes               String?                            @db.Text
+  operationId                 String                             @unique
+  payloadHash                 String                             @db.Char(64)
+  createdAt                   DateTime                           @default(now()) @db.Timestamptz(3)
+  rentalRequest               RentalRequest                      @relation("RentalRequestRevisions", fields: [rentalRequestId], references: [id], onDelete: Restrict)
+  currentForRequest           RentalRequest?                     @relation("RentalRequestCurrentRevision")
+  submittedByCustomerAccess   RentalRequestCustomerAccess?       @relation(fields: [submittedByCustomerAccessId], references: [id], onDelete: Restrict)
+  createdByStaff              User?                              @relation("RentalRequestRevisionStaffCreator", fields: [createdByStaffUserId], references: [id], onDelete: Restrict)
+  items                       RentalRequestRevisionItem[]
+  amendmentFromBase           RentalRequestAmendment?            @relation("RentalRequestAmendmentNewRevision")
+  amendmentsBasedOn           RentalRequestAmendment[]           @relation("RentalRequestAmendmentBaseRevision")
+  decision                    RentalRequestDecision?
+  supersededDecisions         RentalRequestDecision[]            @relation("RentalRequestDecisionSupersededByRevision")
+  activities                  RentalRequestActivity[]
+  changeRequests              RentalChangeRequest[]
+
+  @@unique([rentalRequestId, revisionNumber])
+  @@index([rentalRequestId, createdAt, id])
+  @@index([submittedByCustomerAccessId, createdAt, id])
+  @@index([createdByStaffUserId, createdAt, id])
+}
+
+model RentalRequestRevisionItem {
+  id                      String                     @id @default(cuid())
+  rentalRequestRevisionId String
+  productId               String?
+  productNameSnapshot     String
+  productSlugSnapshot     String
+  categoryNameSnapshot    String
+  categorySlugSnapshot    String
+  rentalUnitSnapshot      String
+  primaryImageUrlSnapshot String?
+  requestedQuantity       Int
+  sortOrder               Int
+  createdAt               DateTime                   @default(now()) @db.Timestamptz(3)
+  revision                RentalRequestRevision      @relation(fields: [rentalRequestRevisionId], references: [id], onDelete: Restrict)
+  product                 Product?                   @relation(fields: [productId], references: [id], onDelete: SetNull)
+  decisionItem            RentalRequestDecisionItem?
+
+  @@unique([rentalRequestRevisionId, productId])
+  @@unique([rentalRequestRevisionId, productSlugSnapshot])
+  @@unique([rentalRequestRevisionId, sortOrder])
+  @@index([productId])
+}
+
+model RentalRequestAmendment {
+  id                          String                      @id @default(cuid())
+  rentalRequestId             String
+  baseRevisionId              String
+  newRevisionId               String                      @unique
+  submittedByCustomerAccessId String
+  operationId                 String                      @unique
+  payloadHash                 String                      @db.Char(64)
+  submittedAt                 DateTime                    @default(now()) @db.Timestamptz(3)
+  rentalRequest               RentalRequest               @relation(fields: [rentalRequestId], references: [id], onDelete: Restrict)
+  baseRevision                RentalRequestRevision       @relation("RentalRequestAmendmentBaseRevision", fields: [baseRevisionId], references: [id], onDelete: Restrict)
+  newRevision                 RentalRequestRevision       @relation("RentalRequestAmendmentNewRevision", fields: [newRevisionId], references: [id], onDelete: Restrict)
+  submittedByCustomerAccess   RentalRequestCustomerAccess @relation(fields: [submittedByCustomerAccessId], references: [id], onDelete: Restrict)
+
+  @@unique([rentalRequestId, baseRevisionId])
+  @@index([rentalRequestId, submittedAt, id])
+  @@index([submittedByCustomerAccessId, submittedAt, id])
+}
+
 model RentalRequestInternalNote {
-  id              String        @id @default(cuid())
+  id              String                 @id @default(cuid())
   rentalRequestId String
   authorUserId    String
-  operationId     String        @unique
-  body            String        @db.Text
-  createdAt       DateTime      @default(now()) @db.Timestamptz(3)
-  rentalRequest   RentalRequest @relation(fields: [rentalRequestId], references: [id], onDelete: Restrict)
-  author          User          @relation("RentalRequestNoteAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
+  operationId     String                 @unique
+  body            String                 @db.Text
+  createdAt       DateTime               @default(now()) @db.Timestamptz(3)
+  rentalRequest   RentalRequest          @relation(fields: [rentalRequestId], references: [id], onDelete: Restrict)
+  author          User                   @relation("RentalRequestNoteAuthor", fields: [authorUserId], references: [id], onDelete: Restrict)
   activity        RentalRequestActivity?
 
   @@index([rentalRequestId, createdAt, id])
@@ -344,28 +487,31 @@ model RentalRequestInternalNote {
 }
 
 model RentalRequestActivity {
-  id                       String                    @id @default(cuid())
-  rentalRequestId          String
-  actorUserId              String?
-  type                     RentalRequestActivityType
-  previousAssigneeUserId   String?
-  newAssigneeUserId        String?
-  noteId                   String?                   @unique
-  previousStatus           RentalRequestStatus?
-  newStatus                RentalRequestStatus?
-  createdAt                DateTime                  @default(now()) @db.Timestamptz(3)
-  rentalRequest            RentalRequest             @relation(fields: [rentalRequestId], references: [id], onDelete: Restrict)
-  actor                    User?                     @relation("RentalRequestActivityActor", fields: [actorUserId], references: [id], onDelete: Restrict)
-  previousAssignee         User?                     @relation("RentalRequestActivityPreviousAssignee", fields: [previousAssigneeUserId], references: [id], onDelete: Restrict)
-  newAssignee              User?                     @relation("RentalRequestActivityNewAssignee", fields: [newAssigneeUserId], references: [id], onDelete: Restrict)
-  note                     RentalRequestInternalNote? @relation(fields: [noteId], references: [id], onDelete: Restrict)
-  decisionId               String?                   @unique
-  decision                 RentalRequestDecision?    @relation(fields: [decisionId], references: [id], onDelete: Restrict)
+  id                     String                     @id @default(cuid())
+  rentalRequestId        String
+  actorUserId            String?
+  type                   RentalRequestActivityType
+  previousAssigneeUserId String?
+  newAssigneeUserId      String?
+  noteId                 String?                    @unique
+  previousStatus         RentalRequestStatus?
+  newStatus              RentalRequestStatus?
+  createdAt              DateTime                   @default(now()) @db.Timestamptz(3)
+  rentalRequest          RentalRequest              @relation(fields: [rentalRequestId], references: [id], onDelete: Restrict)
+  actor                  User?                      @relation("RentalRequestActivityActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  previousAssignee       User?                      @relation("RentalRequestActivityPreviousAssignee", fields: [previousAssigneeUserId], references: [id], onDelete: Restrict)
+  newAssignee            User?                      @relation("RentalRequestActivityNewAssignee", fields: [newAssigneeUserId], references: [id], onDelete: Restrict)
+  note                   RentalRequestInternalNote? @relation(fields: [noteId], references: [id], onDelete: Restrict)
+  decisionId             String?                    @unique
+  revisionId             String?
+  decision               RentalRequestDecision?     @relation(fields: [decisionId], references: [id], onDelete: Restrict)
+  revision               RentalRequestRevision?     @relation(fields: [revisionId], references: [id], onDelete: Restrict)
 
   @@index([rentalRequestId, createdAt, id])
   @@index([actorUserId, createdAt, id])
   @@index([previousAssigneeUserId])
   @@index([newAssigneeUserId])
+  @@index([revisionId, createdAt, id])
 }
 
 model RentalRequestItem {
@@ -381,123 +527,131 @@ model RentalRequestItem {
   createdAt         DateTime      @default(now()) @db.Timestamptz(3)
   rentalRequest     RentalRequest @relation(fields: [rentalRequestId], references: [id], onDelete: Restrict)
   product           Product       @relation(fields: [productId], references: [id], onDelete: Restrict)
-  decisionItem      RentalRequestDecisionItem?
 
   @@unique([rentalRequestId, productId])
   @@index([productId])
 }
 
 model RentalRequestDecision {
-  id                  String                       @id @default(cuid())
-  rentalRequestId     String                       @unique
-  outcome             RentalRequestDecisionOutcome
-  decidedByUserId     String
-  operationId         String                       @unique
-  payloadHash         String                       @db.Char(64)
-  internalReason      String                       @db.Text
-  customerExplanation String?                      @db.Text
-  reviewVersionBefore Int
-  reviewVersionAfter  Int
-  decidedAt           DateTime                     @default(now()) @db.Timestamptz(3)
-  rentalRequest       RentalRequest                @relation(fields: [rentalRequestId], references: [id], onDelete: Restrict)
-  decidedBy           User                         @relation("RentalRequestDecisionActor", fields: [decidedByUserId], references: [id], onDelete: Restrict)
-  items               RentalRequestDecisionItem[]
-  activity            RentalRequestActivity?
-  quoteRevisions      QuoteRevision[]
-  rentalOrder         RentalOrder?
+  id                      String                       @id @default(cuid())
+  rentalRequestId         String
+  rentalRequestRevisionId String                       @unique
+  outcome                 RentalRequestDecisionOutcome
+  decidedByUserId         String
+  operationId             String                       @unique
+  payloadHash             String                       @db.Char(64)
+  internalReason          String                       @db.Text
+  customerExplanation     String?                      @db.Text
+  reviewVersionBefore     Int
+  reviewVersionAfter      Int
+  supersededAt            DateTime?                    @db.Timestamptz(3)
+  supersededByRevisionId  String?
+  decidedAt               DateTime                     @default(now()) @db.Timestamptz(3)
+  rentalRequest           RentalRequest                @relation(fields: [rentalRequestId], references: [id], onDelete: Restrict)
+  rentalRequestRevision   RentalRequestRevision        @relation(fields: [rentalRequestRevisionId], references: [id], onDelete: Restrict)
+  supersededByRevision    RentalRequestRevision?       @relation("RentalRequestDecisionSupersededByRevision", fields: [supersededByRevisionId], references: [id], onDelete: Restrict)
+  decidedBy               User                         @relation("RentalRequestDecisionActor", fields: [decidedByUserId], references: [id], onDelete: Restrict)
+  items                   RentalRequestDecisionItem[]
+  activity                RentalRequestActivity?
+  quoteRevisions          QuoteRevision[]
+  rentalOrder             RentalOrder?
 
   @@index([decidedByUserId, decidedAt, id])
   @@index([outcome, decidedAt, id])
+  @@index([rentalRequestId, decidedAt, id])
+  @@index([supersededByRevisionId])
 }
 
 model RentalRequestDecisionItem {
-  id                        String                @id @default(cuid())
-  decisionId                String
-  rentalRequestItemId       String                @unique
-  requestedQuantitySnapshot Int
-  approvedQuantity          Int
-  createdAt                 DateTime              @default(now()) @db.Timestamptz(3)
-  decision                  RentalRequestDecision @relation(fields: [decisionId], references: [id], onDelete: Restrict)
-  rentalRequestItem         RentalRequestItem     @relation(fields: [rentalRequestItemId], references: [id], onDelete: Restrict)
-  quoteItems                QuoteRevisionItem[]
+  id                          String                    @id @default(cuid())
+  decisionId                  String
+  rentalRequestRevisionItemId String                    @unique
+  requestedQuantitySnapshot   Int
+  approvedQuantity            Int
+  createdAt                   DateTime                  @default(now()) @db.Timestamptz(3)
+  decision                    RentalRequestDecision     @relation(fields: [decisionId], references: [id], onDelete: Restrict)
+  rentalRequestRevisionItem   RentalRequestRevisionItem @relation(fields: [rentalRequestRevisionItemId], references: [id], onDelete: Restrict)
+  quoteItems                  QuoteRevisionItem[]
 
-  @@unique([decisionId, rentalRequestItemId])
+  @@unique([decisionId, rentalRequestRevisionItemId])
   @@index([decisionId, createdAt, id])
 }
 
 model Quote {
-  id                 String          @id @default(cuid())
-  rentalRequestId    String          @unique
-  quoteNumber        String          @unique
-  latestRevisionId   String?         @unique
-  customerRevisionId String?         @unique
+  id                 String                @id @default(cuid())
+  rentalRequestId    String                @unique
+  quoteNumber        String                @unique
+  latestRevisionId   String?               @unique
+  customerRevisionId String?               @unique
   createdByUserId    String
-  createdAt          DateTime        @default(now()) @db.Timestamptz(3)
-  updatedAt          DateTime        @updatedAt @db.Timestamptz(3)
-  rentalRequest      RentalRequest   @relation(fields: [rentalRequestId], references: [id], onDelete: Restrict)
-  createdBy          User            @relation("QuoteCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  revisions          QuoteRevision[] @relation("QuoteRevisions")
-  latestRevision     QuoteRevision?  @relation("QuoteLatestRevision", fields: [latestRevisionId], references: [id], onDelete: Restrict)
-  customerRevision   QuoteRevision?  @relation("QuoteCustomerRevision", fields: [customerRevisionId], references: [id], onDelete: Restrict)
+  createdAt          DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime              @updatedAt @db.Timestamptz(3)
+  rentalRequest      RentalRequest         @relation(fields: [rentalRequestId], references: [id], onDelete: Restrict)
+  createdBy          User                  @relation("QuoteCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  revisions          QuoteRevision[]       @relation("QuoteRevisions")
+  latestRevision     QuoteRevision?        @relation("QuoteLatestRevision", fields: [latestRevisionId], references: [id], onDelete: Restrict)
+  customerRevision   QuoteRevision?        @relation("QuoteCustomerRevision", fields: [customerRevisionId], references: [id], onDelete: Restrict)
   activities         QuoteActivity[]
   rentalOrder        RentalOrder?
+  changeRequests     RentalChangeRequest[]
 
   @@index([createdAt, id])
   @@index([createdByUserId, createdAt, id])
 }
 
 model QuoteRevision {
-  id                      String                  @id @default(cuid())
-  quoteId                 String
-  revisionNumber          Int
-  rentalRequestDecisionId String
-  currency                String                  @default("CAD") @db.Char(3)
-  itemSubtotalCents       BigInt
-  chargeTotalCents        BigInt
-  subtotalCents           BigInt
-  discountCents           BigInt
-  discountTaxable         Boolean                 @default(true)
-  discountType            QuoteDiscountType       @default(FIXED_AMOUNT)
-  discountRateBasisPoints Int?
-  discountBaseCents       BigInt
-  taxableDiscountCents    BigInt
-  taxableSubtotalCents    BigInt
-  taxCents                BigInt
-  totalCents              BigInt
-  customerNotes           String?                 @db.Text
-  internalNotes           String?                 @db.Text
-  terms                   String?                 @db.Text
-  validUntil              DateTime                @db.Timestamptz(3)
-  contactFirstNameSnapshot String
-  contactLastNameSnapshot String
-  companyNameSnapshot     String?
-  projectNameSnapshot     String
-  projectTypeSnapshot     String
-  projectLocationSnapshot String
+  id                        String                         @id @default(cuid())
+  quoteId                   String
+  revisionNumber            Int
+  rentalRequestDecisionId   String
+  currency                  String                         @default("CAD") @db.Char(3)
+  itemSubtotalCents         BigInt
+  chargeTotalCents          BigInt
+  subtotalCents             BigInt
+  discountCents             BigInt
+  discountTaxable           Boolean                        @default(true)
+  discountType              QuoteDiscountType              @default(FIXED_AMOUNT)
+  discountRateBasisPoints   Int?
+  discountBaseCents         BigInt
+  taxableDiscountCents      BigInt
+  taxableSubtotalCents      BigInt
+  taxCents                  BigInt
+  totalCents                BigInt
+  customerNotes             String?                        @db.Text
+  internalNotes             String?                        @db.Text
+  terms                     String?                        @db.Text
+  validUntil                DateTime                       @db.Timestamptz(3)
+  contactFirstNameSnapshot  String
+  contactLastNameSnapshot   String
+  companyNameSnapshot       String?
+  projectNameSnapshot       String
+  projectTypeSnapshot       String
+  projectLocationSnapshot   String
   fulfillmentMethodSnapshot RentalRequestFulfillmentMethod
-  deliveryAddressSnapshot String?                 @db.Text
-  rentalStartDateSnapshot DateTime                 @db.Date
-  rentalEndDateSnapshot   DateTime                 @db.Date
+  deliveryAddressSnapshot   String?                        @db.Text
+  rentalStartDateSnapshot   DateTime                       @db.Date
+  rentalEndDateSnapshot     DateTime                       @db.Date
   requestedTimeZoneSnapshot String
-  createdByUserId         String
-  operationId             String                  @unique
-  payloadHash             String                  @db.Char(64)
-  createdAt               DateTime                @default(now()) @db.Timestamptz(3)
-  updatedAt               DateTime                @updatedAt @db.Timestamptz(3)
-  draftVersion            Int                     @default(0)
-  quote                   Quote                   @relation("QuoteRevisions", fields: [quoteId], references: [id], onDelete: Restrict)
-  decision                RentalRequestDecision   @relation(fields: [rentalRequestDecisionId], references: [id], onDelete: Restrict)
-  createdBy               User                    @relation("QuoteRevisionCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
-  latestForQuote          Quote?                  @relation("QuoteLatestRevision")
-  customerForQuote        Quote?                  @relation("QuoteCustomerRevision")
-  items                   QuoteRevisionItem[]
-  charges                 QuoteRevisionCharge[]
-  tax                     QuoteRevisionTax?
-  lifecycle               QuoteRevisionLifecycle?
-  customerAccess          QuoteCustomerAccess[]
-  customerResponse        QuoteCustomerResponse?
-  activities              QuoteActivity[]
-  rentalOrder             RentalOrder?
+  createdByUserId           String
+  operationId               String                         @unique
+  payloadHash               String                         @db.Char(64)
+  createdAt                 DateTime                       @default(now()) @db.Timestamptz(3)
+  updatedAt                 DateTime                       @updatedAt @db.Timestamptz(3)
+  draftVersion              Int                            @default(0)
+  quote                     Quote                          @relation("QuoteRevisions", fields: [quoteId], references: [id], onDelete: Restrict)
+  decision                  RentalRequestDecision          @relation(fields: [rentalRequestDecisionId], references: [id], onDelete: Restrict)
+  createdBy                 User                           @relation("QuoteRevisionCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  latestForQuote            Quote?                         @relation("QuoteLatestRevision")
+  customerForQuote          Quote?                         @relation("QuoteCustomerRevision")
+  items                     QuoteRevisionItem[]
+  charges                   QuoteRevisionCharge[]
+  tax                       QuoteRevisionTax?
+  lifecycle                 QuoteRevisionLifecycle?
+  customerAccess            QuoteCustomerAccess[]
+  customerResponse          QuoteCustomerResponse?
+  activities                QuoteActivity[]
+  rentalOrder               RentalOrder?
+  changeRequests            RentalChangeRequest[]
 
   @@unique([quoteId, revisionNumber])
   @@index([rentalRequestDecisionId, createdAt, id])
@@ -506,24 +660,24 @@ model QuoteRevision {
 }
 
 model QuoteRevisionItem {
-  id                        String                    @id @default(cuid())
-  quoteRevisionId           String
+  id                          String                    @id @default(cuid())
+  quoteRevisionId             String
   rentalRequestDecisionItemId String
-  productIdSnapshot         String
-  productNameSnapshot       String
-  productSlugSnapshot       String
-  categoryNameSnapshot      String
-  categorySlugSnapshot      String
-  rentalUnitSnapshot        String
-  approvedQuantitySnapshot Int
-  quotedQuantity            Int
-  unitPriceCents            BigInt
-  lineSubtotalCents         BigInt
-  taxable                   Boolean                   @default(true)
-  sortOrder                 Int
-  createdAt                 DateTime                  @default(now()) @db.Timestamptz(3)
-  quoteRevision             QuoteRevision             @relation(fields: [quoteRevisionId], references: [id], onDelete: Restrict)
-  decisionItem              RentalRequestDecisionItem @relation(fields: [rentalRequestDecisionItemId], references: [id], onDelete: Restrict)
+  productIdSnapshot           String
+  productNameSnapshot         String
+  productSlugSnapshot         String
+  categoryNameSnapshot        String
+  categorySlugSnapshot        String
+  rentalUnitSnapshot          String
+  approvedQuantitySnapshot    Int
+  quotedQuantity              Int
+  unitPriceCents              BigInt
+  lineSubtotalCents           BigInt
+  taxable                     Boolean                   @default(true)
+  sortOrder                   Int
+  createdAt                   DateTime                  @default(now()) @db.Timestamptz(3)
+  quoteRevision               QuoteRevision             @relation(fields: [quoteRevisionId], references: [id], onDelete: Restrict)
+  decisionItem                RentalRequestDecisionItem @relation(fields: [rentalRequestDecisionItemId], references: [id], onDelete: Restrict)
 
   @@unique([quoteRevisionId, rentalRequestDecisionItemId])
   @@unique([quoteRevisionId, sortOrder])
@@ -545,27 +699,27 @@ model QuoteRevisionCharge {
 }
 
 model QuoteRevisionTax {
-  id                   String        @id @default(cuid())
-  quoteRevisionId      String        @unique
-  name                 String
-  rateBasisPoints      Int
-  taxableAmountCents   BigInt
-  taxAmountCents       BigInt
-  createdAt            DateTime      @default(now()) @db.Timestamptz(3)
-  quoteRevision        QuoteRevision @relation(fields: [quoteRevisionId], references: [id], onDelete: Restrict)
+  id                 String        @id @default(cuid())
+  quoteRevisionId    String        @unique
+  name               String
+  rateBasisPoints    Int
+  taxableAmountCents BigInt
+  taxAmountCents     BigInt
+  createdAt          DateTime      @default(now()) @db.Timestamptz(3)
+  quoteRevision      QuoteRevision @relation(fields: [quoteRevisionId], references: [id], onDelete: Restrict)
 }
 
 model QuoteRevisionLifecycle {
-  quoteRevisionId String             @id
-  state           QuoteRevisionState @default(DRAFT)
-  lifecycleVersion Int               @default(0)
-  sentAt          DateTime?          @db.Timestamptz(3)
-  sentByUserId    String?
-  viewedAt        DateTime?          @db.Timestamptz(3)
-  terminalAt      DateTime?          @db.Timestamptz(3)
-  updatedAt       DateTime           @updatedAt @db.Timestamptz(3)
-  quoteRevision   QuoteRevision      @relation(fields: [quoteRevisionId], references: [id], onDelete: Restrict)
-  sentBy          User?              @relation("QuoteRevisionSender", fields: [sentByUserId], references: [id], onDelete: Restrict)
+  quoteRevisionId  String             @id
+  state            QuoteRevisionState @default(DRAFT)
+  lifecycleVersion Int                @default(0)
+  sentAt           DateTime?          @db.Timestamptz(3)
+  sentByUserId     String?
+  viewedAt         DateTime?          @db.Timestamptz(3)
+  terminalAt       DateTime?          @db.Timestamptz(3)
+  updatedAt        DateTime           @updatedAt @db.Timestamptz(3)
+  quoteRevision    QuoteRevision      @relation(fields: [quoteRevisionId], references: [id], onDelete: Restrict)
+  sentBy           User?              @relation("QuoteRevisionSender", fields: [sentByUserId], references: [id], onDelete: Restrict)
 
   @@index([state, updatedAt, quoteRevisionId])
 }
@@ -617,58 +771,59 @@ model QuoteActivity {
 }
 
 model RentalOrder {
-  id                        String                       @id @default(cuid())
-  orderNumber               String                       @unique
-  quoteId                   String                       @unique
-  acceptedQuoteRevisionId   String                       @unique
-  rentalRequestId           String                       @unique
-  rentalRequestDecisionId   String                       @unique
-  confirmedByUserId         String
-  operationId               String                       @unique
-  payloadHash               String                       @db.Char(64)
-  status                    RentalOrderStatus            @default(CONFIRMED)
-  reservationStatus         RentalOrderReservationStatus @default(NOT_RESERVED)
-  acceptedRevisionNumber    Int
-  currency                  String                       @default("CAD") @db.Char(3)
-  contactFirstNameSnapshot  String
-  contactLastNameSnapshot   String
-  companyNameSnapshot       String?
-  contactEmailSnapshot      String
-  contactPhoneSnapshot      String
-  projectNameSnapshot       String
-  projectTypeSnapshot       String
-  projectLocationSnapshot   String
-  fulfillmentMethodSnapshot RentalRequestFulfillmentMethod
-  deliveryAddressSnapshot   String?                      @db.Text
-  rentalStartDateSnapshot   DateTime                     @db.Date
-  rentalEndDateSnapshot     DateTime                     @db.Date
-  requestedTimeZoneSnapshot String
-  requestCustomerNotesSnapshot String?                   @db.Text
-  quoteCustomerNotesSnapshot String?                     @db.Text
-  termsSnapshot             String?                      @db.Text
-  itemSubtotalCents         BigInt
-  chargeTotalCents          BigInt
-  subtotalCents             BigInt
-  discountCents             BigInt
-  discountTaxable           Boolean
-  discountType              QuoteDiscountType
-  discountRateBasisPoints   Int?
-  discountBaseCents         BigInt
-  taxableDiscountCents      BigInt
-  taxableSubtotalCents      BigInt
-  taxCents                  BigInt
-  totalCents                BigInt
-  confirmedAt               DateTime                     @default(now()) @db.Timestamptz(3)
-  quote                     Quote                        @relation(fields: [quoteId], references: [id], onDelete: Restrict)
-  acceptedQuoteRevision     QuoteRevision                @relation(fields: [acceptedQuoteRevisionId], references: [id], onDelete: Restrict)
-  rentalRequest             RentalRequest                @relation(fields: [rentalRequestId], references: [id], onDelete: Restrict)
-  rentalRequestDecision     RentalRequestDecision        @relation(fields: [rentalRequestDecisionId], references: [id], onDelete: Restrict)
-  confirmedBy               User                         @relation("RentalOrderConfirmer", fields: [confirmedByUserId], references: [id], onDelete: Restrict)
-  items                     RentalOrderItem[]
-  charges                   RentalOrderCharge[]
-  tax                       RentalOrderTax?
-  activities                RentalOrderActivity[]
-  customerAccess            OrderCustomerAccess[]
+  id                           String                         @id @default(cuid())
+  orderNumber                  String                         @unique
+  quoteId                      String                         @unique
+  acceptedQuoteRevisionId      String                         @unique
+  rentalRequestId              String                         @unique
+  rentalRequestDecisionId      String                         @unique
+  confirmedByUserId            String
+  operationId                  String                         @unique
+  payloadHash                  String                         @db.Char(64)
+  status                       RentalOrderStatus              @default(CONFIRMED)
+  reservationStatus            RentalOrderReservationStatus   @default(NOT_RESERVED)
+  acceptedRevisionNumber       Int
+  currency                     String                         @default("CAD") @db.Char(3)
+  contactFirstNameSnapshot     String
+  contactLastNameSnapshot      String
+  companyNameSnapshot          String?
+  contactEmailSnapshot         String
+  contactPhoneSnapshot         String
+  projectNameSnapshot          String
+  projectTypeSnapshot          String
+  projectLocationSnapshot      String
+  fulfillmentMethodSnapshot    RentalRequestFulfillmentMethod
+  deliveryAddressSnapshot      String?                        @db.Text
+  rentalStartDateSnapshot      DateTime                       @db.Date
+  rentalEndDateSnapshot        DateTime                       @db.Date
+  requestedTimeZoneSnapshot    String
+  requestCustomerNotesSnapshot String?                        @db.Text
+  quoteCustomerNotesSnapshot   String?                        @db.Text
+  termsSnapshot                String?                        @db.Text
+  itemSubtotalCents            BigInt
+  chargeTotalCents             BigInt
+  subtotalCents                BigInt
+  discountCents                BigInt
+  discountTaxable              Boolean
+  discountType                 QuoteDiscountType
+  discountRateBasisPoints      Int?
+  discountBaseCents            BigInt
+  taxableDiscountCents         BigInt
+  taxableSubtotalCents         BigInt
+  taxCents                     BigInt
+  totalCents                   BigInt
+  confirmedAt                  DateTime                       @default(now()) @db.Timestamptz(3)
+  quote                        Quote                          @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  acceptedQuoteRevision        QuoteRevision                  @relation(fields: [acceptedQuoteRevisionId], references: [id], onDelete: Restrict)
+  rentalRequest                RentalRequest                  @relation(fields: [rentalRequestId], references: [id], onDelete: Restrict)
+  rentalRequestDecision        RentalRequestDecision          @relation(fields: [rentalRequestDecisionId], references: [id], onDelete: Restrict)
+  confirmedBy                  User                           @relation("RentalOrderConfirmer", fields: [confirmedByUserId], references: [id], onDelete: Restrict)
+  items                        RentalOrderItem[]
+  charges                      RentalOrderCharge[]
+  tax                          RentalOrderTax?
+  activities                   RentalOrderActivity[]
+  customerAccess               OrderCustomerAccess[]
+  changeRequests               RentalChangeRequest[]
 
   @@index([status, confirmedAt, id])
   @@index([reservationStatus, confirmedAt, id])
@@ -678,23 +833,23 @@ model RentalOrder {
 }
 
 model RentalOrderItem {
-  id                            String            @id @default(cuid())
-  rentalOrderId                 String
-  sourceQuoteRevisionItemId     String            @unique
-  productIdSnapshot             String
-  productNameSnapshot           String
-  productSlugSnapshot           String
-  categoryNameSnapshot          String
-  categorySlugSnapshot          String
-  rentalUnitSnapshot            String
-  approvedQuantitySnapshot      Int
-  quotedQuantity                Int
-  unitPriceCents                BigInt
-  lineSubtotalCents             BigInt
-  taxable                       Boolean
-  sortOrder                     Int
-  createdAt                     DateTime          @default(now()) @db.Timestamptz(3)
-  rentalOrder                   RentalOrder       @relation(fields: [rentalOrderId], references: [id], onDelete: Restrict)
+  id                        String      @id @default(cuid())
+  rentalOrderId             String
+  sourceQuoteRevisionItemId String      @unique
+  productIdSnapshot         String
+  productNameSnapshot       String
+  productSlugSnapshot       String
+  categoryNameSnapshot      String
+  categorySlugSnapshot      String
+  rentalUnitSnapshot        String
+  approvedQuantitySnapshot  Int
+  quotedQuantity            Int
+  unitPriceCents            BigInt
+  lineSubtotalCents         BigInt
+  taxable                   Boolean
+  sortOrder                 Int
+  createdAt                 DateTime    @default(now()) @db.Timestamptz(3)
+  rentalOrder               RentalOrder @relation(fields: [rentalOrderId], references: [id], onDelete: Restrict)
 
   @@unique([rentalOrderId, sortOrder])
   @@index([rentalOrderId, createdAt, id])
@@ -743,34 +898,106 @@ model RentalOrderActivity {
 }
 
 model OrderCustomerAccess {
-  id            String      @id @default(uuid()) @db.Uuid
-  rentalOrderId String
-  tokenHash     String      @unique @db.Char(64)
-  operationId   String      @unique @db.Uuid
-  payloadHash   String      @db.Char(64)
+  id              String      @id @default(uuid()) @db.Uuid
+  rentalOrderId   String
+  tokenHash       String      @unique @db.Char(64)
+  operationId     String      @unique @db.Uuid
+  payloadHash     String      @db.Char(64)
   createdByUserId String
-  expiresAt     DateTime    @db.Timestamptz(3)
-  revokedAt     DateTime?   @db.Timestamptz(3)
-  firstViewedAt DateTime?   @db.Timestamptz(3)
-  createdAt     DateTime    @default(now()) @db.Timestamptz(3)
-  rentalOrder   RentalOrder @relation(fields: [rentalOrderId], references: [id], onDelete: Restrict)
-  createdBy     User        @relation("OrderAccessCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  expiresAt       DateTime    @db.Timestamptz(3)
+  revokedAt       DateTime?   @db.Timestamptz(3)
+  firstViewedAt   DateTime?   @db.Timestamptz(3)
+  createdAt       DateTime    @default(now()) @db.Timestamptz(3)
+  rentalOrder     RentalOrder @relation(fields: [rentalOrderId], references: [id], onDelete: Restrict)
+  createdBy       User        @relation("OrderAccessCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
 
   @@index([expiresAt, id])
   @@index([rentalOrderId, createdAt, id])
   @@index([createdByUserId, createdAt, id])
 }
 
+model RentalChangeRequest {
+  id                          String                         @id @default(cuid())
+  rentalRequestId             String
+  sourceRevisionId            String
+  quoteId                     String?
+  acceptedQuoteRevisionId     String?
+  rentalOrderId               String?
+  submittedByCustomerAccessId String
+  status                      RentalChangeRequestStatus      @default(SUBMITTED)
+  reason                      String                         @db.Text
+  contactFirstName            String
+  contactLastName             String
+  contactEmail                String
+  contactPhone                String
+  companyName                 String?
+  projectName                 String
+  projectType                 String
+  projectLocation             String
+  fulfillmentMethod           RentalRequestFulfillmentMethod
+  deliveryAddress             String?                        @db.Text
+  rentalStartDate             DateTime                       @db.Date
+  rentalEndDate               DateTime                       @db.Date
+  requestedTimeZone           String
+  customerNotes               String?                        @db.Text
+  operationId                 String                         @unique
+  payloadHash                 String                         @db.Char(64)
+  createdAt                   DateTime                       @default(now()) @db.Timestamptz(3)
+  reviewedAt                  DateTime?                      @db.Timestamptz(3)
+  reviewedByUserId            String?
+  reviewNote                  String?                        @db.Text
+  reviewVersion               Int                            @default(0)
+  rentalRequest               RentalRequest                  @relation(fields: [rentalRequestId], references: [id], onDelete: Restrict)
+  sourceRevision              RentalRequestRevision          @relation(fields: [sourceRevisionId], references: [id], onDelete: Restrict)
+  quote                       Quote?                         @relation(fields: [quoteId], references: [id], onDelete: Restrict)
+  acceptedQuoteRevision       QuoteRevision?                 @relation(fields: [acceptedQuoteRevisionId], references: [id], onDelete: Restrict)
+  rentalOrder                 RentalOrder?                   @relation(fields: [rentalOrderId], references: [id], onDelete: Restrict)
+  submittedByCustomerAccess   RentalRequestCustomerAccess    @relation(fields: [submittedByCustomerAccessId], references: [id], onDelete: Restrict)
+  reviewedBy                  User?                          @relation("RentalChangeRequestReviewer", fields: [reviewedByUserId], references: [id], onDelete: Restrict)
+  items                       RentalChangeRequestItem[]
+
+  @@index([status, createdAt, id])
+  @@index([rentalRequestId, createdAt, id])
+  @@index([quoteId, createdAt, id])
+  @@index([rentalOrderId, createdAt, id])
+  @@index([submittedByCustomerAccessId, createdAt, id])
+  @@index([reviewedByUserId, reviewedAt, id])
+}
+
+model RentalChangeRequestItem {
+  id                      String                      @id @default(cuid())
+  rentalChangeRequestId   String
+  productId               String?
+  changeType              RentalChangeRequestItemType
+  productNameSnapshot     String
+  productSlugSnapshot     String
+  categoryNameSnapshot    String
+  categorySlugSnapshot    String
+  rentalUnitSnapshot      String
+  primaryImageUrlSnapshot String?
+  previousQuantity        Int?
+  proposedQuantity        Int?
+  sortOrder               Int
+  createdAt               DateTime                    @default(now()) @db.Timestamptz(3)
+  changeRequest           RentalChangeRequest         @relation(fields: [rentalChangeRequestId], references: [id], onDelete: Restrict)
+  product                 Product?                    @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@unique([rentalChangeRequestId, productId])
+  @@unique([rentalChangeRequestId, productSlugSnapshot])
+  @@unique([rentalChangeRequestId, sortOrder])
+  @@index([productId])
+}
+
 model Inventory {
-  id                  String                @id @default(cuid())
-  productId           String                @unique
-  creationOperationId String                @unique
+  id                  String                 @id @default(cuid())
+  productId           String                 @unique
+  creationOperationId String                 @unique
   creationReason      String
   initialState        InventoryState
   trackingMode        InventoryTrackingMode
-  createdAt           DateTime              @default(now()) @db.Timestamptz(3)
-  updatedAt           DateTime              @updatedAt @db.Timestamptz(3)
-  product             Product               @relation(fields: [productId], references: [id], onDelete: Restrict)
+  createdAt           DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime               @updatedAt @db.Timestamptz(3)
+  product             Product                @relation(fields: [productId], references: [id], onDelete: Restrict)
   items               InventoryItem[]
   transactions        InventoryTransaction[]
 
@@ -778,14 +1005,14 @@ model Inventory {
 }
 
 model InventoryItem {
-  id           String         @id @default(cuid())
+  id           String                 @id @default(cuid())
   inventoryId  String
-  assetNumber  String         @unique
+  assetNumber  String                 @unique
   serialNumber String?
-  status       InventoryState @default(RENTABLE)
-  createdAt    DateTime       @default(now()) @db.Timestamptz(3)
-  updatedAt    DateTime       @updatedAt @db.Timestamptz(3)
-  inventory    Inventory      @relation(fields: [inventoryId], references: [id], onDelete: Restrict)
+  status       InventoryState         @default(RENTABLE)
+  createdAt    DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt    DateTime               @updatedAt @db.Timestamptz(3)
+  inventory    Inventory              @relation(fields: [inventoryId], references: [id], onDelete: Restrict)
   transactions InventoryTransaction[]
 
   @@index([inventoryId, status, id])
@@ -830,12 +1057,12 @@ model ProductImage {
 }
 
 model ProductSpecification {
-  id        String   @id @default(cuid())
+  id        String  @id @default(cuid())
   productId String
   label     String
   value     String
-  sortOrder Int      @default(0)
-  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  sortOrder Int     @default(0)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
 
   @@unique([productId, sortOrder])
   @@index([productId, sortOrder, id])

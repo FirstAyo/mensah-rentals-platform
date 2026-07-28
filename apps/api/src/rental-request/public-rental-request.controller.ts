@@ -7,16 +7,25 @@ import {
   Param,
   Post,
   Res,
+  Query,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
-import type { PublicRentalRequestResponse } from '@mensah-rentals/types';
+import type {
+  PublicRentalRequestResponse,
+  PublicRentalRequestRevisionResponse,
+} from '@mensah-rentals/types';
 import {
+  cuidParamSchema,
+  submitRentalRequestAmendmentSchema,
   submitRentalRequestSchema,
+  type SubmitRentalRequestAmendmentInput,
   type SubmitRentalRequestInput,
 } from '@mensah-rentals/validation';
 import type { Response } from 'express';
 
 import { PublicRentalRequestRateLimitGuard } from './public-rental-request-rate-limit.guard';
+import { AdminRentalRequestNoStoreInterceptor } from './admin-rental-request-no-store.interceptor';
 import {
   type RentalRequestOperationResult,
   PublicRentalRequestService,
@@ -29,6 +38,7 @@ const REQUEST_TOKEN_HEADER = 'x-rental-request-token';
 
 @Public()
 @UseGuards(PublicRentalRequestRateLimitGuard)
+@UseInterceptors(AdminRentalRequestNoStoreInterceptor)
 @Controller('public/rental-requests')
 export class PublicRentalRequestController {
   constructor(
@@ -49,6 +59,45 @@ export class PublicRentalRequestController {
       await this.requests.submit(cartToken, requestToken, input),
       true,
     );
+  }
+
+  @Get('current/revision')
+  currentRevision(
+    @Headers(REQUEST_TOKEN_HEADER) requestToken: string | undefined,
+    @Res({ passthrough: true }) response: Response,
+  ): Promise<PublicRentalRequestRevisionResponse> {
+    response.setHeader('Cache-Control', 'private, no-store');
+    return this.requests.currentRevision(requestToken);
+  }
+
+  @Get('current/catalogue')
+  catalogue(
+    @Headers(REQUEST_TOKEN_HEADER) requestToken: string | undefined,
+    @Query('search') search?: string,
+  ) {
+    return this.requests.catalogue(requestToken, search);
+  }
+
+  @Get('current/amendments')
+  amendments(@Headers(REQUEST_TOKEN_HEADER) requestToken: string | undefined) {
+    return this.requests.amendments(requestToken);
+  }
+
+  @Get('current/amendments/:amendmentId')
+  amendment(
+    @Headers(REQUEST_TOKEN_HEADER) requestToken: string | undefined,
+    @Param('amendmentId', new ZodBodyPipe(cuidParamSchema)) amendmentId: string,
+  ) {
+    return this.requests.amendment(requestToken, amendmentId);
+  }
+
+  @Post('current/amendments')
+  submitAmendment(
+    @Headers(REQUEST_TOKEN_HEADER) requestToken: string | undefined,
+    @Body(new ZodBodyPipe(submitRentalRequestAmendmentSchema))
+    input: SubmitRentalRequestAmendmentInput,
+  ) {
+    return this.requests.submitAmendment(requestToken, input);
   }
 
   @Get(':referenceNumber')

@@ -22,6 +22,9 @@ export default async function RentalRequestDetailPage({
         user.permissionKeys.includes('inventory.quantity.view')
       }
       canCreateQuote={user.permissionKeys.includes('quote.create')}
+      canViewRevisions={user.permissionKeys.includes(
+        'rental_request_revision.view',
+      )}
       id={id}
     />
   );

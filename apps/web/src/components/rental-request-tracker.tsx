@@ -55,6 +55,7 @@ export function RentalRequestTracker({
     data.status.key === 'REJECTED'
       ? XCircle
       : data.status.key === 'REQUEST_SUBMITTED' ||
+          data.status.key === 'RE_REVIEW_REQUIRED' ||
           data.status.key === 'UNDER_REVIEW'
         ? Clock3
         : CheckCircle2;
@@ -87,11 +88,28 @@ export function RentalRequestTracker({
           {data.decision?.notice ??
             'This request is not an approval, reservation, or final quote.'}
         </p>
+        {data.status.key === 'RE_REVIEW_REQUIRED' ? (
+          <div className="mt-5 rounded-xl border border-amber-600/40 bg-amber-500/10 p-4">
+            <strong>Another staff review is required.</strong>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Any earlier decision or quote no longer applies to the current
+              revision.
+            </p>
+          </div>
+        ) : null}
         <dl className="mt-7 grid gap-4 rounded-xl bg-muted/50 p-4 text-sm sm:grid-cols-2">
           <div>
             <dt className="text-muted-foreground">Project</dt>
             <dd className="font-semibold">{data.projectName}</dd>
           </div>
+          {data.currentRevisionNumber ? (
+            <div>
+              <dt className="text-muted-foreground">Current revision</dt>
+              <dd className="font-semibold">
+                Revision {data.currentRevisionNumber}
+              </dd>
+            </div>
+          ) : null}
           <div>
             <dt className="text-muted-foreground">Rental period</dt>
             <dd className="font-semibold">
@@ -138,6 +156,22 @@ export function RentalRequestTracker({
         >
           Browse more equipment
         </Link>
+        {data.amendmentAllowed ? (
+          <Link
+            className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-primary px-4 font-semibold text-primary-foreground"
+            href={`/rental-requests/${encodeURIComponent(data.referenceNumber)}/amend`}
+          >
+            Amend this request
+          </Link>
+        ) : null}
+        {data.formalChangeRequestAllowed ? (
+          <Link
+            className="mt-3 inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-primary px-4 font-semibold text-primary-foreground"
+            href={`/rental-requests/${encodeURIComponent(data.referenceNumber)}/change-request`}
+          >
+            Submit a formal change request
+          </Link>
+        ) : null}
       </aside>
     </div>
   );

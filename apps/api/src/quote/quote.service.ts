@@ -280,16 +280,25 @@ export class QuoteService {
         const request = await tx.rentalRequest.findUnique({
           where: { id: requestId },
           include: {
-            decision: {
-              include: { items: { include: { rentalRequestItem: true } } },
+            currentRevision: true,
+            decisions: {
+              where: { supersededAt: null },
+              orderBy: { decidedAt: 'desc' },
+              take: 1,
+              include: {
+                items: { include: { rentalRequestRevisionItem: true } },
+              },
             },
           },
         });
+        const decision = request?.decisions[0];
         if (!request) throw new NotFoundException('Rental request not found');
         if (
           (request.status !== RentalRequestStatus.APPROVED &&
             request.status !== RentalRequestStatus.PARTIALLY_APPROVED) ||
-          !request.decision
+          !decision ||
+          !request.currentRevision ||
+          decision.rentalRequestRevisionId !== request.currentRevisionId
         )
           throw new ConflictException(
             'Only an approved or partially approved request can be quoted',
@@ -311,8 +320,8 @@ export class QuoteService {
           tx,
           quote.id,
           1,
-          request.decision,
-          request,
+          decision,
+          request.currentRevision,
           actor.id,
           input,
           payloadHash,
@@ -388,14 +397,27 @@ export class QuoteService {
             rentalOrder: true,
             rentalRequest: {
               include: {
-                decision: {
-                  include: { items: { include: { rentalRequestItem: true } } },
+                currentRevision: true,
+                decisions: {
+                  where: { supersededAt: null },
+                  orderBy: { decidedAt: 'desc' },
+                  take: 1,
+                  include: {
+                    items: { include: { rentalRequestRevisionItem: true } },
+                  },
                 },
               },
             },
           },
         });
-        if (!quote?.latestRevision || !quote.rentalRequest.decision)
+        const decision = quote?.rentalRequest.decisions[0];
+        if (
+          !quote?.latestRevision ||
+          !decision ||
+          !quote.rentalRequest.currentRevision ||
+          decision.rentalRequestRevisionId !==
+            quote.rentalRequest.currentRevisionId
+        )
           throw new NotFoundException('Quote not found');
         if (
           quote.rentalOrder ||
@@ -427,8 +449,8 @@ export class QuoteService {
           tx,
           quote.id,
           revisionNumber,
-          quote.rentalRequest.decision,
-          quote.rentalRequest,
+          decision,
+          quote.rentalRequest.currentRevision,
           actor.id,
           input,
           payloadHash,
@@ -501,14 +523,27 @@ export class QuoteService {
             latestRevision: { include: { lifecycle: true } },
             rentalRequest: {
               include: {
-                decision: {
-                  include: { items: { include: { rentalRequestItem: true } } },
+                currentRevision: true,
+                decisions: {
+                  where: { supersededAt: null },
+                  orderBy: { decidedAt: 'desc' },
+                  take: 1,
+                  include: {
+                    items: { include: { rentalRequestRevisionItem: true } },
+                  },
                 },
               },
             },
           },
         });
-        if (!quote?.latestRevision || !quote.rentalRequest.decision)
+        const decision = quote?.rentalRequest.decisions[0];
+        if (
+          !quote?.latestRevision ||
+          !decision ||
+          !quote.rentalRequest.currentRevision ||
+          decision.rentalRequestRevisionId !==
+            quote.rentalRequest.currentRevisionId
+        )
           throw new NotFoundException('Quote not found');
         if (
           quote.latestRevision.id !== revisionId ||
@@ -525,11 +560,7 @@ export class QuoteService {
           throw new ConflictException(
             'This draft changed or is no longer editable. Refresh and try again.',
           );
-        const prepared = await this.prepareCommercial(
-          tx,
-          quote.rentalRequest.decision,
-          input,
-        );
+        const prepared = await this.prepareCommercial(tx, decision, input);
         await tx.quoteRevisionItem.deleteMany({
           where: { quoteRevisionId: revisionId },
         });
@@ -1122,7 +1153,7 @@ export class QuoteService {
   private async prepareCommercial(
     tx: Prisma.TransactionClient,
     decision: Prisma.RentalRequestDecisionGetPayload<{
-      include: { items: { include: { rentalRequestItem: true } } };
+      include: { items: { include: { rentalRequestRevisionItem: true } } };
     }>,
     input: QuoteRevisionInput,
   ) {
@@ -1173,16 +1204,22 @@ export class QuoteService {
       totals,
       items: selected.map(({ decisionItem, entered, sortOrder }) => ({
         approvedQuantitySnapshot: decisionItem.approvedQuantity,
-        categoryNameSnapshot: decisionItem.rentalRequestItem.categoryName,
-        categorySlugSnapshot: decisionItem.rentalRequestItem.categorySlug,
+        categoryNameSnapshot:
+          decisionItem.rentalRequestRevisionItem.categoryNameSnapshot,
+        categorySlugSnapshot:
+          decisionItem.rentalRequestRevisionItem.categorySlugSnapshot,
         lineSubtotalCents:
           BigInt(entered.quotedQuantity) * BigInt(entered.unitPriceCents),
-        productIdSnapshot: decisionItem.rentalRequestItem.productId,
-        productNameSnapshot: decisionItem.rentalRequestItem.productName,
-        productSlugSnapshot: decisionItem.rentalRequestItem.productSlug,
+        productIdSnapshot:
+          decisionItem.rentalRequestRevisionItem.productId ?? '',
+        productNameSnapshot:
+          decisionItem.rentalRequestRevisionItem.productNameSnapshot,
+        productSlugSnapshot:
+          decisionItem.rentalRequestRevisionItem.productSlugSnapshot,
         quotedQuantity: entered.quotedQuantity,
         rentalRequestDecisionItemId: decisionItem.id,
-        rentalUnitSnapshot: decisionItem.rentalRequestItem.rentalUnit,
+        rentalUnitSnapshot:
+          decisionItem.rentalRequestRevisionItem.rentalUnitSnapshot,
         sortOrder,
         taxable: entered.taxable,
         unitPriceCents: entered.unitPriceCents,
@@ -1195,7 +1232,7 @@ export class QuoteService {
     quoteId: string,
     revisionNumber: number,
     decision: Prisma.RentalRequestDecisionGetPayload<{
-      include: { items: { include: { rentalRequestItem: true } } };
+      include: { items: { include: { rentalRequestRevisionItem: true } } };
     }>,
     snapshot: RevisionSnapshotSource,
     actorId: string,

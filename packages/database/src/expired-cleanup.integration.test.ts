@@ -103,37 +103,79 @@ describe('bounded expired-data cleanup against PostgreSQL', () => {
         },
       }),
     ]);
-    const request = await prisma.rentalRequest.create({
-      data: {
-        contactEmail: `guest-${suffix}@example.test`,
-        contactFirstName: 'Ama',
-        contactLastName: 'Mensah',
-        contactPhone: '+233 20 123 4567',
-        fulfillmentMethod: 'PICKUP',
-        guestSessionId: expiredGuest.id,
-        projectLocation: 'Accra',
-        projectName: 'Cleanup preservation test',
-        projectType: 'Test',
-        referenceNumber: `MR-2000-${suffix.slice(0, 10).toUpperCase()}`,
-        rentalEndDate: new Date('2030-01-03T00:00:00.000Z'),
-        rentalStartDate: new Date('2030-01-01T00:00:00.000Z'),
-        requestedTimeZone: 'Africa/Accra',
-        sourceCartTokenHash: hash(`source-${suffix}`),
-        submissionKeyHash: hash(`submission-${suffix}`),
-        submissionPayloadHash: hash(`payload-${suffix}`),
-        items: {
-          create: {
-            categoryName: category.name,
-            categorySlug: category.slug,
-            productId: product.id,
-            productName: product.name,
-            productSlug: product.slug,
-            rentalUnit: 'each',
-            requestedQuantity: 100,
+    const request = await prisma.$transaction(async (tx) => {
+      const created = await tx.rentalRequest.create({
+        data: {
+          contactEmail: `guest-${suffix}@example.test`,
+          contactFirstName: 'Ama',
+          contactLastName: 'Mensah',
+          contactPhone: '+233 20 123 4567',
+          fulfillmentMethod: 'PICKUP',
+          guestSessionId: expiredGuest.id,
+          projectLocation: 'Accra',
+          projectName: 'Cleanup preservation test',
+          projectType: 'Test',
+          referenceNumber: `MR-2000-${suffix.slice(0, 10).toUpperCase()}`,
+          rentalEndDate: new Date('2030-01-03T00:00:00.000Z'),
+          rentalStartDate: new Date('2030-01-01T00:00:00.000Z'),
+          requestedTimeZone: 'Africa/Accra',
+          sourceCartTokenHash: hash(`source-${suffix}`),
+          submissionKeyHash: hash(`submission-${suffix}`),
+          submissionPayloadHash: hash(`payload-${suffix}`),
+          items: {
+            create: {
+              categoryName: category.name,
+              categorySlug: category.slug,
+              productId: product.id,
+              productName: product.name,
+              productSlug: product.slug,
+              rentalUnit: 'each',
+              requestedQuantity: 100,
+            },
           },
         },
-      },
-      include: { items: true },
+        include: { items: true },
+      });
+      const revision = await tx.rentalRequestRevision.create({
+        data: {
+          rentalRequestId: created.id,
+          revisionNumber: 1,
+          submittedByType: 'ORIGINAL_SUBMISSION',
+          operationId: randomUUID(),
+          payloadHash: hash(`revision-${suffix}`),
+          contactFirstName: created.contactFirstName,
+          contactLastName: created.contactLastName,
+          contactEmail: created.contactEmail,
+          contactPhone: created.contactPhone,
+          companyName: created.companyName,
+          projectName: created.projectName,
+          projectType: created.projectType,
+          projectLocation: created.projectLocation,
+          fulfillmentMethod: created.fulfillmentMethod,
+          deliveryAddress: created.deliveryAddress,
+          rentalStartDate: created.rentalStartDate,
+          rentalEndDate: created.rentalEndDate,
+          requestedTimeZone: created.requestedTimeZone,
+          customerNotes: created.customerNotes,
+          items: {
+            create: created.items.map((item, sortOrder) => ({
+              productId: item.productId,
+              productNameSnapshot: item.productName,
+              productSlugSnapshot: item.productSlug,
+              categoryNameSnapshot: item.categoryName,
+              categorySlugSnapshot: item.categorySlug,
+              rentalUnitSnapshot: item.rentalUnit,
+              requestedQuantity: item.requestedQuantity,
+              sortOrder,
+            })),
+          },
+        },
+      });
+      await tx.rentalRequest.update({
+        where: { id: created.id },
+        data: { currentRevisionId: revision.id },
+      });
+      return created;
     });
 
     const preview = await cleanupExpiredData(prisma, {

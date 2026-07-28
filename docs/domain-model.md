@@ -1,5 +1,16 @@
 # Planned Domain Model
 
+## Implemented request revision and change models
+
+- `RentalRequestCustomerAccess` stores a request-scoped capability hash, expiry, and revocation state.
+- `RentalRequestRevision` is a complete immutable header snapshot with a request-unique revision number.
+- `RentalRequestRevisionItem` is the immutable complete replacement equipment list for one revision.
+- `RentalRequestAmendment` links the base and resulting revisions and provides operation idempotency.
+- `RentalRequestDecision` now targets exactly one revision; earlier decisions are retained with one-way supersession metadata.
+- `RentalChangeRequest` and `RentalChangeRequestItem` preserve a proposal against an accepted quote or confirmed order without changing either source.
+
+Cart, request, revision, amendment, decision, quote/revision, customer quote response, confirmed order, formal change request, and inventory reservation remain distinct concepts.
+
 The platform implements each domain through reviewed vertical slices and Prisma
 migrations while keeping customer, staff, catalogue, inventory, and workflow
 boundaries separate.

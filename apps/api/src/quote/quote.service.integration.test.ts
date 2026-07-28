@@ -78,39 +78,82 @@ describe('custom quotes against PostgreSQL', () => {
     label: string,
     status: 'UNDER_REVIEW' | 'SUBMITTED' = 'UNDER_REVIEW',
   ) {
-    return prisma.rentalRequest.create({
-      data: {
-        contactEmail: `${label}-${suffix}@example.test`,
-        contactFirstName: 'Customer',
-        contactLastName: label,
-        contactPhone: '+233 20 000 0000',
-        fulfillmentMethod: 'PICKUP',
-        projectLocation: 'Accra',
-        projectName: label,
-        projectType: 'Event',
-        referenceNumber: `MR-2026-${hash(label).slice(0, 10).toUpperCase()}`,
-        rentalEndDate: new Date('2027-02-02T00:00:00Z'),
-        rentalStartDate: new Date('2027-02-01T00:00:00Z'),
-        requestedTimeZone: 'Africa/Accra',
-        reviewStartedAt: status === 'UNDER_REVIEW' ? new Date() : null,
-        reviewVersion: status === 'UNDER_REVIEW' ? 1 : 0,
-        sourceCartTokenHash: hash(`${label}:cart`),
-        status,
-        submissionKeyHash: hash(`${label}:submission`),
-        submissionPayloadHash: hash(`${label}:payload`),
-        items: {
-          create: {
-            categoryName: 'Furniture',
-            categorySlug: 'furniture',
-            productId,
-            productName: 'Folding Chair',
-            productSlug: 'folding-chair',
-            rentalUnit: 'each',
-            requestedQuantity: 10,
+    return prisma.$transaction(async (tx) => {
+      const created = await tx.rentalRequest.create({
+        data: {
+          contactEmail: `${label}-${suffix}@example.test`,
+          contactFirstName: 'Customer',
+          contactLastName: label,
+          contactPhone: '+233 20 000 0000',
+          fulfillmentMethod: 'PICKUP',
+          projectLocation: 'Accra',
+          projectName: label,
+          projectType: 'Event',
+          referenceNumber: `MR-2026-${hash(label).slice(0, 10).toUpperCase()}`,
+          rentalEndDate: new Date('2027-02-02T00:00:00Z'),
+          rentalStartDate: new Date('2027-02-01T00:00:00Z'),
+          requestedTimeZone: 'Africa/Accra',
+          reviewStartedAt: status === 'UNDER_REVIEW' ? new Date() : null,
+          reviewVersion: status === 'UNDER_REVIEW' ? 1 : 0,
+          sourceCartTokenHash: hash(`${label}:cart`),
+          status,
+          submissionKeyHash: hash(`${label}:submission`),
+          submissionPayloadHash: hash(`${label}:payload`),
+          items: {
+            create: {
+              categoryName: 'Furniture',
+              categorySlug: 'furniture',
+              productId,
+              productName: 'Folding Chair',
+              productSlug: 'folding-chair',
+              rentalUnit: 'each',
+              requestedQuantity: 10,
+            },
           },
         },
-      },
-      include: { items: true },
+        include: { items: true },
+      });
+      const revision = await tx.rentalRequestRevision.create({
+        data: {
+          rentalRequestId: created.id,
+          revisionNumber: 1,
+          submittedByType: 'ORIGINAL_SUBMISSION',
+          operationId: randomUUID(),
+          payloadHash: hash(`${label}:revision`),
+          contactFirstName: created.contactFirstName,
+          contactLastName: created.contactLastName,
+          contactEmail: created.contactEmail,
+          contactPhone: created.contactPhone,
+          companyName: created.companyName,
+          projectName: created.projectName,
+          projectType: created.projectType,
+          projectLocation: created.projectLocation,
+          fulfillmentMethod: created.fulfillmentMethod,
+          deliveryAddress: created.deliveryAddress,
+          rentalStartDate: created.rentalStartDate,
+          rentalEndDate: created.rentalEndDate,
+          requestedTimeZone: created.requestedTimeZone,
+          customerNotes: created.customerNotes,
+          items: {
+            create: created.items.map((item, sortOrder) => ({
+              productId: item.productId,
+              productNameSnapshot: item.productName,
+              productSlugSnapshot: item.productSlug,
+              categoryNameSnapshot: item.categoryName,
+              categorySlugSnapshot: item.categorySlug,
+              rentalUnitSnapshot: item.rentalUnit,
+              requestedQuantity: item.requestedQuantity,
+              sortOrder,
+            })),
+          },
+        },
+        include: { items: { orderBy: { sortOrder: 'asc' } } },
+      });
+      await tx.rentalRequest.update({
+        where: { id: created.id },
+        data: { currentRevisionId: revision.id },
+      });
+      return { ...created, items: revision.items };
     });
   }
 
@@ -139,7 +182,7 @@ describe('custom quotes against PostgreSQL', () => {
     requestId: string,
     operationId = randomUUID(),
   ): Promise<QuoteRevisionInput> {
-    const decision = await prisma.rentalRequestDecision.findUniqueOrThrow({
+    const decision = await prisma.rentalRequestDecision.findFirstOrThrow({
       where: { rentalRequestId: requestId },
       include: { items: true },
     });

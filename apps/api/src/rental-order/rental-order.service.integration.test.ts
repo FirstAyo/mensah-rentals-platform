@@ -1,6 +1,7 @@
 import { createHash, createHmac, randomUUID } from 'node:crypto';
 
 import { ConfigService } from '@nestjs/config';
+import { hashSessionToken } from '@mensah-rentals/auth';
 import { prisma, runRbacSeed } from '@mensah-rentals/database';
 import type { StaffUserResponse } from '@mensah-rentals/types';
 import type {
@@ -11,6 +12,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { QuoteService } from '../quote/quote.service';
 import { RentalRequestDecisionService } from '../rental-request/rental-request-decision.service';
+import { RentalChangeRequestService } from '../rental-request/rental-change-request.service';
 import { expectPublicDataSafe } from '../testing/public-confidentiality.test-utils';
 import { RentalOrderService } from './rental-order.service';
 
@@ -30,6 +32,7 @@ describe('confirmed rental orders against PostgreSQL', () => {
   } as ConfigService<ApiEnvironment, true>;
   const quotes = new QuoteService(config);
   const orders = new RentalOrderService(config);
+  const changes = new RentalChangeRequestService(config);
   const decisions = new RentalRequestDecisionService();
   let actor: StaffUserResponse;
   let productId: string;
@@ -85,41 +88,84 @@ describe('confirmed rental orders against PostgreSQL', () => {
   });
 
   async function approvedRequest(label: string) {
-    const source = await prisma.rentalRequest.create({
-      data: {
-        companyName: 'Customer Company',
-        contactEmail: `${label}-${suffix}@example.test`,
-        contactFirstName: 'Customer',
-        contactLastName: label,
-        contactPhone: '+233 20 000 0000',
-        customerNotes: 'Request customer note',
-        fulfillmentMethod: 'PICKUP',
-        projectLocation: 'Accra',
-        projectName: `Project ${label}`,
-        projectType: 'Event',
-        referenceNumber: `MR-2026-${hash(label).slice(0, 10).toUpperCase()}`,
-        rentalEndDate: new Date('2027-02-02T00:00:00Z'),
-        rentalStartDate: new Date('2027-02-01T00:00:00Z'),
-        requestedTimeZone: 'Africa/Accra',
-        reviewStartedAt: new Date(),
-        reviewVersion: 1,
-        sourceCartTokenHash: hash(`${label}:cart`),
-        status: 'UNDER_REVIEW',
-        submissionKeyHash: hash(`${label}:submission`),
-        submissionPayloadHash: hash(`${label}:payload`),
-        items: {
-          create: {
-            categoryName: 'Furniture',
-            categorySlug: 'furniture',
-            productId,
-            productName: 'Folding Chair',
-            productSlug: 'folding-chair',
-            rentalUnit: 'each',
-            requestedQuantity: 10,
+    const source = await prisma.$transaction(async (tx) => {
+      const created = await tx.rentalRequest.create({
+        data: {
+          companyName: 'Customer Company',
+          contactEmail: `${label}-${suffix}@example.test`,
+          contactFirstName: 'Customer',
+          contactLastName: label,
+          contactPhone: '+233 20 000 0000',
+          customerNotes: 'Request customer note',
+          fulfillmentMethod: 'PICKUP',
+          projectLocation: 'Accra',
+          projectName: `Project ${label}`,
+          projectType: 'Event',
+          referenceNumber: `MR-2026-${hash(label).slice(0, 10).toUpperCase()}`,
+          rentalEndDate: new Date('2027-02-02T00:00:00Z'),
+          rentalStartDate: new Date('2027-02-01T00:00:00Z'),
+          requestedTimeZone: 'Africa/Accra',
+          reviewStartedAt: new Date(),
+          reviewVersion: 1,
+          sourceCartTokenHash: hash(`${label}:cart`),
+          status: 'UNDER_REVIEW',
+          submissionKeyHash: hash(`${label}:submission`),
+          submissionPayloadHash: hash(`${label}:payload`),
+          items: {
+            create: {
+              categoryName: 'Furniture',
+              categorySlug: 'furniture',
+              productId,
+              productName: 'Folding Chair',
+              productSlug: 'folding-chair',
+              rentalUnit: 'each',
+              requestedQuantity: 10,
+            },
           },
         },
-      },
-      include: { items: true },
+        include: { items: true },
+      });
+      const revision = await tx.rentalRequestRevision.create({
+        data: {
+          rentalRequestId: created.id,
+          revisionNumber: 1,
+          submittedByType: 'ORIGINAL_SUBMISSION',
+          operationId: randomUUID(),
+          payloadHash: hash(`${label}:revision`),
+          contactFirstName: created.contactFirstName,
+          contactLastName: created.contactLastName,
+          contactEmail: created.contactEmail,
+          contactPhone: created.contactPhone,
+          companyName: created.companyName,
+          projectName: created.projectName,
+          projectType: created.projectType,
+          projectLocation: created.projectLocation,
+          fulfillmentMethod: created.fulfillmentMethod,
+          deliveryAddress: created.deliveryAddress,
+          rentalStartDate: created.rentalStartDate,
+          rentalEndDate: created.rentalEndDate,
+          requestedTimeZone: created.requestedTimeZone,
+          customerNotes: created.customerNotes,
+          items: {
+            create: created.items.map((item, sortOrder) => ({
+              productId: item.productId,
+              productNameSnapshot: item.productName,
+              productSlugSnapshot: item.productSlug,
+              categoryNameSnapshot: item.categoryName,
+              categorySlugSnapshot: item.categorySlug,
+              rentalUnitSnapshot: item.rentalUnit,
+              requestedQuantity: item.requestedQuantity,
+              sortOrder,
+            })),
+          },
+        },
+        include: { items: { orderBy: { sortOrder: 'asc' } } },
+      });
+      await tx.rentalRequest.update({
+        where: { id: created.id },
+        data: { currentRevisionId: revision.id },
+      });
+      return { ...created, items: revision.items };
     });
     await decisions.approve(actor, source.id, {
       operationId: randomUUID(),
@@ -133,7 +179,7 @@ describe('confirmed rental orders against PostgreSQL', () => {
     requestId: string,
     validUntil = '2027-01-31T12:00:00.000Z',
   ): Promise<QuoteRevisionInput> {
-    const decision = await prisma.rentalRequestDecision.findUniqueOrThrow({
+    const decision = await prisma.rentalRequestDecision.findFirstOrThrow({
       where: { rentalRequestId: requestId },
       include: { items: true },
     });
@@ -372,6 +418,83 @@ describe('confirmed rental orders against PostgreSQL', () => {
         where: { quoteId: concurrent.quote.id },
       }),
     ).toBe(1);
+  });
+
+  it('serializes formal change submission against accepted-quote order conversion', async () => {
+    const accepted = await acceptedQuote('change-order-race');
+    const requestState = await prisma.rentalRequest.findUniqueOrThrow({
+      where: { id: accepted.source.id },
+      select: { currentRevisionId: true },
+    });
+    const currentRevision =
+      await prisma.rentalRequestRevision.findUniqueOrThrow({
+        where: { id: requestState.currentRevisionId! },
+        include: { items: { orderBy: { sortOrder: 'asc' } } },
+      });
+    const rawRequestCapability = createHmac('sha256', suffix)
+      .update('change-order-race')
+      .digest('base64url');
+    await prisma.rentalRequestCustomerAccess.create({
+      data: {
+        rentalRequestId: accepted.source.id,
+        tokenHash: hashSessionToken(rawRequestCapability),
+        expiresAt: new Date('2027-03-01T00:00:00.000Z'),
+      },
+    });
+
+    const [orderAttempt, changeAttempt] = await Promise.allSettled([
+      orders.create(actor, accepted.quote.id, accepted.revision.id, {
+        operationId: randomUUID(),
+      }),
+      changes.submit(rawRequestCapability, {
+        companyName: currentRevision.companyName ?? undefined,
+        contactEmail: currentRevision.contactEmail,
+        contactFirstName: currentRevision.contactFirstName,
+        contactLastName: currentRevision.contactLastName,
+        contactPhone: currentRevision.contactPhone,
+        customerNotes: currentRevision.customerNotes ?? undefined,
+        deliveryAddress: currentRevision.deliveryAddress ?? undefined,
+        expectedRevisionNumber: currentRevision.revisionNumber,
+        fulfillmentMethod: currentRevision.fulfillmentMethod,
+        items: currentRevision.items.map((item) => ({
+          productId: item.productId!,
+          requestedQuantity: item.requestedQuantity,
+        })),
+        operationId: randomUUID(),
+        projectLocation: currentRevision.projectLocation,
+        projectName: currentRevision.projectName,
+        projectType: currentRevision.projectType,
+        reason: 'Please change the accepted rental before confirmation.',
+        rentalEndDate: currentRevision.rentalEndDate.toISOString().slice(0, 10),
+        rentalStartDate: currentRevision.rentalStartDate
+          .toISOString()
+          .slice(0, 10),
+        requestedTimeZone: currentRevision.requestedTimeZone,
+      }),
+    ]);
+
+    expect(changeAttempt.status).toBe('fulfilled');
+    const storedChange = await prisma.rentalChangeRequest.findFirstOrThrow({
+      where: { rentalRequestId: accepted.source.id },
+    });
+    const storedOrder = await prisma.rentalOrder.findUnique({
+      where: { rentalRequestId: accepted.source.id },
+    });
+    if (orderAttempt.status === 'fulfilled') {
+      expect(storedOrder?.id).toBe(orderAttempt.value.order.id);
+      expect(storedChange.rentalOrderId).toBe(storedOrder?.id);
+    } else {
+      expect(storedOrder).toBeNull();
+      expect(String(orderAttempt.reason)).toContain(
+        'pending formal change request',
+      );
+      expect(storedChange.rentalOrderId).toBeNull();
+    }
+    expect(
+      await prisma.rentalOrder.count({
+        where: { rentalRequestId: accepted.source.id },
+      }),
+    ).toBeLessThanOrEqual(1);
   });
 
   it('retries an order-number collision with a fresh unique number', async () => {

@@ -1,5 +1,42 @@
 # Testing Guide
 
+## Phase 13 amendment and change-request testing
+
+Start Docker Desktop and run the guarded database setup first:
+
+```powershell
+docker compose up -d postgres
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+```
+
+Run the complete quality gate:
+
+```powershell
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+Run the focused browser suites only against the guarded local test database:
+
+```powershell
+pnpm test:e2e:customer-amendments
+pnpm test:e2e:admin-amendments
+pnpm test:e2e:change-requests
+pnpm test:e2e:amendments
+```
+
+Successful tests prove request reference/name/project values alone cannot amend, a request-scoped capability cannot cross requests, invalid access fails uniformly, the full add/remove/increase/decrease/unchanged list is snapshotted, revision numbers/current pointers are atomic, retries are idempotent, stale revisions conflict, decisions and quotes become historical without deletion, accepted quotes/orders require a formal change request, and all inventory/reservation/transaction counts remain unchanged.
+
+Manual UI checks: test the amendment and comparison pages at 320px and desktop widths, keyboard-only, in light and dark themes. Confirm explicit text labels describe changes without relying on color; submission disables during a request; no horizontal scrolling appears; no inventory availability is displayed; and logout still invalidates staff access.
+
 Run commands in PowerShell from the repository root. Complete the first-time
 steps in [Local development](local-development.md) before runtime or database
 checks.

@@ -1,5 +1,9 @@
 # Rental Request Decisions
 
+## Decisions after amendments
+
+Each decision targets one exact `RentalRequestRevision`. Only the decision for `RentalRequest.currentRevisionId` is operational and quote-eligible. A new amendment retains the earlier decision and decision items, records their supersession, clears their operational effect, and never copies approved quantities. Staff must start re-review and create a completely new decision.
+
 Phase 10 adds a final, auditable staff decision to a rental request. It does
 not add pricing, quotes, orders, requested-date availability, inventory
 reservations, or inventory mutations.

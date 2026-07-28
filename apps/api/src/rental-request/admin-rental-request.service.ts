@@ -57,6 +57,19 @@ const summarySelect = {
   status: true,
   submittedAt: true,
   updatedAt: true,
+  currentRevision: {
+    select: {
+      companyName: true,
+      contactEmail: true,
+      contactFirstName: true,
+      contactLastName: true,
+      contactPhone: true,
+      fulfillmentMethod: true,
+      projectName: true,
+      rentalEndDate: true,
+      rentalStartDate: true,
+    },
+  },
 } satisfies Prisma.RentalRequestSelect;
 
 const detailSelect = {
@@ -64,6 +77,29 @@ const detailSelect = {
   assignedAt: true,
   customerNotes: true,
   deliveryAddress: true,
+  currentRevision: {
+    select: {
+      ...summarySelect.currentRevision.select,
+      customerNotes: true,
+      deliveryAddress: true,
+      projectLocation: true,
+      projectType: true,
+      requestedTimeZone: true,
+      items: {
+        orderBy: [{ sortOrder: 'asc' as const }, { id: 'asc' as const }],
+        select: {
+          categoryNameSnapshot: true,
+          categorySlugSnapshot: true,
+          id: true,
+          productId: true,
+          productNameSnapshot: true,
+          productSlugSnapshot: true,
+          rentalUnitSnapshot: true,
+          requestedQuantity: true,
+        },
+      },
+    },
+  },
   items: {
     orderBy: [{ createdAt: 'asc' as const }, { id: 'asc' as const }],
     select: {
@@ -225,33 +261,52 @@ export class AdminRentalRequestService {
     const mayViewInventory =
       actor.permissionKeys.includes('inventory.view') &&
       actor.permissionKeys.includes('inventory.quantity.view');
+    const revisionItems = request.currentRevision?.items;
+    const displayedItems = revisionItems ?? request.items;
     const contexts = mayViewInventory
       ? await this.inventoryContexts(
-          request.items.map(({ productId }) => productId),
+          displayedItems.flatMap(({ productId }) =>
+            productId ? [productId] : [],
+          ),
         )
       : new Map<string, AdminRentalRequestInventoryContext>();
     return {
       ...this.mapSummary(request),
       assignedAt: this.instant(request.assignedAt),
-      customerNotes: request.customerNotes,
-      deliveryAddress: request.deliveryAddress,
-      items: request.items.map((item) => {
-        const inventoryContext = contexts.get(item.productId);
+      customerNotes:
+        request.currentRevision?.customerNotes ?? request.customerNotes,
+      deliveryAddress:
+        request.currentRevision?.deliveryAddress ?? request.deliveryAddress,
+      items: displayedItems.map((item) => {
+        const inventoryContext = item.productId
+          ? contexts.get(item.productId)
+          : undefined;
+        const revisionItem = 'productNameSnapshot' in item;
         return {
-          categoryName: item.categoryName,
-          categorySlug: item.categorySlug,
+          categoryName: revisionItem
+            ? item.categoryNameSnapshot
+            : item.categoryName,
+          categorySlug: revisionItem
+            ? item.categorySlugSnapshot
+            : item.categorySlug,
           id: item.id,
           ...(inventoryContext ? { inventoryContext } : {}),
-          productId: item.productId,
-          productName: item.productName,
-          productSlug: item.productSlug,
-          rentalUnit: item.rentalUnit,
+          productId: item.productId ?? item.id,
+          productName: revisionItem
+            ? item.productNameSnapshot
+            : item.productName,
+          productSlug: revisionItem
+            ? item.productSlugSnapshot
+            : item.productSlug,
+          rentalUnit: revisionItem ? item.rentalUnitSnapshot : item.rentalUnit,
           requestedQuantity: item.requestedQuantity,
         };
       }),
-      projectLocation: request.projectLocation,
-      projectType: request.projectType,
-      requestedTimeZone: request.requestedTimeZone,
+      projectLocation:
+        request.currentRevision?.projectLocation ?? request.projectLocation,
+      projectType: request.currentRevision?.projectType ?? request.projectType,
+      requestedTimeZone:
+        request.currentRevision?.requestedTimeZone ?? request.requestedTimeZone,
       reviewStartedAt: this.instant(request.reviewStartedAt),
     };
   }
@@ -467,7 +522,10 @@ export class AdminRentalRequestService {
       ]);
       const request = await this.lockRequest(tx, id);
       this.requireVersion(request.reviewVersion, input.expectedVersion);
-      if (request.status !== RentalRequestStatus.SUBMITTED)
+      if (
+        request.status !== RentalRequestStatus.SUBMITTED &&
+        request.status !== RentalRequestStatus.RE_REVIEW_REQUIRED
+      )
         throw new ConflictException('Request review has already started');
       const now = new Date();
       await tx.rentalRequest.update({
@@ -482,9 +540,12 @@ export class AdminRentalRequestService {
         data: {
           actorUserId: actor.id,
           newStatus: RentalRequestStatus.UNDER_REVIEW,
-          previousStatus: RentalRequestStatus.SUBMITTED,
+          previousStatus: request.status,
           rentalRequestId: id,
-          type: RentalRequestActivityType.REVIEW_STARTED,
+          type:
+            request.status === RentalRequestStatus.RE_REVIEW_REQUIRED
+              ? RentalRequestActivityType.RE_REVIEW_STARTED
+              : RentalRequestActivityType.REVIEW_STARTED,
         },
       });
     });
@@ -596,6 +657,7 @@ export class AdminRentalRequestService {
   private requireOpenReview(status: RentalRequestStatus) {
     if (
       status !== RentalRequestStatus.SUBMITTED &&
+      status !== RentalRequestStatus.RE_REVIEW_REQUIRED &&
       status !== RentalRequestStatus.UNDER_REVIEW
     )
       throw new ConflictException(
@@ -622,19 +684,25 @@ export class AdminRentalRequestService {
   private mapSummary(
     request: SelectedSummary | SelectedDetail,
   ): AdminRentalRequestSummaryResponse {
+    const revision = request.currentRevision;
     return {
       assignedTo: request.assignedTo,
-      companyName: request.companyName,
-      contactEmail: request.contactEmail,
-      contactFirstName: request.contactFirstName,
-      contactLastName: request.contactLastName,
-      contactPhone: request.contactPhone,
-      fulfillmentMethod: request.fulfillmentMethod,
+      companyName: revision?.companyName ?? request.companyName,
+      contactEmail: revision?.contactEmail ?? request.contactEmail,
+      contactFirstName: revision?.contactFirstName ?? request.contactFirstName,
+      contactLastName: revision?.contactLastName ?? request.contactLastName,
+      contactPhone: revision?.contactPhone ?? request.contactPhone,
+      fulfillmentMethod:
+        revision?.fulfillmentMethod ?? request.fulfillmentMethod,
       id: request.id,
-      projectName: request.projectName,
+      projectName: revision?.projectName ?? request.projectName,
       referenceNumber: request.referenceNumber,
-      rentalEndDate: this.calendarDate(request.rentalEndDate),
-      rentalStartDate: this.calendarDate(request.rentalStartDate),
+      rentalEndDate: this.calendarDate(
+        revision?.rentalEndDate ?? request.rentalEndDate,
+      ),
+      rentalStartDate: this.calendarDate(
+        revision?.rentalStartDate ?? request.rentalStartDate,
+      ),
       reviewVersion: request.reviewVersion,
       status: request.status,
       submittedAt: request.submittedAt.toISOString(),

@@ -8,6 +8,7 @@ import {
   Warehouse,
   FileText,
   ShoppingBag,
+  GitPullRequestArrow,
 } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -39,6 +40,12 @@ const links = [
     icon: FileText,
     label: 'Quotes',
     permission: 'quote.view',
+  },
+  {
+    href: '/change-requests',
+    icon: GitPullRequestArrow,
+    label: 'Change Requests',
+    permission: 'rental_change_request.view',
   },
   {
     href: '/orders',

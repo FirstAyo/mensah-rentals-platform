@@ -1,5 +1,9 @@
 # Custom Quotes
 
+## Request amendment effects
+
+An amendment atomically changes the current `DRAFT`, `SENT`, or `VIEWED` proposal to `SUPERSEDED`, revokes customer access, and prevents sending or acceptance. Content and lifecycle history remain. A replacement quote requires a new decision for the current request revision. Ordinary amendment is blocked once a quote is accepted; the customer submits a formal change request and the accepted quote remains unchanged.
+
 Phase 11 implements custom, staff-priced CAD quotes after an immutable rental-request decision. A quote is a commercial proposal. It is not a confirmed rental order, does not reserve inventory, does not calculate date availability, and does not mutate inventory.
 
 ## Eligibility and domain separation

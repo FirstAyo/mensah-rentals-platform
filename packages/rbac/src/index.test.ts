@@ -12,7 +12,7 @@ describe('RBAC catalogue', () => {
     expect(new Set(SYSTEM_ROLES.map(({ name }) => name)).size).toBe(
       SYSTEM_ROLES.length,
     );
-    expect(PERMISSION_CATALOGUE).toHaveLength(45);
+    expect(PERMISSION_CATALOGUE).toHaveLength(50);
   });
   it('grants SUPER_ADMIN every seeded permission', () => {
     expect(DEFAULT_ROLE_PERMISSION_KEYS.SUPER_ADMIN).toEqual(

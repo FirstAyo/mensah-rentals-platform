@@ -2,7 +2,12 @@ import { NextResponse } from 'next/server';
 import { rentalRequestReferenceSchema } from '@mensah-rentals/validation';
 
 import { rentalRequestConfig } from './rental-request-config';
-import { assertRentalRequestResponse } from './rental-request-client';
+import {
+  assertRentalRequestCatalogueResponse,
+  assertRentalRequestResponse,
+  assertRentalRequestRevisionListResponse,
+  assertRentalRequestRevisionResponse,
+} from './rental-request-client';
 
 const CART_TOKEN_HEADER = 'x-rental-cart-token';
 const REQUEST_TOKEN_HEADER = 'x-rental-request-token';
@@ -34,6 +39,23 @@ function target(path: string[], method: string): string | null {
     rentalRequestReferenceSchema.safeParse(path[0]).success
   )
     return `/public/rental-requests/${encodeURIComponent(path[0]!)}`;
+  if (path.join('/') === 'current/revision' && method === 'GET')
+    return '/public/rental-requests/current/revision';
+  if (path.join('/') === 'current/catalogue' && method === 'GET')
+    return '/public/rental-requests/current/catalogue';
+  if (
+    path.join('/') === 'current/amendments' &&
+    (method === 'GET' || method === 'POST')
+  )
+    return '/public/rental-requests/current/amendments';
+  if (
+    path.length === 3 &&
+    path[0] === 'current' &&
+    path[1] === 'amendments' &&
+    /^[a-z0-9]{20,32}$/i.test(path[2] ?? '') &&
+    method === 'GET'
+  )
+    return `/public/rental-requests/current/amendments/${encodeURIComponent(path[2]!)}`;
   return null;
 }
 
@@ -55,10 +77,25 @@ export async function proxyRentalRequest(
         { message: 'Request origin is not allowed' },
         { status: 403 },
       );
-    if (!request.headers.get('content-type')?.startsWith('application/json'))
+    if (
+      request.headers
+        .get('content-type')
+        ?.split(';', 1)[0]
+        ?.trim()
+        .toLowerCase() !== 'application/json'
+    )
       return Response.json(
         { message: 'JSON requests are required' },
         { status: 415 },
+      );
+    const declaredLength = request.headers.get('content-length');
+    if (
+      declaredLength &&
+      (!/^\d+$/.test(declaredLength) || Number(declaredLength) > 32 * 1024)
+    )
+      return Response.json(
+        { message: 'Rental request is too large' },
+        { status: 413 },
       );
   }
 
@@ -82,7 +119,8 @@ export async function proxyRentalRequest(
   }
 
   try {
-    const upstream = await fetcher(`${config.apiUrl}${upstreamPath}`, {
+    const query = request.method === 'GET' ? new URL(request.url).search : '';
+    const upstream = await fetcher(`${config.apiUrl}${upstreamPath}${query}`, {
       method: request.method,
       headers,
       body,
@@ -91,7 +129,24 @@ export async function proxyRentalRequest(
     const upstreamBody: unknown = await upstream.json().catch(() => null);
     if (upstream.ok) {
       try {
-        assertRentalRequestResponse(upstreamBody);
+        if (upstreamPath === '/public/rental-requests/current/catalogue')
+          assertRentalRequestCatalogueResponse(upstreamBody);
+        else if (
+          upstreamPath === '/public/rental-requests/current/amendments' &&
+          request.method === 'GET'
+        )
+          assertRentalRequestRevisionListResponse(upstreamBody);
+        else if (
+          upstreamPath === '/public/rental-requests/current/revision' ||
+          upstreamPath.startsWith(
+            '/public/rental-requests/current/amendments/',
+          ) ||
+          (upstreamPath === '/public/rental-requests/current/amendments' &&
+            request.method === 'POST')
+        )
+          assertRentalRequestRevisionResponse(upstreamBody);
+        else if (!upstreamPath.includes('/current/'))
+          assertRentalRequestResponse(upstreamBody);
       } catch {
         return Response.json(
           { message: 'Rental request service returned an unsafe response' },

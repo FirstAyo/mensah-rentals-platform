@@ -1,5 +1,11 @@
 # Architecture
 
+## Phase 13 amendment architecture
+
+The customer BFF has a fixed allowlist for request revision, amendment, active-catalogue, and formal change-request routes. It keeps request-scoped capabilities in HttpOnly, host-only, SameSite=Lax cookies; production requires Secure `__Host-` cookie names. The NestJS API is the capability and authorization boundary and emits only explicit customer DTOs with private/no-store behavior.
+
+`RentalRequest.currentRevisionId` is the sole operational snapshot. Decisions target one exact revision. An atomic amendment switches that pointer, requires re-review, supersedes the old operational decision and non-accepted proposal, and preserves every historical row. Accepted quotes and confirmed orders instead receive an independent `RentalChangeRequest`. Inventory and reservation modules are not called.
+
 ## Overall architecture
 
 Mensah Rentals uses a TypeScript monorepo managed by pnpm and Turborepo. The

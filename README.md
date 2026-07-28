@@ -1,5 +1,9 @@
 # Mensah Rentals Platform
 
+## Phase 13: request amendments
+
+Customers with private request access can submit an immutable replacement revision before quote acceptance. Accepted quotes and confirmed orders use a separate formal change-request workflow. Neither workflow reserves or mutates inventory. See [rental request amendments](docs/rental-request-amendments.md) and [formal change requests](docs/rental-change-requests.md).
+
 Mensah Rentals Platform is the new digital foundation for Mensah Rentals &
 Services. It will support equipment rental requests for events, film
 productions, and other projects.

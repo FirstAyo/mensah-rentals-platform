@@ -1,17 +1,26 @@
 import type { StaffUserResponse } from '@mensah-rentals/types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
-const { quoteCount, rentalOrderCount, rentalRequestCount } = vi.hoisted(() => ({
+const {
+  quoteCount,
+  rentalOrderCount,
+  rentalRequestCount,
+  rentalRequestFindMany,
+} = vi.hoisted(() => ({
   quoteCount: vi.fn(),
   rentalOrderCount: vi.fn(),
   rentalRequestCount: vi.fn(),
+  rentalRequestFindMany: vi.fn(),
 }));
 
 vi.mock('@mensah-rentals/database', () => ({
   prisma: {
     quote: { count: quoteCount },
     rentalOrder: { count: rentalOrderCount },
-    rentalRequest: { count: rentalRequestCount },
+    rentalRequest: {
+      count: rentalRequestCount,
+      findMany: rentalRequestFindMany,
+    },
   },
   QuoteRevisionState: {
     ACCEPTED: 'ACCEPTED',
@@ -43,10 +52,13 @@ describe('WorkSummaryService', () => {
   });
 
   it('maps source counts into permission-visible actionable work', async () => {
-    rentalRequestCount
-      .mockResolvedValueOnce(4)
-      .mockResolvedValueOnce(2)
-      .mockResolvedValueOnce(1);
+    rentalRequestCount.mockResolvedValueOnce(4).mockResolvedValueOnce(2);
+    rentalRequestFindMany.mockResolvedValueOnce([
+      {
+        currentRevision: { decision: { id: 'decision-current' } },
+        quote: null,
+      },
+    ]);
     quoteCount.mockResolvedValueOnce(3).mockResolvedValueOnce(5);
     rentalOrderCount.mockResolvedValueOnce(6).mockResolvedValueOnce(7);
 
@@ -70,7 +82,7 @@ describe('WorkSummaryService', () => {
       },
     });
     expect(rentalRequestCount).toHaveBeenNthCalledWith(1, {
-      where: { status: 'SUBMITTED' },
+      where: { status: { in: ['SUBMITTED', 'RE_REVIEW_REQUIRED'] } },
     });
   });
 

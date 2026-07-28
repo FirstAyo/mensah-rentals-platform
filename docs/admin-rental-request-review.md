@@ -1,5 +1,9 @@
 # Administrative Rental-Request Review
 
+## Amendment re-review
+
+An amendment changes the request to `RE_REVIEW_REQUIRED` and preserves its assignment. The queue badge counts each `SUBMITTED` or `RE_REVIEW_REQUIRED` request once. Opening a request does not acknowledge it; selecting **Start review** changes it to `UNDER_REVIEW` and removes it from the badge count. Staff should review the current immutable revision and its server-produced comparison before recording a new decision.
+
 Phase 9 gives authorized staff a secure queue and a non-decision review
 workspace. It does **not** approve, partially approve, or reject a request. It
 does not calculate a price, create a quote or order, reserve equipment, change

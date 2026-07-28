@@ -1,5 +1,11 @@
 # Development Roadmap
 
+## Phase 13 — customer amendments and formal change requests
+
+Implemented immutable complete request revisions, request-scoped customer access, full equipment-list replacement, staff comparisons and re-review, exact-revision decisions, stale quote handling, and formal change requests after acceptance/confirmation. This phase deliberately creates no reservation or inventory mutation.
+
+The recommended next phase is inventory reservation and date-range availability architecture, with explicit approval before any stock mutation or serialized allocation.
+
 Work proceeds in small, reviewable vertical slices. Each phase includes its
 database, API, authorization, UI, documentation, and tests where applicable.
 

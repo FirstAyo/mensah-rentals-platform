@@ -13,7 +13,7 @@ describe('RBAC seed against PostgreSQL', () => {
     const first = await runRbacSeed(prisma);
     const second = await runRbacSeed(prisma);
     expect(second).toMatchObject({
-      permissions: 45,
+      permissions: 50,
       roles: SYSTEM_ROLES.length,
     });
     expect(second.permissions).toBe(first.permissions);
@@ -25,10 +25,10 @@ describe('RBAC seed against PostgreSQL', () => {
       include: { permissions: true },
       where: { name: SUPER_ADMIN_ROLE_NAME },
     });
-    expect(role?.permissions).toHaveLength(45);
+    expect(role?.permissions).toHaveLength(50);
     expect(
       new Set(role?.permissions.map(({ permissionId }) => permissionId)).size,
-    ).toBe(45);
+    ).toBe(50);
   });
 
   it('keeps the configured active bootstrap user as SUPER_ADMIN', async () => {

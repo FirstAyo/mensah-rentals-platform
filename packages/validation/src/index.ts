@@ -499,7 +499,7 @@ export const rentalRequestReferenceSchema = z
   .toUpperCase()
   .regex(/^MR-\d{4}-[A-Z0-9]{10}$/);
 
-export const submitRentalRequestSchema = z
+const rentalRequestDetailsSchema = z
   .object({
     submissionId: z.string().uuid(),
     contactFirstName: z.string().trim().min(1).max(100),
@@ -527,39 +527,54 @@ export const submitRentalRequestSchema = z
     requestedTimeZone: z.string().trim().min(1).max(100),
     customerNotes: nullableTrimmedText(3000),
   })
-  .strict()
-  .superRefine((value, context) => {
-    const start = new Date(`${value.rentalStartDate}T00:00:00.000Z`);
-    const end = new Date(`${value.rentalEndDate}T00:00:00.000Z`);
-    const durationDays = (end.valueOf() - start.valueOf()) / 86_400_000;
-    if (durationDays < 0)
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['rentalEndDate'],
-        message: 'End date must be on or after the start date.',
-      });
-    if (durationDays > 366)
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['rentalEndDate'],
-        message: 'Rental requests cannot span more than 366 days.',
-      });
-    if (value.fulfillmentMethod !== 'PICKUP' && !value.deliveryAddress)
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['deliveryAddress'],
-        message: 'A delivery address is required for delivery.',
-      });
-    try {
-      new Intl.DateTimeFormat('en', { timeZone: value.requestedTimeZone });
-    } catch {
-      context.addIssue({
-        code: z.ZodIssueCode.custom,
-        path: ['requestedTimeZone'],
-        message: 'Enter a valid time zone.',
-      });
-    }
-  });
+  .strict();
+
+function validateRentalRequestDates(
+  value: Pick<
+    z.infer<typeof rentalRequestDetailsSchema>,
+    | 'rentalStartDate'
+    | 'rentalEndDate'
+    | 'fulfillmentMethod'
+    | 'deliveryAddress'
+    | 'requestedTimeZone'
+  >,
+  context: z.RefinementCtx,
+) {
+  const start = new Date(`${value.rentalStartDate}T00:00:00.000Z`);
+  const end = new Date(`${value.rentalEndDate}T00:00:00.000Z`);
+  const durationDays = (end.valueOf() - start.valueOf()) / 86_400_000;
+  if (durationDays < 0)
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['rentalEndDate'],
+      message: 'End date must be on or after the start date.',
+    });
+  if (durationDays > 366)
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['rentalEndDate'],
+      message: 'Rental requests cannot span more than 366 days.',
+    });
+  if (value.fulfillmentMethod !== 'PICKUP' && !value.deliveryAddress)
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['deliveryAddress'],
+      message: 'A delivery address is required for delivery.',
+    });
+  try {
+    new Intl.DateTimeFormat('en', { timeZone: value.requestedTimeZone });
+  } catch {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['requestedTimeZone'],
+      message: 'Enter a valid time zone.',
+    });
+  }
+}
+
+export const submitRentalRequestSchema = rentalRequestDetailsSchema.superRefine(
+  validateRentalRequestDates,
+);
 
 export type SubmitRentalRequestInput = z.infer<
   typeof submitRentalRequestSchema
@@ -570,6 +585,7 @@ export type SubmitRentalRequestFormInput = z.input<
 
 export const rentalRequestAdminStatusSchema = z.enum([
   'SUBMITTED',
+  'RE_REVIEW_REQUIRED',
   'UNDER_REVIEW',
   'APPROVED',
   'PARTIALLY_APPROVED',
@@ -611,6 +627,61 @@ export const rentalRequestAdminListQuerySchema = z
   });
 
 const expectedReviewVersionSchema = z.number().int().min(0);
+
+const rentalRequestReplacementItemSchema = z
+  .object({
+    productId: cuidParamSchema,
+    requestedQuantity: z.number().int().min(1).max(1000),
+  })
+  .strict();
+
+const completeReplacementItemsSchema = z
+  .array(rentalRequestReplacementItemSchema)
+  .min(1, 'At least one equipment item is required.')
+  .max(100)
+  .superRefine((items, context) => {
+    const seen = new Set<string>();
+    items.forEach((item, index) => {
+      if (seen.has(item.productId))
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: [index, 'productId'],
+          message: 'Each product may appear only once.',
+        });
+      seen.add(item.productId);
+    });
+  });
+
+const requestRevisionFieldsSchema = rentalRequestDetailsSchema.omit({
+  submissionId: true,
+});
+
+export const submitRentalRequestAmendmentSchema = requestRevisionFieldsSchema
+  .extend({
+    amendmentReason: z.string().trim().min(1).max(2000),
+    expectedRevisionNumber: z.number().int().min(1),
+    items: completeReplacementItemsSchema,
+    operationId: z.string().uuid(),
+  })
+  .strict()
+  .superRefine(validateRentalRequestDates);
+
+export const submitRentalChangeRequestSchema = requestRevisionFieldsSchema
+  .extend({
+    expectedRevisionNumber: z.number().int().min(1),
+    items: completeReplacementItemsSchema,
+    operationId: z.string().uuid(),
+    reason: z.string().trim().min(1).max(2000),
+  })
+  .strict()
+  .superRefine(validateRentalRequestDates);
+
+export type SubmitRentalRequestAmendmentInput = z.infer<
+  typeof submitRentalRequestAmendmentSchema
+>;
+export type SubmitRentalChangeRequestInput = z.infer<
+  typeof submitRentalChangeRequestSchema
+>;
 
 export const updateRentalRequestAssignmentSchema = z
   .object({
@@ -684,6 +755,22 @@ export const customerDecisionExplanationSchema = z
     message:
       'Use customer-safe wording without internal inventory, asset-condition, or other-customer details.',
   });
+
+export const reviewRentalChangeRequestSchema = z
+  .object({
+    expectedVersion: z.number().int().min(0),
+    operationId: z.string().uuid(),
+    status: z.enum(['UNDER_REVIEW', 'APPROVED_FOR_REQUOTE', 'REJECTED']),
+    internalNote: nullableTrimmedText(3000),
+    customerExplanation: customerDecisionExplanationSchema
+      .nullable()
+      .optional(),
+  })
+  .strict();
+
+export type ReviewRentalChangeRequestInput = z.infer<
+  typeof reviewRentalChangeRequestSchema
+>;
 
 export const approveRentalRequestDecisionSchema =
   rentalRequestDecisionOperationSchema

@@ -188,6 +188,7 @@ export interface PublicRentalRequestDecisionResponse {
 
 export type PublicRentalRequestStatus =
   | { key: 'REQUEST_SUBMITTED'; label: 'Request submitted' }
+  | { key: 'RE_REVIEW_REQUIRED'; label: 'Changes awaiting review' }
   | { key: 'UNDER_REVIEW'; label: 'Under review' }
   | { key: 'APPROVED'; label: 'Request approved' }
   | { key: 'PARTIALLY_APPROVED'; label: 'Request partially approved' }
@@ -203,10 +204,14 @@ export interface PublicRentalRequestResponse {
   rentalStartDate: string;
   status: PublicRentalRequestStatus;
   submittedAt: string;
+  currentRevisionNumber?: number;
+  amendmentAllowed?: boolean;
+  formalChangeRequestAllowed?: boolean;
 }
 
 export type AdminRentalRequestStatus =
   | 'SUBMITTED'
+  | 'RE_REVIEW_REQUIRED'
   | 'UNDER_REVIEW'
   | 'APPROVED'
   | 'PARTIALLY_APPROVED'
@@ -285,7 +290,124 @@ export type AdminRentalRequestActivityType =
   | 'REVIEW_STARTED'
   | 'APPROVED'
   | 'PARTIALLY_APPROVED'
-  | 'REJECTED';
+  | 'REJECTED'
+  | 'AMENDMENT_SUBMITTED'
+  | 'RE_REVIEW_STARTED'
+  | 'DECISION_SUPERSEDED'
+  | 'QUOTE_SUPERSEDED'
+  | 'QUOTE_ACCESS_REVOKED'
+  | 'CHANGE_REQUEST_SUBMITTED'
+  | 'CHANGE_REQUEST_REVIEWED';
+
+export type RentalRequestRevisionSubmittedBy =
+  | 'ORIGINAL_SUBMISSION'
+  | 'CUSTOMER'
+  | 'STAFF';
+export type RentalRequestItemChangeKind =
+  | 'ADDED'
+  | 'REMOVED'
+  | 'QUANTITY_INCREASED'
+  | 'QUANTITY_DECREASED'
+  | 'UNCHANGED';
+
+export interface RentalRequestRevisionItemResponse {
+  categoryName: string;
+  categorySlug: string;
+  id: string;
+  productId: string | null;
+  productName: string;
+  productSlug: string;
+  rentalUnit: string;
+  requestedQuantity: number;
+  sortOrder: number;
+}
+
+export interface PublicRentalRequestRevisionResponse {
+  amendmentReason: string | null;
+  amendmentAllowed: boolean;
+  companyName: string | null;
+  contactEmail: string;
+  contactFirstName: string;
+  contactLastName: string;
+  contactPhone: string;
+  customerNotes: string | null;
+  createdAt: string;
+  deliveryAddress: string | null;
+  formalChangeRequestAllowed: boolean;
+  fulfillmentMethod: PublicRentalRequestFulfillmentMethod;
+  id: string;
+  items: RentalRequestRevisionItemResponse[];
+  projectLocation: string;
+  projectName: string;
+  projectType: string;
+  referenceNumber: string;
+  rentalEndDate: string;
+  rentalStartDate: string;
+  requestedTimeZone: string;
+  revisionNumber: number;
+  status: PublicRentalRequestStatus;
+}
+
+export interface RentalRequestRevisionComparisonResponse {
+  fields: Array<{
+    field: string;
+    previousValue: string | null;
+    currentValue: string | null;
+    kind: 'FIELD_CHANGED';
+  }>;
+  items: Array<{
+    kind: RentalRequestItemChangeKind;
+    productName: string;
+    productSlug: string;
+    previousQuantity: number | null;
+    currentQuantity: number | null;
+  }>;
+}
+
+export interface AdminRentalRequestRevisionResponse
+  extends Omit<
+    PublicRentalRequestRevisionResponse,
+    'amendmentAllowed' | 'formalChangeRequestAllowed' | 'status'
+  > {
+  submittedByType: RentalRequestRevisionSubmittedBy;
+}
+
+export type RentalChangeRequestStatus =
+  | 'SUBMITTED'
+  | 'UNDER_REVIEW'
+  | 'APPROVED_FOR_REQUOTE'
+  | 'REJECTED'
+  | 'WITHDRAWN'
+  | 'SUPERSEDED';
+
+export interface PublicRentalChangeRequestResponse {
+  companyName: string | null;
+  contactEmail: string;
+  contactFirstName: string;
+  contactLastName: string;
+  contactPhone: string;
+  createdAt: string;
+  customerNotes: string | null;
+  deliveryAddress: string | null;
+  fulfillmentMethod: PublicRentalRequestFulfillmentMethod;
+  id: string;
+  items: Array<
+    RentalRequestRevisionItemResponse & {
+      changeType: 'ADDED' | 'REMOVED' | 'QUANTITY_CHANGED' | 'UNCHANGED';
+      previousQuantity: number | null;
+      proposedQuantity: number | null;
+    }
+  >;
+  projectLocation: string;
+  projectName: string;
+  projectType: string;
+  reason: string;
+  rentalEndDate: string;
+  rentalStartDate: string;
+  requestedTimeZone: string;
+  status: RentalChangeRequestStatus;
+  source: 'ACCEPTED_QUOTE' | 'CONFIRMED_ORDER';
+}
 
 export interface AdminRentalRequestActivityResponse {
   actor: AdminRentalRequestStaffSummary | null;

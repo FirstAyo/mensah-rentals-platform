@@ -32,6 +32,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { RentalRequestDecisionPanel } from './rental-request-decision-panel';
+import { RentalRequestRevisions } from './rental-request-revisions';
 
 const field =
   'w-full rounded-lg border border-border bg-background px-3 py-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring';
@@ -78,6 +79,7 @@ function DetailBody({
   canUpdate,
   canViewQuantity,
   canCreateQuote,
+  canViewRevisions,
   id,
 }: {
   canAssign: boolean;
@@ -87,6 +89,7 @@ function DetailBody({
   canUpdate: boolean;
   canViewQuantity: boolean;
   canCreateQuote: boolean;
+  canViewRevisions: boolean;
   id: string;
 }) {
   const [mutationError, setMutationError] = useState<string | null>(null);
@@ -337,6 +340,19 @@ function DetailBody({
           {mutationError}
         </div>
       ) : null}
+
+      {request.status === 'RE_REVIEW_REQUIRED' ? (
+        <div
+          className="rounded-xl border border-amber-600/40 bg-amber-500/10 p-4"
+          role="status"
+        >
+          <strong>Re-review required.</strong> A customer amendment is now the
+          operational revision. Earlier decisions and quotes are historical
+          only.
+        </div>
+      ) : null}
+
+      {canViewRevisions ? <RentalRequestRevisions requestId={id} /> : null}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(19rem,1fr)]">
         <div className="min-w-0 space-y-6">
@@ -726,6 +742,7 @@ export function RentalRequestDetail(props: {
   canUpdate: boolean;
   canViewQuantity: boolean;
   canCreateQuote: boolean;
+  canViewRevisions: boolean;
   id: string;
 }) {
   const [client] = useState(() => new QueryClient());

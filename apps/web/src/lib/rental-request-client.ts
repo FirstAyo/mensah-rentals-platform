@@ -1,5 +1,12 @@
-import type { PublicRentalRequestResponse } from '@mensah-rentals/types';
-import type { SubmitRentalRequestInput } from '@mensah-rentals/validation';
+import type {
+  PublicRentalRequestResponse,
+  PublicRentalRequestRevisionResponse,
+} from '@mensah-rentals/types';
+import type {
+  SubmitRentalRequestAmendmentInput,
+  SubmitRentalChangeRequestInput,
+  SubmitRentalRequestInput,
+} from '@mensah-rentals/validation';
 
 const forbidden =
   /inventory|availability|available|remaining|reserved|reservation|stock|price|internal|staff|role|permission|password|token|hash|contact|email|phone|address|notes|cart|actor|decidedby|operation|version/i;
@@ -25,6 +32,14 @@ function safe(value: unknown): void {
     }
 }
 
+function responseString(value: unknown): asserts value is string {
+  if (typeof value !== 'string') throw new Error('Invalid string response.');
+}
+
+function responseNullableString(value: unknown): void {
+  if (value !== null) responseString(value);
+}
+
 export function assertRentalRequestResponse(
   value: unknown,
 ): asserts value is PublicRentalRequestResponse {
@@ -41,6 +56,9 @@ export function assertRentalRequestResponse(
       'rentalStartDate',
       'status',
       'submittedAt',
+      'currentRevisionNumber',
+      'amendmentAllowed',
+      'formalChangeRequestAllowed',
     ],
     'rental request',
   );
@@ -49,6 +67,7 @@ export function assertRentalRequestResponse(
   object(value.status, ['key', 'label'], 'request status');
   const statuses = new Map([
     ['REQUEST_SUBMITTED', 'Request submitted'],
+    ['RE_REVIEW_REQUIRED', 'Changes awaiting review'],
     ['UNDER_REVIEW', 'Under review'],
     ['APPROVED', 'Request approved'],
     ['PARTIALLY_APPROVED', 'Request partially approved'],
@@ -119,6 +138,168 @@ export function assertRentalRequestResponse(
   }
 }
 
+export function assertRentalRequestRevisionResponse(
+  value: unknown,
+): asserts value is PublicRentalRequestRevisionResponse {
+  object(
+    value,
+    [
+      'amendmentReason',
+      'amendmentAllowed',
+      'companyName',
+      'contactEmail',
+      'contactFirstName',
+      'contactLastName',
+      'contactPhone',
+      'customerNotes',
+      'createdAt',
+      'deliveryAddress',
+      'formalChangeRequestAllowed',
+      'fulfillmentMethod',
+      'id',
+      'items',
+      'projectLocation',
+      'projectName',
+      'projectType',
+      'referenceNumber',
+      'rentalEndDate',
+      'rentalStartDate',
+      'requestedTimeZone',
+      'revisionNumber',
+      'status',
+    ],
+    'rental request revision',
+  );
+  const requiredKeys = [
+    'amendmentReason',
+    'amendmentAllowed',
+    'companyName',
+    'contactEmail',
+    'contactFirstName',
+    'contactLastName',
+    'contactPhone',
+    'customerNotes',
+    'createdAt',
+    'deliveryAddress',
+    'formalChangeRequestAllowed',
+    'fulfillmentMethod',
+    'id',
+    'items',
+    'projectLocation',
+    'projectName',
+    'projectType',
+    'referenceNumber',
+    'rentalEndDate',
+    'rentalStartDate',
+    'requestedTimeZone',
+    'revisionNumber',
+    'status',
+  ];
+  if (requiredKeys.some((key) => !Object.hasOwn(value, key)))
+    throw new Error('Incomplete rental request revision response.');
+  for (const key of [
+    'contactEmail',
+    'contactFirstName',
+    'contactLastName',
+    'contactPhone',
+    'createdAt',
+    'fulfillmentMethod',
+    'id',
+    'projectLocation',
+    'projectName',
+    'projectType',
+    'referenceNumber',
+    'rentalEndDate',
+    'rentalStartDate',
+    'requestedTimeZone',
+  ])
+    responseString(value[key]);
+  for (const key of [
+    'amendmentReason',
+    'companyName',
+    'customerNotes',
+    'deliveryAddress',
+  ])
+    responseNullableString(value[key]);
+  if (
+    typeof value.amendmentAllowed !== 'boolean' ||
+    typeof value.formalChangeRequestAllowed !== 'boolean' ||
+    !Number.isInteger(value.revisionNumber) ||
+    Number(value.revisionNumber) < 1
+  )
+    throw new Error('Invalid rental request revision metadata.');
+  if (!Array.isArray(value.items) || value.items.length < 1)
+    throw new Error('Invalid rental request revision items.');
+  for (const item of value.items) {
+    object(
+      item,
+      [
+        'categoryName',
+        'categorySlug',
+        'id',
+        'productId',
+        'productName',
+        'productSlug',
+        'rentalUnit',
+        'requestedQuantity',
+        'sortOrder',
+      ],
+      'rental request revision item',
+    );
+    for (const key of [
+      'categoryName',
+      'categorySlug',
+      'id',
+      'productName',
+      'productSlug',
+      'rentalUnit',
+    ])
+      responseString(item[key]);
+    responseNullableString(item.productId);
+    if (
+      !Number.isInteger(item.requestedQuantity) ||
+      Number(item.requestedQuantity) < 1 ||
+      !Number.isInteger(item.sortOrder) ||
+      Number(item.sortOrder) < 0
+    )
+      throw new Error('Invalid rental request revision item metadata.');
+  }
+  object(value.status, ['key', 'label'], 'request status');
+  responseString(value.status.key);
+  responseString(value.status.label);
+}
+
+export function assertRentalRequestRevisionListResponse(
+  value: unknown,
+): asserts value is PublicRentalRequestRevisionResponse[] {
+  if (!Array.isArray(value))
+    throw new Error('Invalid rental request revision list.');
+  for (const revision of value) assertRentalRequestRevisionResponse(revision);
+}
+
+export function assertRentalRequestCatalogueResponse(value: unknown): void {
+  object(value, ['items'], 'rental request catalogue');
+  if (!Array.isArray(value.items))
+    throw new Error('Invalid rental request catalogue items.');
+  for (const item of value.items) {
+    object(
+      item,
+      ['category', 'id', 'image', 'name', 'rentalUnit', 'slug'],
+      'rental request catalogue item',
+    );
+    for (const key of ['id', 'name', 'rentalUnit', 'slug'])
+      responseString(item[key]);
+    object(item.category, ['name', 'slug'], 'catalogue category');
+    responseString(item.category.name);
+    responseString(item.category.slug);
+    if (item.image !== null) {
+      object(item.image, ['altText', 'url'], 'catalogue image');
+      responseString(item.image.altText);
+      responseString(item.image.url);
+    }
+  }
+}
+
 async function request(path: string, init?: RequestInit) {
   const response = await fetch(`/api/rental-requests${path}`, {
     ...init,
@@ -145,3 +326,52 @@ export const submitRentalRequest = (input: SubmitRentalRequestInput) =>
 
 export const trackRentalRequest = (referenceNumber: string) =>
   request(`/${encodeURIComponent(referenceNumber)}`);
+
+export async function currentRentalRequestRevision() {
+  const response = await fetch('/api/rental-requests/current/revision', {
+    cache: 'no-store',
+  });
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) throw new Error('This request is not available.');
+  assertRentalRequestRevisionResponse(body);
+  return body;
+}
+
+export async function submitRentalRequestAmendment(
+  input: SubmitRentalRequestAmendmentInput,
+) {
+  const response = await fetch('/api/rental-requests/current/amendments', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message =
+      body && typeof body === 'object' && 'message' in body
+        ? String(body.message)
+        : 'The amendment could not be submitted.';
+    throw new Error(message);
+  }
+  assertRentalRequestRevisionResponse(body);
+  return body;
+}
+
+export async function submitRentalChangeRequest(
+  input: SubmitRentalChangeRequestInput,
+) {
+  const response = await fetch('/api/change-requests', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  });
+  const body: unknown = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message =
+      body && typeof body === 'object' && 'message' in body
+        ? String(body.message)
+        : 'The formal change request could not be submitted.';
+    throw new Error(message);
+  }
+  return body;
+}

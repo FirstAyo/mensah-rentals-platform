@@ -37,6 +37,7 @@ import { RequirePermissions } from '../authorization/require-permissions.decorat
 import { AdminRentalRequestNoStoreInterceptor } from './admin-rental-request-no-store.interceptor';
 import { AdminRentalRequestService } from './admin-rental-request.service';
 import { RentalRequestDecisionService } from './rental-request-decision.service';
+import { RentalRequestRevisionService } from './rental-request-revision.service';
 
 @Controller('admin/rental-requests')
 @UseInterceptors(AdminRentalRequestNoStoreInterceptor)
@@ -46,6 +47,8 @@ export class AdminRentalRequestController {
     private readonly requests: AdminRentalRequestService,
     @Inject(RentalRequestDecisionService)
     private readonly decisions: RentalRequestDecisionService,
+    @Inject(RentalRequestRevisionService)
+    private readonly revisions: RentalRequestRevisionService,
   ) {}
 
   @Get()
@@ -56,6 +59,30 @@ export class AdminRentalRequestController {
     query: AdminRentalRequestListQuery,
   ) {
     return this.requests.list(actor, query);
+  }
+
+  @Get(':id/revisions')
+  @RequirePermissions('rental_request_revision.view')
+  revisionsList(@Param('id', new ZodBodyPipe(cuidParamSchema)) id: string) {
+    return this.revisions.list(id);
+  }
+
+  @Get(':id/revisions/:revisionId')
+  @RequirePermissions('rental_request_revision.view')
+  revisionDetail(
+    @Param('id', new ZodBodyPipe(cuidParamSchema)) id: string,
+    @Param('revisionId', new ZodBodyPipe(cuidParamSchema)) revisionId: string,
+  ) {
+    return this.revisions.detail(id, revisionId);
+  }
+
+  @Get(':id/revisions/:revisionId/comparison')
+  @RequirePermissions('rental_request_revision.view')
+  revisionComparison(
+    @Param('id', new ZodBodyPipe(cuidParamSchema)) id: string,
+    @Param('revisionId', new ZodBodyPipe(cuidParamSchema)) revisionId: string,
+  ) {
+    return this.revisions.comparison(id, revisionId);
   }
 
   @Get('assignees')

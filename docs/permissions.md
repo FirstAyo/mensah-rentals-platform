@@ -1,5 +1,15 @@
 # Permissions and Roles
 
+## Phase 13 permissions
+
+- `rental_request_revision.view`
+- `rental_request_amendment.view`
+- `rental_request_amendment.review`
+- `rental_change_request.view`
+- `rental_change_request.review`
+
+SUPER_ADMIN receives every permission. ADMIN and SALES_PERSON receive these sales/operational permissions. EDITOR receives none of them. Customer capabilities are request-scoped ownership grants, not staff permissions. Backend enforcement remains authoritative.
+
 Authorization is permission-based. Roles collect permissions; users may have multiple roles; effective permissions are the de-duplicated union of every assigned role. The API enforces permissions. Admin navigation filtering is only a usability aid.
 
 ## Final Phase 3 permission catalogue

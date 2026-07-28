@@ -18,20 +18,48 @@ export class WorkSummaryService {
     };
 
     if (permissions.has('rental_request.view')) {
-      const [submittedAwaitingReview, underReview, approvedAwaitingQuote] =
+      const [submittedAwaitingReview, underReview, approvedCandidates] =
         await Promise.all([
-          prisma.rentalRequest.count({ where: { status: 'SUBMITTED' } }),
+          prisma.rentalRequest.count({
+            where: { status: { in: ['SUBMITTED', 'RE_REVIEW_REQUIRED'] } },
+          }),
           prisma.rentalRequest.count({ where: { status: 'UNDER_REVIEW' } }),
           permissions.has('quote.create')
-            ? prisma.rentalRequest.count({
+            ? prisma.rentalRequest.findMany({
                 where: {
                   status: { in: ['APPROVED', 'PARTIALLY_APPROVED'] },
-                  decision: { isNot: null },
-                  quote: { is: null },
+                  currentRevision: {
+                    is: { decision: { is: { supersededAt: null } } },
+                  },
+                },
+                select: {
+                  currentRevision: {
+                    select: {
+                      decision: {
+                        select: { id: true },
+                      },
+                    },
+                  },
+                  quote: {
+                    select: {
+                      revisions: {
+                        select: { rentalRequestDecisionId: true },
+                      },
+                    },
+                  },
                 },
               })
-            : Promise.resolve(0),
+            : Promise.resolve([]),
         ]);
+      const approvedAwaitingQuote = approvedCandidates.filter((request) => {
+        const decisionId = request.currentRevision?.decision?.id;
+        return (
+          decisionId &&
+          !request.quote?.revisions.some(
+            (revision) => revision.rentalRequestDecisionId === decisionId,
+          )
+        );
+      }).length;
       response.rentalRequests = {
         submittedAwaitingReview,
         underReview,

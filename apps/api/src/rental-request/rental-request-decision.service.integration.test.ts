@@ -21,39 +21,82 @@ describe('rental-request decisions against PostgreSQL', () => {
     createHash('sha256').update(`${suffix}:${value}`).digest('hex');
 
   async function request(label: string, quantities = [10, 4]) {
-    const created = await prisma.rentalRequest.create({
-      data: {
-        contactEmail: `${label}-${suffix}@example.test`,
-        contactFirstName: 'Decision',
-        contactLastName: 'Tester',
-        contactPhone: '+233 20 000 0000',
-        fulfillmentMethod: 'PICKUP',
-        projectLocation: 'Accra',
-        projectName: `Decision ${label}`,
-        projectType: 'Event',
-        referenceNumber: `MR-2026-${digest(label).slice(0, 10).toUpperCase()}`,
-        rentalEndDate: new Date('2026-10-03T00:00:00.000Z'),
-        rentalStartDate: new Date('2026-10-01T00:00:00.000Z'),
-        requestedTimeZone: 'Africa/Accra',
-        reviewStartedAt: new Date(),
-        reviewVersion: 1,
-        sourceCartTokenHash: digest(`${label}:cart`),
-        status: 'UNDER_REVIEW',
-        submissionKeyHash: digest(`${label}:submission`),
-        submissionPayloadHash: digest(`${label}:payload`),
-        items: {
-          create: quantities.map((requestedQuantity, index) => ({
-            categoryName: 'Decision fixtures',
-            categorySlug: `decision-fixtures-${suffix}`,
-            productId: productIds[index]!,
-            productName: `Decision product ${index + 1}`,
-            productSlug: `decision-product-${index + 1}-${suffix}`,
-            rentalUnit: 'each',
-            requestedQuantity,
-          })),
+    const created = await prisma.$transaction(async (tx) => {
+      const source = await tx.rentalRequest.create({
+        data: {
+          contactEmail: `${label}-${suffix}@example.test`,
+          contactFirstName: 'Decision',
+          contactLastName: 'Tester',
+          contactPhone: '+233 20 000 0000',
+          fulfillmentMethod: 'PICKUP',
+          projectLocation: 'Accra',
+          projectName: `Decision ${label}`,
+          projectType: 'Event',
+          referenceNumber: `MR-2026-${digest(label).slice(0, 10).toUpperCase()}`,
+          rentalEndDate: new Date('2026-10-03T00:00:00.000Z'),
+          rentalStartDate: new Date('2026-10-01T00:00:00.000Z'),
+          requestedTimeZone: 'Africa/Accra',
+          reviewStartedAt: new Date(),
+          reviewVersion: 1,
+          sourceCartTokenHash: digest(`${label}:cart`),
+          status: 'UNDER_REVIEW',
+          submissionKeyHash: digest(`${label}:submission`),
+          submissionPayloadHash: digest(`${label}:payload`),
+          items: {
+            create: quantities.map((requestedQuantity, index) => ({
+              categoryName: 'Decision fixtures',
+              categorySlug: `decision-fixtures-${suffix}`,
+              productId: productIds[index]!,
+              productName: `Decision product ${index + 1}`,
+              productSlug: `decision-product-${index + 1}-${suffix}`,
+              rentalUnit: 'each',
+              requestedQuantity,
+            })),
+          },
         },
-      },
-      include: { items: { orderBy: { productName: 'asc' } } },
+        include: { items: { orderBy: { productName: 'asc' } } },
+      });
+      const revision = await tx.rentalRequestRevision.create({
+        data: {
+          rentalRequestId: source.id,
+          revisionNumber: 1,
+          submittedByType: 'ORIGINAL_SUBMISSION',
+          operationId: randomUUID(),
+          payloadHash: digest(`${label}:revision`),
+          contactFirstName: source.contactFirstName,
+          contactLastName: source.contactLastName,
+          contactEmail: source.contactEmail,
+          contactPhone: source.contactPhone,
+          companyName: source.companyName,
+          projectName: source.projectName,
+          projectType: source.projectType,
+          projectLocation: source.projectLocation,
+          fulfillmentMethod: source.fulfillmentMethod,
+          deliveryAddress: source.deliveryAddress,
+          rentalStartDate: source.rentalStartDate,
+          rentalEndDate: source.rentalEndDate,
+          requestedTimeZone: source.requestedTimeZone,
+          customerNotes: source.customerNotes,
+          items: {
+            create: source.items.map((item, sortOrder) => ({
+              productId: item.productId,
+              productNameSnapshot: item.productName,
+              productSlugSnapshot: item.productSlug,
+              categoryNameSnapshot: item.categoryName,
+              categorySlugSnapshot: item.categorySlug,
+              rentalUnitSnapshot: item.rentalUnit,
+              requestedQuantity: item.requestedQuantity,
+              sortOrder,
+            })),
+          },
+        },
+        include: { items: { orderBy: { productNameSnapshot: 'asc' } } },
+      });
+      await tx.rentalRequest.update({
+        where: { id: source.id },
+        data: { currentRevisionId: revision.id },
+      });
+      return { ...source, items: revision.items };
     });
     requestIds.push(created.id);
     return created;
@@ -237,7 +280,7 @@ describe('rental-request decisions against PostgreSQL', () => {
     ).rejects.toThrow();
     await expect(
       prisma.rentalRequestDecisionItem.update({
-        where: { rentalRequestItemId: source.items[0]!.id },
+        where: { rentalRequestRevisionItemId: source.items[0]!.id },
         data: { approvedQuantity: 1 },
       }),
     ).rejects.toThrow();
@@ -246,7 +289,7 @@ describe('rental-request decisions against PostgreSQL', () => {
         where: { id: source.id },
         data: { reviewVersion: 3 },
       }),
-    ).rejects.toThrow(/Terminal rental request review fields are immutable/i);
+    ).rejects.toThrow(/Terminal request|Terminal rental request/i);
     await expect(
       service.approve(actor, source.id, {
         ...input,

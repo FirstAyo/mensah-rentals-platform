@@ -19,6 +19,7 @@ export default defineConfig({
           '**/admin-decisions.spec.ts',
           '**/quotes.spec.ts',
           '**/orders.spec.ts',
+          '**/amendments-isolated.spec.ts',
         ],
   timeout: 60_000,
   expect: { timeout: 30_000 },

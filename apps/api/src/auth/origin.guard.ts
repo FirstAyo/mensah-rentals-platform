@@ -49,12 +49,13 @@ export class OriginGuard implements CanActivate {
     }
 
     const contentType = request.headers['content-type'] ?? '';
+    const mediaType = contentType.split(';', 1)[0]?.trim().toLowerCase();
     const multipartAllowed = this.reflector.getAllAndOverride<boolean>(
       ALLOW_MULTIPART,
       [context.getHandler(), context.getClass()],
     );
     const valid =
-      contentType.startsWith('application/json') ||
+      mediaType === 'application/json' ||
       (multipartAllowed && contentType.startsWith('multipart/form-data;'));
     if (!valid)
       throw new UnsupportedMediaTypeException(

@@ -1,5 +1,9 @@
 # API Data Visibility
 
+## Phase 13 private customer responses
+
+Private revision and change-request APIs require a request-scoped capability. Customer revision DTOs may include the customer-provided contact, company, project, fulfilment, delivery, notes, dates, and customer-safe item snapshots needed to edit the request. They exclude staff identities, assignment, internal notes/reasons, RBAC data, operational IDs/hashes, capability data, quote/order internals, inventory quantities/states, availability, reservations, and serialized assets. Missing, invalid, expired, revoked, and mismatched capabilities use the same unavailable response.
+
 API responses are designed for their audience. Prisma records and universal
 product entities must never be serialized directly to the network. Queries use
 allowlisted `select` projections and response mappers construct dedicated DTOs.

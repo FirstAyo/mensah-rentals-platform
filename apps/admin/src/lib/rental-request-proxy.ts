@@ -34,6 +34,18 @@ const routes = [
     methods: new Set(['GET']),
   },
   {
+    pattern: new RegExp(`^${identifier}/revisions$`),
+    methods: new Set(['GET']),
+  },
+  {
+    pattern: new RegExp(`^${identifier}/revisions/${identifier}$`),
+    methods: new Set(['GET']),
+  },
+  {
+    pattern: new RegExp(`^${identifier}/revisions/${identifier}/comparison$`),
+    methods: new Set(['GET']),
+  },
+  {
     pattern: new RegExp(
       `^${identifier}/decisions/(approve|partially-approve|reject)$`,
     ),
