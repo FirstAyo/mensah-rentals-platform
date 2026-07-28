@@ -11,6 +11,7 @@ import {
 } from '@mensah-rentals/validation';
 import { useQuery } from '@tanstack/react-query';
 import { ShieldCheck } from 'lucide-react';
+import { invalidateWorkSummary } from '@/lib/work-summary';
 import { useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 
@@ -197,6 +198,7 @@ export function RentalRequestDecisionPanel({
       }));
       dialog.current?.close();
       await Promise.all([decision.refetch(), onCompleted()]);
+      invalidateWorkSummary();
     } catch {
       setServerError(
         'The decision could not be recorded. Your entries were kept.',

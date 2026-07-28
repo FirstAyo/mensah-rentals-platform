@@ -126,7 +126,15 @@ one-decision policy intentionally defers revision/supersession semantics.
 
 ## Implemented quote aggregate
 
-`Quote` is the one-per-request commercial thread and stores only identity, display number, latest/customer revision pointers, creator, and timestamps. `QuoteRevision` is an immutable proposal tied to the authoritative eligible decision. `QuoteRevisionItem`, `QuoteRevisionCharge`, and `QuoteRevisionTax` are immutable financial snapshots. `QuoteRevisionLifecycle` is the narrowly mutable state machine. `QuoteCustomerAccess` holds only a capability hash and expiry/revocation. `QuoteCustomerResponse` records exactly one immutable accept/reject response. `QuoteActivity` is append-only internal history.
+`Quote` is the one-per-request commercial thread and stores identity, display
+number, latest/customer revision pointers, creator, and timestamps.
+`QuoteRevision` is tied to the authoritative eligible decision; only the latest
+unsent DRAFT and its commercial children may be edited, while every sent or
+terminal revision is immutable. `QuoteRevisionLifecycle` is the narrowly
+mutable state machine. `QuoteCustomerAccess` stores hash-only append-only access
+history and expiry/revocation. `QuoteCustomerResponse` records exactly one
+immutable accept/reject response. `QuoteActivity` is append-only internal
+history.
 
 Rental Request, Decision, Quote, Revision, Customer Response, future Confirmed Rental Order, and future Inventory Reservation remain different models. Acceptance does not change the terminal request decision and does not create either future model.
 
@@ -140,3 +148,20 @@ commercial/customer snapshots. `RentalOrderActivity` is append-only, and
 Only `CONFIRMED` and `NOT_RESERVED` exist in Phase 12. There is no inventory
 quantity, asset assignment, availability calculation, or reservation relation.
 A future `InventoryReservation` remains a separate aggregate.
+
+## Phase 12.1 hardening fields
+
+`QuoteRevision` now snapshots the customer/project/fulfilment/rental-date fields
+needed for a stable customer document. It also stores discount type, optional
+percentage basis points, pre-tax base cents, calculated discount cents,
+taxable-discount cents, and a draft version. Only the latest unsent DRAFT may
+change commercial content; sending permanently freezes it. Draft update
+activity remains append-only.
+
+`QuoteCustomerAccess` and `OrderCustomerAccess` are append-only one-to-many
+histories. A database partial unique index permits at most one unrevoked access
+row for a quote revision or order. Each creation has idempotent operation and
+payload identity, creator, expiry, and hash-only capability storage. Revocation
+does not delete history. `RentalOrder` copies every accepted discount snapshot
+field exactly. None of these models relates to inventory or creates a
+reservation.

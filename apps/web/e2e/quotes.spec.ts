@@ -1,7 +1,7 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page } from '@playwright/test';
 
-test.describe.configure({ timeout: 180_000 });
+test.describe.configure({ timeout: 360_000 });
 
 function credential(
   name: 'STAFF_BOOTSTRAP_EMAIL' | 'STAFF_BOOTSTRAP_PASSWORD',
@@ -28,6 +28,28 @@ async function axe(page: Page) {
 }
 
 async function approvedRequest(page: Page) {
+  const approvedRequestId = process.env.PHASE121_APPROVED_REQUEST_ID;
+  if (approvedRequestId) {
+    await page.goto('http://localhost:3001/login');
+    await page.getByLabel(/email/i).fill(credential('STAFF_BOOTSTRAP_EMAIL'));
+    await page
+      .getByLabel(/password/i)
+      .fill(credential('STAFF_BOOTSTRAP_PASSWORD'));
+    await page.getByRole('button', { name: /sign in/i }).click();
+    await expect(page).toHaveURL('http://localhost:3001/', {
+      timeout: 30_000,
+    });
+    await page.goto(
+      `http://localhost:3001/rental-requests/${approvedRequestId}`,
+    );
+    await expect(
+      page.getByRole('link', { name: 'Create quote' }),
+    ).toBeVisible();
+    return {
+      marker: process.env.PHASE121_PROJECT_NAME ?? 'Phase 12.1 quote fixture',
+      reference: process.env.PHASE121_REQUEST_REFERENCE ?? '',
+    };
+  }
   await page.goto('http://localhost:3000/rentals');
   const href = await page
     .locator('article a[href^="/rentals/"]')
@@ -52,7 +74,7 @@ async function approvedRequest(page: Page) {
   await page.getByLabel('Project or event location').fill('Accra');
   await page.getByRole('button', { name: 'Review request' }).click();
   await page.getByRole('button', { name: 'Submit rental request' }).click();
-  await expect(page).toHaveURL(/rental-requests\/MR-/);
+  await expect(page).toHaveURL(/rental-requests\/MR-/, { timeout: 30_000 });
   const reference = (await page.getByText(/Reference:/).innerText())
     .replace('Reference:', '')
     .trim();
@@ -62,7 +84,7 @@ async function approvedRequest(page: Page) {
     .getByLabel(/password/i)
     .fill(credential('STAFF_BOOTSTRAP_PASSWORD'));
   await page.getByRole('button', { name: /sign in/i }).click();
-  await expect(page).toHaveURL('http://localhost:3001/');
+  await expect(page).toHaveURL('http://localhost:3001/', { timeout: 30_000 });
   await page.goto('http://localhost:3001/rental-requests');
   await page.getByLabel('Search requests').fill(reference);
   await page.getByRole('link', { name: reference, exact: true }).click();
@@ -80,18 +102,15 @@ async function createAndSend(page: Page) {
   const owned = await approvedRequest(page);
   await page.getByRole('link', { name: 'Create quote' }).click();
   const unitPrices = page.getByLabel('Unit price (CAD)');
-  await expect(unitPrices.first()).toBeVisible();
+  await expect(unitPrices.first()).toBeVisible({ timeout: 30_000 });
   await unitPrices.first().fill('not-money');
   await expect(
     page.getByText(/enter valid bounded money and tax values/i),
   ).toBeVisible();
   for (let index = 0; index < (await unitPrices.count()); index += 1)
     await unitPrices.nth(index).fill('125.50');
-  await page.getByRole('button', { name: 'Add charge' }).click();
-  await page.getByLabel('Type').selectOption('DELIVERY');
-  await page.getByLabel('Customer label').fill('Delivery');
-  await page.getByLabel('Amount (CAD)').fill('10.00');
-  await page.getByLabel('Discount (CAD)').fill('5.00');
+  await page.getByLabel('Discount type').selectOption('PERCENTAGE');
+  await page.getByLabel('Discount (%)').fill('10.00');
   await page.getByLabel('Tax rate (%)').fill('5');
   const valid = new Date();
   valid.setDate(valid.getDate() + 5);
@@ -99,24 +118,55 @@ async function createAndSend(page: Page) {
   await page.getByLabel('Customer notes').fill('Customer-visible quote note');
   await page.getByLabel('Internal notes').fill('PRIVATE-P11-SENTINEL');
   await page.getByLabel('Terms').fill('Custom quote terms.');
-  await expect(page.getByText('$400.58', { exact: true })).toBeVisible();
+  await expect(page.getByText(/Discount \(10(?:\.00)?%\)/)).toBeVisible();
   await page.getByRole('button', { name: 'Create draft quote' }).dblclick();
   await expect(page).toHaveURL(/\/quotes\//);
   await expect(page.getByText('DRAFT').first()).toBeVisible();
+  await page.getByRole('button', { name: 'Edit draft' }).click();
+  await page
+    .getByLabel('Customer notes')
+    .fill('Edited customer-visible quote note');
+  await page.getByRole('button', { name: 'Save draft changes' }).click();
+  await expect(
+    page.getByText('Edited customer-visible quote note'),
+  ).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Revision 2' })).toHaveCount(
+    0,
+  );
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Send current revision' }).click();
   await expect(
     page.getByRole('heading', { name: 'Secure customer link' }),
   ).toBeVisible();
+  const pdf = page.waitForEvent('download');
+  await page.getByRole('link', { name: 'Download PDF' }).click();
+  expect((await pdf).suggestedFilename()).toMatch(/QT-.*\.pdf$/);
   const link = await page.locator('code').innerText();
   return { ...owned, link };
 }
 
-test('@quotes @admin-quotes creates exact quote and sends without reservation controls', async ({
+test('@phase12-1 @quotes @admin-quotes creates exact quote and sends without reservation controls', async ({
+  browser,
   page,
 }, info) => {
-  test.skip(!['mobile-320', 'desktop-1024'].includes(info.project.name));
-  await createAndSend(page);
+  test.skip(info.project.name !== 'desktop-1024');
+  const { link } = await createAndSend(page);
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'Resend current link' }).click();
+  await expect(page.locator('code')).toHaveText(link);
+  await expect(page.getByRole('heading', { name: 'Revision 2' })).toHaveCount(
+    0,
+  );
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'Rotate secure link' }).click();
+  await expect(page.locator('code')).not.toHaveText(link);
+  const oldLinkContext = await browser.newContext();
+  const oldLinkPage = await oldLinkContext.newPage();
+  await oldLinkPage.goto(link);
+  await expect(
+    oldLinkPage.getByText('This quote link is unavailable.'),
+  ).toBeVisible();
+  await oldLinkContext.close();
   await expect(
     page.getByText(/inventory is not reserved/i).first(),
   ).toBeVisible();

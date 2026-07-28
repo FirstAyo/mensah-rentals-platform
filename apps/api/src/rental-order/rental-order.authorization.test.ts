@@ -32,12 +32,25 @@ describe('rental order HTTP authorization and validation', () => {
   const service = {
     create: vi.fn(async () => ({ order: { id, orderNumber: 'RO-TEST' } })),
     detail: vi.fn(async () => ({ id })),
+    generateCustomerAccess: vi.fn(async () => ({
+      access: { state: 'ACTIVE' },
+    })),
     list: vi.fn(async () => ({
       items: [],
       meta: { page: 1, pageSize: 20, total: 0, totalPages: 0 },
     })),
     markViewed: vi.fn(),
+    publicPdf: vi.fn(async () => {
+      throw new NotFoundException('Order is unavailable');
+    }),
     publicCurrent: vi.fn(),
+    resendCustomerAccess: vi.fn(async () => ({ access: { state: 'ACTIVE' } })),
+    revokeCustomerAccess: vi.fn(async () => ({ access: { state: 'REVOKED' } })),
+    rotateCustomerAccess: vi.fn(async () => ({ access: { state: 'ACTIVE' } })),
+    staffPdf: vi.fn(async () => ({
+      buffer: Buffer.from('%PDF-1.4'),
+      filename: 'order.pdf',
+    })),
     validateCapability: vi.fn(async () => {
       throw new NotFoundException('Order is unavailable');
     }),
@@ -107,6 +120,36 @@ describe('rental order HTTP authorization and validation', () => {
     await call().expect(403);
     current = { ...base, permissionKeys: ['order.create'] };
     await call().expect(201);
+  });
+
+  it('requires order.view and order.update for customer-access mutations', async () => {
+    const call = () =>
+      request(app.getHttpServer())
+        .post(`/admin/orders/${id}/customer-access`)
+        .set('Cookie', cookie)
+        .set('Origin', 'http://localhost:3001')
+        .send({ operationId: '00000000-0000-4000-8000-000000000000' });
+    current = { ...base, permissionKeys: ['order.view'] };
+    await call().expect(403);
+    current = { ...base, permissionKeys: ['order.update'] };
+    await call().expect(403);
+    current = { ...base, permissionKeys: ['order.view', 'order.update'] };
+    await call().expect(201).expect('Cache-Control', 'private, no-store');
+  });
+
+  it('protects staff PDFs and serves them as private PDF attachments', async () => {
+    current = base;
+    await request(app.getHttpServer())
+      .get(`/admin/orders/${id}/pdf`)
+      .set('Cookie', cookie)
+      .expect(403);
+    current = { ...base, permissionKeys: ['order.view'] };
+    await request(app.getHttpServer())
+      .get(`/admin/orders/${id}/pdf`)
+      .set('Cookie', cookie)
+      .expect(200)
+      .expect('Content-Type', /application\/pdf/)
+      .expect('Cache-Control', 'private, no-store');
   });
 
   it('returns 422 for invalid paths, queries, and strict conversion payloads', async () => {

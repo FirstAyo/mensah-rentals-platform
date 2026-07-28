@@ -221,31 +221,50 @@ describe('custom quotes against PostgreSQL', () => {
       quotedQuantity: 10,
       productName: 'Folding Chair',
     });
+    await expect(
+      quoteService.staffPdf(quote.id, quote.latestRevisionId),
+    ).rejects.toThrow('must be sent');
+    await expect(
+      prisma.quoteRevision.update({
+        where: { id: quote.latestRevisionId },
+        data: { revisionNumber: 2 },
+      }),
+    ).rejects.toThrow(/identity|immutable/i);
+    const draftItem = await prisma.quoteRevisionItem.findFirstOrThrow({
+      where: { quoteRevisionId: quote.latestRevisionId },
+    });
+    await expect(
+      prisma.quoteRevisionItem.update({
+        where: { id: draftItem.id },
+        data: { productNameSnapshot: 'Tampered draft snapshot' },
+      }),
+    ).rejects.toThrow(/replaced|not updated/i);
     expect(await prisma.inventoryTransaction.count()).toBe(before);
     const original = await prisma.rentalRequestItem.findFirstOrThrow({
       where: { rentalRequestId: approvedRequest.id },
     });
     expect(original.requestedQuantity).toBe(10);
-    await expect(
-      prisma.quoteRevision.update({
-        where: { id: quote.latestRevisionId },
-        data: { customerNotes: 'tampered' },
-      }),
-    ).rejects.toThrow();
     const correctedInput = await input(approvedRequest.id);
     correctedInput.expectedLatestRevisionNumber = 1;
+    correctedInput.expectedDraftVersion = 0;
     correctedInput.items[0]!.unitPriceCents = 12600;
-    const corrected = await quoteService.createRevision(
+    const corrected = await quoteService.updateDraft(
       actor,
       quote.id,
+      quote.latestRevisionId,
       correctedInput,
     );
-    expect(corrected).toMatchObject({ revisionNumber: 2, status: 'DRAFT' });
-    const firstLifecycle =
-      await prisma.quoteRevisionLifecycle.findUniqueOrThrow({
-        where: { quoteRevisionId: quote.latestRevisionId },
-      });
-    expect(firstLifecycle.state).toBe('SUPERSEDED');
+    expect(corrected).toMatchObject({
+      draftVersion: 1,
+      revisionNumber: 1,
+      status: 'DRAFT',
+    });
+    await expect(
+      quoteService.createRevision(actor, quote.id, {
+        ...correctedInput,
+        operationId: randomUUID(),
+      }),
+    ).rejects.toThrow('Edit the latest unsent draft');
     await expect(
       prisma.quoteRevisionLifecycle.update({
         where: { quoteRevisionId: quote.latestRevisionId },
@@ -287,6 +306,63 @@ describe('custom quotes against PostgreSQL', () => {
         items: [{ ...proposal.items[0]!, quotedQuantity: 999 }],
       }),
     ).rejects.toThrow();
+  });
+
+  it('calculates and snapshots percentage discounts authoritatively', async () => {
+    const source = await approved('percentage-discount');
+    const proposal = await input(source.id);
+    proposal.discountType = 'PERCENTAGE';
+    proposal.discountRateBasisPoints = 1_000;
+    proposal.discountCents = 0;
+    const quote = await quoteService.createFirst(actor, source.id, proposal);
+    expect(quote.revisions[0]).toMatchObject({
+      discountBaseCents: 130_500,
+      discountCents: 13_050,
+      discountRateBasisPoints: 1_000,
+      discountType: 'PERCENTAGE',
+      taxableDiscountCents: 13_050,
+      taxableSubtotalCents: 117_450,
+      taxCents: 5_873,
+      totalCents: 123_323,
+    });
+  });
+
+  it('edits only the latest draft in place with idempotency and stale-write protection', async () => {
+    const source = await approved('draft-edit');
+    const quote = await quoteService.createFirst(
+      actor,
+      source.id,
+      await input(source.id),
+    );
+    const update = await input(source.id);
+    update.expectedDraftVersion = 0;
+    update.expectedLatestRevisionNumber = 1;
+    update.customerNotes = 'Updated safely in place';
+    const first = await quoteService.updateDraft(
+      actor,
+      quote.id,
+      quote.latestRevisionId,
+      update,
+    );
+    const replay = await quoteService.updateDraft(
+      actor,
+      quote.id,
+      quote.latestRevisionId,
+      update,
+    );
+    expect(first).toMatchObject({ draftVersion: 1, revisionNumber: 1 });
+    expect(replay).toEqual(first);
+    expect(
+      await prisma.quoteActivity.count({
+        where: { quoteId: quote.id, type: 'QUOTE_DRAFT_UPDATED' },
+      }),
+    ).toBe(1);
+    await expect(
+      quoteService.updateDraft(actor, quote.id, quote.latestRevisionId, {
+        ...update,
+        operationId: randomUUID(),
+      }),
+    ).rejects.toThrow('changed');
   });
 
   it('rejects ineligible request states', async () => {
@@ -331,8 +407,8 @@ describe('custom quotes against PostgreSQL', () => {
     });
     expect(replay.accessLink).toBe(sent.accessLink);
     const raw = sent.accessLink.split('#capability=')[1]!;
-    const access = await prisma.quoteCustomerAccess.findUniqueOrThrow({
-      where: { quoteRevisionId: revision.id },
+    const access = await prisma.quoteCustomerAccess.findFirstOrThrow({
+      where: { quoteRevisionId: revision.id, revokedAt: null },
     });
     expect(access.tokenHash).not.toContain(raw);
     const publicQuote = await quoteService.publicCurrent(raw);
@@ -365,6 +441,90 @@ describe('custom quotes against PostgreSQL', () => {
     expect(reservation?.name).toBeNull();
   });
 
+  it('resends without a revision and rotates access with immediate revocation', async () => {
+    const { quote, raw, revision } = await createSentQuote('resend-rotate');
+    const current = await prisma.quoteCustomerAccess.findFirstOrThrow({
+      where: { quoteRevisionId: revision.id, revokedAt: null },
+    });
+    const resend = await quoteService.resend(actor, quote.id, revision.id, {
+      expectedAccessId: current.id,
+      expectedLifecycleVersion: 1,
+      operationId: randomUUID(),
+    });
+    expect(rawCapability(resend.accessLink)).toBe(raw);
+    expect(
+      await prisma.quoteRevision.count({ where: { quoteId: quote.id } }),
+    ).toBe(1);
+    expect(
+      await prisma.quoteActivity.count({
+        where: { quoteId: quote.id, type: 'QUOTE_RESENT' },
+      }),
+    ).toBe(1);
+    const rotated = await quoteService.rotateAccess(
+      actor,
+      quote.id,
+      revision.id,
+      {
+        expectedAccessId: current.id,
+        expectedLifecycleVersion: 1,
+        operationId: randomUUID(),
+      },
+    );
+    expect(rawCapability(rotated.accessLink)).not.toBe(raw);
+    await expect(quoteService.publicCurrent(raw)).rejects.toThrow(
+      'Quote is unavailable',
+    );
+    await expect(
+      quoteService.publicCurrent(rawCapability(rotated.accessLink)),
+    ).resolves.toMatchObject({ quoteNumber: quote.quoteNumber });
+    expect(
+      await prisma.quoteCustomerAccess.count({
+        where: { quoteRevisionId: revision.id },
+      }),
+    ).toBe(2);
+    expect(
+      await prisma.quoteActivity.count({
+        where: { quoteId: quote.id, type: 'QUOTE_ACCESS_ROTATED' },
+      }),
+    ).toBe(1);
+    await expect(
+      prisma.quoteRevision.update({
+        where: { id: revision.id },
+        data: { customerNotes: 'tampered after send' },
+      }),
+    ).rejects.toThrow();
+  });
+
+  it('renders customer-safe selectable PDFs from immutable snapshots', async () => {
+    const { quote, raw, revision } = await createSentQuote('pdf');
+    const current = await quoteService.publicCurrent(raw);
+    expect(current.customerName).toBe('Customer pdf');
+    expect(current.rentalStartDate).toBe('2027-02-01');
+    const staffPdf = await quoteService.staffPdf(quote.id, revision.id);
+    const customerPdf = await quoteService.publicPdf(raw);
+    for (const pdf of [staffPdf, customerPdf]) {
+      const text = pdf.buffer.toString('ascii');
+      expect(text.startsWith('%PDF-1.4')).toBe(true);
+      expect(text).toContain('Mensah Rentals Quote');
+      expect(text).toContain('Status: SENT');
+      expect(text).toContain('Rental dates: 2027-02-01 to 2027-02-02');
+      expect(text).toContain('Folding Chair');
+      expect(text).toContain('10 each x $125.50 = $1,255.00');
+      expect(text).toContain('Delivery: $50.00');
+      expect(text).toContain('Discount: -$25.00');
+      expect(text).toContain('Test tax \\(5.00%\\): $64.00');
+      expect(text).toContain('Total: $1,344.00 CAD');
+      expect(text).toContain('Terms: Test terms');
+      expect(text).toContain('Inventory is not reserved');
+      expect(text).not.toContain('PRIVATE SENTINEL');
+      expect(text).not.toContain(raw);
+      expect(text).not.toContain('tokenHash');
+    }
+    await expect(quoteService.publicPdf('malformed')).rejects.toThrow(
+      'Quote is unavailable',
+    );
+  });
+
   it('serializes concurrent first-quote creation for one rental request', async () => {
     const source = await approved('concurrent-first');
     const attempts = await Promise.allSettled([
@@ -383,7 +543,7 @@ describe('custom quotes against PostgreSQL', () => {
     ).toBe(1);
   });
 
-  it('serializes concurrent revisions and rejects the stale writer', async () => {
+  it('serializes concurrent draft edits and rejects the stale writer', async () => {
     const source = await approved('concurrent-revision');
     const quote = await quoteService.createFirst(
       actor,
@@ -392,24 +552,29 @@ describe('custom quotes against PostgreSQL', () => {
     );
     const first = await input(source.id);
     first.expectedLatestRevisionNumber = 1;
+    first.expectedDraftVersion = 0;
     first.customerNotes = 'First concurrent correction';
     const second = await input(source.id);
     second.expectedLatestRevisionNumber = 1;
+    second.expectedDraftVersion = 0;
     second.customerNotes = 'Second concurrent correction';
     const attempts = await Promise.allSettled([
-      quoteService.createRevision(actor, quote.id, first),
-      quoteService.createRevision(actor, quote.id, second),
+      quoteService.updateDraft(actor, quote.id, quote.latestRevisionId, first),
+      quoteService.updateDraft(actor, quote.id, quote.latestRevisionId, second),
     ]);
     expect(attempts.filter(fulfilled)).toHaveLength(1);
     expect(attempts.filter((result) => !fulfilled(result))).toHaveLength(1);
     expect(
       await prisma.quoteRevision.count({ where: { quoteId: quote.id } }),
-    ).toBe(2);
+    ).toBe(1);
     const persisted = await prisma.quote.findUniqueOrThrow({
       where: { id: quote.id },
       include: { latestRevision: true },
     });
-    expect(persisted.latestRevision?.revisionNumber).toBe(2);
+    expect(persisted.latestRevision).toMatchObject({
+      draftVersion: 1,
+      revisionNumber: 1,
+    });
   });
 
   it('allows only one simultaneous customer accept-or-reject decision', async () => {
@@ -538,7 +703,7 @@ describe('custom quotes against PostgreSQL', () => {
     ).toMatchObject({ state: 'SUPERSEDED' });
     expect(
       (
-        await prisma.quoteCustomerAccess.findUniqueOrThrow({
+        await prisma.quoteCustomerAccess.findFirstOrThrow({
           where: { quoteRevisionId: oldRevision.id },
         })
       ).revokedAt,
@@ -696,9 +861,11 @@ describe('custom quotes against PostgreSQL', () => {
     expect(await snapshot()).toEqual(before);
     const revisionInput = await input(source.id);
     revisionInput.expectedLatestRevisionNumber = 1;
-    const revision = await quoteService.createRevision(
+    revisionInput.expectedDraftVersion = 0;
+    const revision = await quoteService.updateDraft(
       actor,
       quote.id,
+      quote.latestRevisionId,
       revisionInput,
     );
     expect(await snapshot()).toEqual(before);

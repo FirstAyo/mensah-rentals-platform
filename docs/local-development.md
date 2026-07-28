@@ -209,6 +209,83 @@ Preserve local database data and stop the container:
 docker compose down
 ```
 
+## 30. Run the Phase 12.1 hardening workflow
+
+Use Windows PowerShell at the repository root. Open Docker Desktop first. This
+phase adds no environment variable. Existing quote/order secrets and local
+cookie settings from Phases 11 and 12 are still required in the ignored `.env`.
+
+Prepare the schema and authorization catalogue:
+
+```powershell
+pnpm install
+docker compose up -d postgres postgres-test
+docker compose ps
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+pnpm staff:bootstrap
+pnpm catalogue:seed
+```
+
+`db:status` must include both
+`20260728140000_phase121_workflow_hardening` and
+`20260728153000_phase121_quote_draft_integrity`, and report that the schema is
+up to date. Start everything:
+
+```powershell
+pnpm dev
+```
+
+Sign in at `http://localhost:3001/login` using credentials stored only in your
+ignored `.env`. Verify the dashboard and workflow:
+
+1. At 1440px or wider, the sidebar begins at the browser's absolute left edge.
+2. The Rental Requests badge counts `SUBMITTED` requests. Opening a request
+   does not clear it; **Start review** removes it after the summary refresh.
+3. Dashboard cards show only counts supported by your permissions. They never
+   claim availability, rented, returns, missing/damaged, or reserved totals.
+4. Create a fixed-discount quote. Create another test quote with a percentage
+   discount and confirm the UI shows its basis-point percentage, pre-tax base,
+   calculated discount, tax, and total.
+5. Save a DRAFT, edit it, and confirm its revision number stays the same. Send
+   it, then confirm commercial edit is blocked.
+6. Use **Resend** on a valid SENT/VIEWED quote. Confirm history records a resend
+   and no revision is added. Use **Rotate link** separately; the old link must
+   become unavailable and the new link must work.
+7. Download the quote PDF as staff and through the private customer link.
+   Confirm totals and dates match and no internal notes or capability URL exist.
+8. Accept a quote and create an order. Order creation should not automatically
+   expose a customer link. On order detail choose **Generate link**, copy it,
+   test **Resend**, **Revoke**, and **Rotate/Reissue**. Revoked links must fail.
+9. Download the order PDF as staff and from the valid private order page.
+10. Confirm every screen still says the order is `NOT_RESERVED` and none of
+    these actions changes inventory or creates an inventory transaction.
+
+The secure link shown by send/resend/generate/rotate is a local test delivery
+artifact. External transactional email remains deferred, so the application
+must not report that an email was delivered.
+
+To check responsive layouts manually, use browser developer tools at widths
+320, 768, 1440, 1920, and 2560 pixels. Test light and dark themes, keyboard
+focus, dialogs, copied-link feedback, tables, and PDF controls. There must be no
+document-level horizontal overflow.
+
+Stop ordinary dev servers before the isolated focused browser command because
+its runner owns ports 3000, 3001, and 4000:
+
+```powershell
+pnpm test:e2e:phase12-1
+```
+
+If Prisma Client generation reports a Windows DLL rename `EPERM`, stop every
+running Mensah Rentals Node process (`Ctrl+C` in its PowerShell window), wait a
+few seconds, and rerun `pnpm db:generate`. Do not delete `node_modules` or kill
+unrelated Node applications merely to work around the lock.
+
 ## 29. Run the Phase 12 confirmed-rental-order flow
 
 These commands are for Windows PowerShell at the repository root. Open Docker

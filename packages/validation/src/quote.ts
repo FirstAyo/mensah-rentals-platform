@@ -61,6 +61,17 @@ export const quoteRevisionInputSchema = z
       .default([]),
     discountCents: cents.default(0),
     discountTaxable: z.boolean().default(true),
+    discountType: z
+      .enum(['FIXED_AMOUNT', 'PERCENTAGE'])
+      .default('FIXED_AMOUNT'),
+    discountRateBasisPoints: z
+      .number()
+      .int()
+      .min(0)
+      .max(10_000)
+      .nullable()
+      .optional(),
+    expectedDraftVersion: z.number().int().min(0).optional(),
     tax: z
       .object({
         name: z.string().trim().min(1).max(80),
@@ -84,11 +95,43 @@ export const quoteRevisionInputSchema = z
         });
       ids.add(item.rentalRequestDecisionItemId);
     });
+    if (
+      value.discountType === 'PERCENTAGE' &&
+      value.discountRateBasisPoints === undefined
+    )
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'A percentage discount requires a rate.',
+        path: ['discountRateBasisPoints'],
+      });
+    if (value.discountType === 'PERCENTAGE' && !value.discountTaxable)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Percentage discounts apply proportionally to taxable lines.',
+        path: ['discountTaxable'],
+      });
+    if (
+      value.discountType === 'FIXED_AMOUNT' &&
+      value.discountRateBasisPoints != null
+    )
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'A fixed discount cannot include a percentage rate.',
+        path: ['discountRateBasisPoints'],
+      });
   });
 
 export const sendQuoteRevisionSchema = z
   .object({
     operationId,
+    expectedLifecycleVersion: z.number().int().min(0),
+  })
+  .strict();
+
+export const quoteAccessOperationSchema = z
+  .object({
+    operationId,
+    expectedAccessId: z.string().uuid().optional(),
     expectedLifecycleVersion: z.number().int().min(0),
   })
   .strict();
@@ -136,6 +179,9 @@ export const quoteListQuerySchema = z
 
 export type QuoteRevisionInput = z.infer<typeof quoteRevisionInputSchema>;
 export type SendQuoteRevisionInput = z.infer<typeof sendQuoteRevisionSchema>;
+export type QuoteAccessOperationInput = z.infer<
+  typeof quoteAccessOperationSchema
+>;
 export type QuoteCustomerAccessInput = z.infer<
   typeof quoteCustomerAccessSchema
 >;
@@ -151,6 +197,9 @@ export interface QuoteMoneyTotals {
   taxableSubtotalCents: bigint;
   taxCents: bigint;
   totalCents: bigint;
+  discountBaseCents: bigint;
+  discountCents: bigint;
+  taxableDiscountCents: bigint;
 }
 
 export function calculateQuoteMoney(input: {
@@ -158,6 +207,8 @@ export function calculateQuoteMoney(input: {
   charges: Array<{ amountCents: number; taxable: boolean }>;
   discountCents: number;
   discountTaxable: boolean;
+  discountType?: 'FIXED_AMOUNT' | 'PERCENTAGE';
+  discountRateBasisPoints?: number | null;
   taxRateBasisPoints: number;
 }): QuoteMoneyTotals {
   const itemSubtotalCents = input.items.reduce(
@@ -169,7 +220,13 @@ export function calculateQuoteMoney(input: {
     0n,
   );
   const subtotalCents = itemSubtotalCents + chargeTotalCents;
-  const discount = BigInt(input.discountCents);
+  const discountBaseCents = subtotalCents;
+  const discount =
+    input.discountType === 'PERCENTAGE'
+      ? (discountBaseCents * BigInt(input.discountRateBasisPoints ?? 0) +
+          5_000n) /
+        10_000n
+      : BigInt(input.discountCents);
   if (discount > subtotalCents) throw new Error('Discount exceeds subtotal');
   const taxableGross =
     input.items.reduce(
@@ -184,10 +241,16 @@ export function calculateQuoteMoney(input: {
       (sum, charge) => sum + (charge.taxable ? BigInt(charge.amountCents) : 0n),
       0n,
     );
-  if (input.discountTaxable && discount > taxableGross)
+  const taxableDiscountCents =
+    input.discountType === 'PERCENTAGE'
+      ? (taxableGross * BigInt(input.discountRateBasisPoints ?? 0) + 5_000n) /
+        10_000n
+      : input.discountTaxable
+        ? discount
+        : 0n;
+  if (taxableDiscountCents > taxableGross)
     throw new Error('Taxable discount exceeds taxable subtotal');
-  const taxableSubtotalCents =
-    taxableGross - (input.discountTaxable ? discount : 0n);
+  const taxableSubtotalCents = taxableGross - taxableDiscountCents;
   const taxCents =
     (taxableSubtotalCents * BigInt(input.taxRateBasisPoints) + 5_000n) /
     10_000n;
@@ -209,6 +272,9 @@ export function calculateQuoteMoney(input: {
     taxableSubtotalCents,
     taxCents,
     totalCents,
+    discountBaseCents,
+    discountCents: discount,
+    taxableDiscountCents,
   };
 }
 

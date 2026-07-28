@@ -1,4 +1,4 @@
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash, createHmac, randomUUID } from 'node:crypto';
 
 import { ConfigService } from '@nestjs/config';
 import { prisma, runRbacSeed } from '@mensah-rentals/database';
@@ -208,20 +208,21 @@ describe('confirmed rental orders against PostgreSQL', () => {
       contactEmailSnapshot: source.contactEmail,
       currency: 'CAD',
       discountCents: accepted.discountCents,
+      discountBaseCents: accepted.discountBaseCents,
+      discountRateBasisPoints: accepted.discountRateBasisPoints,
+      discountType: accepted.discountType,
       itemSubtotalCents: accepted.itemSubtotalCents,
       projectNameSnapshot: source.projectName,
       reservationStatus: 'NOT_RESERVED',
       status: 'CONFIRMED',
       taxCents: accepted.taxCents,
+      taxableDiscountCents: accepted.taxableDiscountCents,
       totalCents: accepted.totalCents,
     });
     expect(order.items).toHaveLength(accepted.items.length);
     expect(order.charges).toHaveLength(accepted.charges.length);
     expect(order.tax?.taxAmountCents).toBe(accepted.tax?.taxAmountCents);
-    expect(order.customerAccess?.tokenHash).toMatch(/^[0-9a-f]{64}$/);
-    expect(order.customerAccess?.tokenHash).not.toContain(
-      rawCapability(created.customerAccessLink),
-    );
+    expect(order.customerAccess).toHaveLength(0);
     await expect(
       prisma.rentalOrder.update({
         where: { id: order.id },
@@ -444,7 +445,17 @@ describe('confirmed rental orders against PostgreSQL', () => {
     const created = await orders.create(actor, quote.id, revision.id, {
       operationId: randomUUID(),
     });
-    const raw = rawCapability(created.customerAccessLink);
+    const access = await orders.generateCustomerAccess(
+      actor,
+      created.order.id,
+      {
+        operationId: randomUUID(),
+      },
+    );
+    const raw = rawCapability(access.accessLink!);
+    await expect(
+      orders.publicCurrent(created.order.orderNumber),
+    ).rejects.toThrow('Order is unavailable');
     const publicOrder = await orders.publicCurrent(raw);
     expectPublicDataSafe(publicOrder);
     expect(JSON.stringify(publicOrder)).not.toContain('PRIVATE ORDER SENTINEL');
@@ -459,6 +470,149 @@ describe('confirmed rental orders against PostgreSQL', () => {
         where: { rentalOrderId: created.order.id, type: 'ORDER_VIEWED' },
       }),
     ).toBe(1);
+  });
+
+  it('generates, resends, rotates, and revokes one active access capability append-only', async () => {
+    const { quote, revision } = await acceptedQuote('managed-access');
+    const created = await orders.create(actor, quote.id, revision.id, {
+      operationId: randomUUID(),
+    });
+    expect((await orders.detail(created.order.id)).customerAccess.state).toBe(
+      'NONE',
+    );
+    const generateOperationId = randomUUID();
+    const generated = await orders.generateCustomerAccess(
+      actor,
+      created.order.id,
+      { operationId: generateOperationId },
+    );
+    expect(generated).toMatchObject({
+      access: { state: 'ACTIVE' },
+      deliveryMode: 'SECURE_TEST_LINK',
+    });
+    expect(
+      await orders.generateCustomerAccess(actor, created.order.id, {
+        operationId: generateOperationId,
+      }),
+    ).toEqual(generated);
+    await expect(
+      orders.generateCustomerAccess(actor, created.order.id, {
+        operationId: randomUUID(),
+      }),
+    ).rejects.toThrow('already has active');
+    const beforeResendCount = await prisma.orderCustomerAccess.count({
+      where: { rentalOrderId: created.order.id },
+    });
+    const resent = await orders.resendCustomerAccess(actor, created.order.id, {
+      expectedAccessId: generated.access.accessId!,
+      operationId: randomUUID(),
+    });
+    expect(resent.accessLink).toBe(generated.accessLink);
+    expect(
+      await prisma.orderCustomerAccess.count({
+        where: { rentalOrderId: created.order.id },
+      }),
+    ).toBe(beforeResendCount);
+    const rotated = await orders.rotateCustomerAccess(actor, created.order.id, {
+      expectedAccessId: generated.access.accessId!,
+      operationId: randomUUID(),
+    });
+    expect(rotated.access.accessId).not.toBe(generated.access.accessId);
+    await expect(
+      orders.publicCurrent(rawCapability(generated.accessLink!)),
+    ).rejects.toThrow('Order is unavailable');
+    await expect(
+      orders.publicCurrent(rawCapability(rotated.accessLink!)),
+    ).resolves.toMatchObject({ orderNumber: created.order.orderNumber });
+    await orders.revokeCustomerAccess(actor, created.order.id, {
+      expectedAccessId: rotated.access.accessId!,
+      operationId: randomUUID(),
+    });
+    await expect(
+      orders.publicCurrent(rawCapability(rotated.accessLink!)),
+    ).rejects.toThrow('Order is unavailable');
+    expect((await orders.detail(created.order.id)).customerAccess.state).toBe(
+      'REVOKED',
+    );
+    expect(
+      await prisma.orderCustomerAccess.count({
+        where: { rentalOrderId: created.order.id },
+      }),
+    ).toBe(2);
+  });
+
+  it('copies percentage discount snapshots into the immutable order', async () => {
+    const source = await approvedRequest('percentage-order');
+    const input = await quoteInput(source.id);
+    input.discountType = 'PERCENTAGE';
+    input.discountRateBasisPoints = 1250;
+    input.discountCents = 0;
+    const quote = await quotes.createFirst(actor, source.id, input);
+    const revision = quote.revisions[0]!;
+    const sent = await quotes.send(actor, quote.id, revision.id, {
+      expectedLifecycleVersion: 0,
+      operationId: randomUUID(),
+    });
+    await quotes.respond(rawCapability(sent.accessLink), {
+      operationId: randomUUID(),
+      response: 'ACCEPTED',
+      note: null,
+    });
+    const created = await orders.create(actor, quote.id, revision.id, {
+      operationId: randomUUID(),
+    });
+    expect(
+      await prisma.rentalOrder.findUniqueOrThrow({
+        where: { id: created.order.id },
+      }),
+    ).toMatchObject({
+      discountBaseCents: BigInt(revision.discountBaseCents),
+      discountCents: BigInt(revision.discountCents),
+      discountRateBasisPoints: 1250,
+      discountType: 'PERCENTAGE',
+      taxableDiscountCents: BigInt(revision.taxableDiscountCents),
+    });
+  });
+
+  it('builds customer-safe selectable order PDFs for staff and capability access', async () => {
+    const { quote, revision } = await acceptedQuote('order-pdf');
+    const created = await orders.create(actor, quote.id, revision.id, {
+      operationId: randomUUID(),
+    });
+    const access = await orders.generateCustomerAccess(
+      actor,
+      created.order.id,
+      {
+        operationId: randomUUID(),
+      },
+    );
+    const staffPdf = await orders.staffPdf(created.order.id);
+    const publicPdf = await orders.publicPdf(rawCapability(access.accessLink!));
+    for (const pdf of [staffPdf, publicPdf]) {
+      const text = pdf.buffer.toString('ascii');
+      expect(text).toContain('%PDF-1.4');
+      expect(text).toContain(created.order.orderNumber);
+      expect(text).toContain('Status: CONFIRMED');
+      expect(text).toContain('Rental dates: 2027-02-01 to 2027-02-02');
+      expect(text).toContain('10 each x $125.50 = $1,255.00');
+      expect(text).toContain('Delivery: $50.00');
+      expect(text).toContain('Discount: $25.00');
+      expect(text).toContain('Tax \\(Test tax 5.00%\\): $64.00');
+      expect(text).toContain('Total: $1,344.00 CAD');
+      expect(text).toContain('Order fixture terms');
+      expect(text).toContain('Inventory is not reserved yet');
+      expect(text).not.toContain('PRIVATE ORDER SENTINEL');
+      expect(text).not.toContain('tokenHash');
+      expect(text).not.toContain('capability=');
+      expect(text).not.toContain(actor.id);
+    }
+    await orders.revokeCustomerAccess(actor, created.order.id, {
+      expectedAccessId: access.access.accessId!,
+      operationId: randomUUID(),
+    });
+    await expect(
+      orders.publicPdf(rawCapability(access.accessLink!)),
+    ).rejects.toThrow('Order is unavailable');
   });
 
   it('uses a uniform unavailable response for invalid, expired, and revoked access', async () => {
@@ -483,8 +637,19 @@ describe('confirmed rental orders against PostgreSQL', () => {
         operationId: randomUUID(),
       },
     );
+    const expiredAccess = await expiredOrders.generateCustomerAccess(
+      actor,
+      expiredOrder.order.id,
+      { operationId: randomUUID() },
+    );
+    const expiredRaw = `${expiredAccess.access.accessId}.${createHmac(
+      'sha256',
+      'test-only-order-capability-secret-123456789',
+    )
+      .update(`${expiredAccess.access.accessId}:${expiredOrder.order.id}`)
+      .digest('base64url')}`;
     const expiredMessage = await orders
-      .publicCurrent(rawCapability(expiredOrder.customerAccessLink))
+      .publicCurrent(expiredRaw)
       .catch((error: Error) => error.message);
     const revoked = await acceptedQuote('revoked-access');
     const revokedOrder = await orders.create(
@@ -495,12 +660,17 @@ describe('confirmed rental orders against PostgreSQL', () => {
         operationId: randomUUID(),
       },
     );
-    await prisma.orderCustomerAccess.update({
-      where: { rentalOrderId: revokedOrder.order.id },
-      data: { revokedAt: new Date() },
+    const revokedAccess = await orders.generateCustomerAccess(
+      actor,
+      revokedOrder.order.id,
+      { operationId: randomUUID() },
+    );
+    await orders.revokeCustomerAccess(actor, revokedOrder.order.id, {
+      expectedAccessId: revokedAccess.access.accessId!,
+      operationId: randomUUID(),
     });
     const revokedMessage = await orders
-      .publicCurrent(rawCapability(revokedOrder.customerAccessLink))
+      .publicCurrent(rawCapability(revokedAccess.accessLink!))
       .catch((error: Error) => error.message);
     expect([invalidMessage, expiredMessage, revokedMessage]).toEqual([
       'Order is unavailable',
@@ -544,6 +714,51 @@ describe('confirmed rental orders against PostgreSQL', () => {
     const revoked = await acceptedQuote('revoked-actor');
     await expect(
       orders.create(staleActor, revoked.quote.id, revoked.revision.id, {
+        operationId: randomUUID(),
+      }),
+    ).rejects.toThrow('Insufficient permissions');
+  });
+
+  it('rechecks active status and live view/update permissions for access operations', async () => {
+    const role = await prisma.role.findUniqueOrThrow({
+      where: { name: 'SUPER_ADMIN' },
+    });
+    const user = await prisma.user.create({
+      data: {
+        email: `stale-access-${suffix}@example.test`,
+        firstName: 'Access',
+        lastName: 'Actor',
+        passwordHash: 'unused',
+        status: 'ACTIVE',
+        roles: { create: { roleId: role.id } },
+      },
+    });
+    const staleActor = { ...actor, id: user.id, email: user.email };
+    const accepted = await acceptedQuote('access-permission-recheck');
+    const order = await orders.create(
+      actor,
+      accepted.quote.id,
+      accepted.revision.id,
+      { operationId: randomUUID() },
+    );
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { status: 'DISABLED' },
+    });
+    await expect(
+      orders.generateCustomerAccess(staleActor, order.order.id, {
+        operationId: randomUUID(),
+      }),
+    ).rejects.toThrow('Insufficient permissions');
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { status: 'ACTIVE' },
+    });
+    await prisma.userRole.delete({
+      where: { userId_roleId: { userId: user.id, roleId: role.id } },
+    });
+    await expect(
+      orders.generateCustomerAccess(staleActor, order.order.id, {
         operationId: randomUUID(),
       }),
     ).rejects.toThrow('Insufficient permissions');

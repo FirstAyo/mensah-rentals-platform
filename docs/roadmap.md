@@ -16,13 +16,17 @@ database, API, authorization, UI, documentation, and tests where applicable.
 10. **Approval decisions (complete):** permission-separated approve, partial approval, and rejection; immutable decision records; separate approved quantities; customer-safe explanations; concurrency/idempotency protection; and explicit non-reservation proof.
 11. **Quotes (complete):** decision-derived immutable revisions, exact CAD cents and basis-point tax, secure sending, revision-scoped customer capabilities, accept/reject responses, public confidentiality, and non-reservation proof.
 12. **Confirmed rental orders (complete):** explicit accepted-revision conversion, immutable exact snapshots, dedicated customer access, confirmed/non-reserved status, and non-inventory regression proof.
-13. **Date-based reservations:** half-open UTC ranges, concurrency-safe bulk/serialized allocation, overlap and double-booking tests.
-14. **Operations:** calendar, deliveries, returns, and maintenance in separate slices.
-15. **Content management:** pages, sections, galleries, FAQs, testimonials, SEO, EDITOR permissions.
-16. **Reporting and audit:** permission-aware analytics, audit review, structured operational reporting.
-17. **Hardening:** comprehensive tests, accessibility, responsive verification, security review, performance, backups, observability.
-18. **Deployment:** local full-system verification, staging deployment/testing, then documented VPS production deployment.
-19. **Mobile:** React Native/Expo only after the web platform and API are stable and only when explicitly instructed.
+    12.1. **Cross-phase workflow hardening (complete):** full-width admin shell, permission-aware actionable-work summaries, source-backed dashboard cards, fixed/percentage quote discounts, safe in-place unsent-draft editing, resend and explicit capability rotation, explicit order-link lifecycle, and confidential server-generated PDFs. It adds no reservation or inventory mutation.
+13. **Customer amendments:** authenticated-or-capability-owned amendment requests with explicit staff review, preserved original history, and no automatic change to an accepted quote, confirmed order, or reservation.
+14. **Date-based reservations:** half-open UTC ranges, concurrency-safe bulk/serialized allocation, overlap and double-booking tests.
+15. **Operational dashboard and notifications:** reviewed cross-domain work queues and delivery mechanisms beyond the bounded Phase 12.1 polling foundation.
+16. **Fulfilment:** separate pickup/delivery preparation, handoff, and asset/quantity fulfilment records.
+17. **Returns and reconciliation:** return intake, missing/damaged outcomes, inventory reconciliation, and maintenance handoff with audit history.
+18. **Content management:** pages, sections, galleries, FAQs, testimonials, SEO, EDITOR permissions.
+19. **Reporting and audit:** permission-aware analytics, audit review, structured operational reporting.
+20. **Hardening:** comprehensive tests, accessibility, responsive verification, security review, performance, backups, observability.
+21. **Deployment:** local full-system verification, staging deployment/testing, then documented VPS production deployment.
+22. **Mobile:** React Native/Expo only after the web platform and API are stable and only when explicitly instructed.
 
 Redis remains deferred until a concrete cache, queue, distributed locking, or
 session requirement justifies its operational cost.

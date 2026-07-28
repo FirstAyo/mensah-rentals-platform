@@ -5,6 +5,7 @@ import {
   CalendarDays,
   CheckCircle2,
   ClipboardCheck,
+  FileDown,
   MapPin,
   ShieldCheck,
   Truck,
@@ -202,7 +203,12 @@ export function CustomerOrder() {
               </div>
             ))}
             <div className="flex justify-between gap-4">
-              <dt>Discount</dt>
+              <dt>
+                Discount
+                {order.discountType === 'PERCENTAGE'
+                  ? ` (${(order.discountRateBasisPoints ?? 0) / 100}%)`
+                  : ''}
+              </dt>
               <dd>-{money(order.discountCents)}</dd>
             </div>
             <div className="flex justify-between gap-4">
@@ -231,6 +237,13 @@ export function CustomerOrder() {
           </div>
         </div>
       </section>
+      <a
+        className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-5 py-3 font-semibold"
+        href="/api/order/pdf"
+      >
+        <FileDown className="h-4 w-4" aria-hidden="true" />
+        Download order PDF
+      </a>
     </article>
   );
 }

@@ -48,24 +48,38 @@ activities are append-only.
 
 - `GET /admin/orders` — `order.view`, with server pagination/search/filter/sort.
 - `GET /admin/orders/:id` — `order.view`.
+- `GET /admin/orders/:id/pdf` — `order.view`.
+- `POST /admin/orders/:id/customer-access` — explicit generation;
+  `order.view` and `order.update`.
+- `POST /admin/orders/:id/customer-access/revoke` — `order.view` and
+  `order.update`.
+- `POST /admin/orders/:id/customer-access/rotate` — `order.view` and
+  `order.update`.
+- `POST /admin/orders/:id/customer-access/resend` — `order.view` and
+  `order.update`.
 - `POST /admin/quotes/:quoteId/revisions/:revisionId/order` — `order.create`.
 
 SUPER_ADMIN receives all order permissions. ADMIN receives `order.view`,
 `order.create`, and reserved `order.update`. SALES_PERSON and EDITOR receive no
-order permissions by default. `order.update` has no Phase 12 endpoint.
+order permissions by default. Phase 12.1 uses `order.update` only for explicit
+customer-access lifecycle actions; it still does not authorize order commercial
+or reservation edits.
 
 Admin routes are `/orders` and `/orders/{id}`. The accepted quote detail uses
-an accessible confirmation dialog, shows the private link only after successful
-creation/replay, and links to an existing order after refresh. UI visibility is
-not authorization. Quote detail returns an existing order reference only when
+an accessible confirmation dialog, creates no customer access implicitly, and
+links to the order after success. The order detail owns explicit access
+controls. UI visibility is not authorization. Quote detail returns an existing
+order reference only when
 the current staff user also has live `order.view`; `quote.view` alone never
 exposes the order ID or order number.
 
 ## Dedicated customer access
 
-Order access never reuses a quote capability. Creation atomically generates an
-order-scoped UUID plus HMAC capability and stores only its SHA-256 hash. The raw
-link appears only in the authorized create/replay response:
+Order access never reuses a quote capability. Conversion creates only the
+immutable order. Staff with live `order.view` and `order.update` explicitly
+generate an order-scoped UUID plus HMAC capability; only its SHA-256 hash is
+stored. The raw link appears only in an authorized generate, rotate, or resend
+response:
 
 `WEB_ORIGIN/order/access#capability=...`
 
@@ -77,7 +91,8 @@ revoked access all receive the same unavailable response. An order number never
 authorizes access.
 
 Private routes are `POST /public/orders/access`, `GET /public/orders/current`,
-and idempotent `POST /public/orders/current/view`. First view records one
+`GET /public/orders/current/pdf`, and idempotent
+`POST /public/orders/current/view`. First view records one
 activity. All API/BFF responses are private/no-store/noindex/no-referrer.
 `/order` and `/order/access` stay outside the sitemap and are disallowed by
 robots as indexing guidance; security never depends on robots.txt.
@@ -93,6 +108,22 @@ It never returns staff identities, internal notes, decision internals, RBAC,
 operation or payload IDs, access records, activity, inventory quantities,
 states/assets, availability, reservations, or allocation details.
 
+## Phase 12.1 access lifecycle and PDF
+
+Access history is append-only and at most one unrevoked capability may exist.
+Admin detail returns only safe state (`NONE`, `ACTIVE`, `EXPIRED`, or
+`REVOKED`), expiry, creation, and first-view metadata. Generate creates access;
+revoke invalidates it; rotate atomically revokes and replaces it; resend reuses
+the active link and expiry. Each mutation is locked, permission checked again,
+and idempotent. Resend never silently rotates.
+
+Staff with `order.view`, or the customer holding that exact valid order
+capability, can download a private selectable-text PDF from immutable
+customer-safe order snapshots. It includes document number, dates, project and
+fulfilment, commercial details, `CONFIRMED`, `NOT_RESERVED`, and the scheduling
+notice. It excludes staff/activity, source and operation IDs, capabilities,
+inventory, availability, reservations, allocations, and capability URLs.
+
 ## Environment
 
 - `PUBLIC_ORDER_ACCESS_SECRET`: at least 32 characters, unique from quote
@@ -104,7 +135,8 @@ states/assets, availability, reservations, or allocation details.
 
 ## Future reservation handoff
 
-The next phase may create a separate `InventoryReservation` from an eligible
-confirmed order using half-open UTC ranges and concurrency-safe bulk and
-serialized allocation. It must not expose internal quantities to customers.
+The recommended next phase is customer rental-request amendment handling.
+A later reservation phase may create a separate `InventoryReservation` from an
+eligible confirmed order using half-open UTC ranges and concurrency-safe bulk
+and serialized allocation. It must not expose internal quantities to customers.
 Phase 12 provides no reservation transition or inventory service dependency.

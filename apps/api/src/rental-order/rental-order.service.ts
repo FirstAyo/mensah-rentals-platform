@@ -25,6 +25,7 @@ import type {
   AdminRentalOrderCreateResponse,
   AdminRentalOrderDetailResponse,
   AdminRentalOrderSummaryResponse,
+  AdminCustomerAccessMutationResponse,
   PaginatedResponse,
   PublicRentalOrderResponse,
   StaffUserResponse,
@@ -33,8 +34,14 @@ import {
   calculateQuoteMoney,
   type ApiEnvironment,
   type CreateRentalOrderInput,
+  type OrderAccessOperationInput,
   type RentalOrderListQuery,
 } from '@mensah-rentals/validation';
+
+import {
+  buildSelectableTextPdf,
+  safePdfFilename,
+} from '../common/selectable-text-pdf';
 
 const unavailable = () => new NotFoundException('Order is unavailable');
 const notice =
@@ -53,6 +60,7 @@ const orderInclude = {
   quote: { select: { quoteNumber: true } },
   rentalRequest: { select: { referenceNumber: true } },
   tax: true,
+  customerAccess: { orderBy: { createdAt: 'desc' as const } },
 } satisfies Prisma.RentalOrderInclude;
 
 type OrderRecord = Prisma.RentalOrderGetPayload<{
@@ -186,18 +194,15 @@ export class RentalOrderService {
             await this.lockQuote(tx, quoteId);
             const replay = await tx.rentalOrder.findUnique({
               where: { operationId: input.operationId },
-              include: { customerAccess: true },
             });
             if (replay) {
               if (
                 replay.confirmedByUserId === actor.id &&
                 replay.quoteId === quoteId &&
                 replay.acceptedQuoteRevisionId === revisionId &&
-                replay.payloadHash === payloadHash &&
-                replay.customerAccess
+                replay.payloadHash === payloadHash
               )
                 return {
-                  accessId: replay.customerAccess.id,
                   orderId: replay.id,
                   orderNumber: replay.orderNumber,
                 };
@@ -253,17 +258,8 @@ export class RentalOrderService {
                 'The quote revision is not eligible for order conversion',
               );
             this.verifyMoney(revision);
-            const accessId = randomUUID();
             const orderId = this.cuidLike();
-            const raw = this.rawCapability(accessId, orderId);
             const now = await this.databaseNow(tx);
-            const expiresAt = new Date(
-              now.valueOf() +
-                this.config.get('PUBLIC_ORDER_ACCESS_TTL_DAYS', {
-                  infer: true,
-                }) *
-                  86_400_000,
-            );
             const order = await tx.rentalOrder.create({
               data: {
                 id: orderId,
@@ -280,7 +276,10 @@ export class RentalOrderService {
                 currency: revision.currency,
                 deliveryAddressSnapshot: quote.rentalRequest.deliveryAddress,
                 discountCents: revision.discountCents,
+                discountBaseCents: revision.discountBaseCents,
+                discountRateBasisPoints: revision.discountRateBasisPoints,
                 discountTaxable: revision.discountTaxable,
+                discountType: revision.discountType,
                 fulfillmentMethodSnapshot:
                   quote.rentalRequest.fulfillmentMethod,
                 itemSubtotalCents: revision.itemSubtotalCents,
@@ -301,6 +300,7 @@ export class RentalOrderService {
                   quote.rentalRequest.requestedTimeZone,
                 subtotalCents: revision.subtotalCents,
                 taxCents: revision.taxCents,
+                taxableDiscountCents: revision.taxableDiscountCents,
                 taxableSubtotalCents: revision.taxableSubtotalCents,
                 termsSnapshot: revision.terms,
                 totalCents: revision.totalCents,
@@ -340,39 +340,23 @@ export class RentalOrderService {
                     taxableAmountCents: revision.tax!.taxableAmountCents,
                   },
                 },
-                customerAccess: {
-                  create: {
-                    id: accessId,
-                    expiresAt,
-                    tokenHash: this.hash(raw),
-                  },
-                },
                 activities: {
-                  create: [
-                    {
-                      actorUserId: actor.id,
-                      type: RentalOrderActivityType.ORDER_CREATED,
-                    },
-                    {
-                      actorUserId: actor.id,
-                      type: RentalOrderActivityType.ORDER_CUSTOMER_ACCESS_CREATED,
-                    },
-                  ],
+                  create: {
+                    actorUserId: actor.id,
+                    type: RentalOrderActivityType.ORDER_CREATED,
+                  },
                 },
               },
               select: { id: true, orderNumber: true },
             });
             return {
-              accessId,
               orderId: order.id,
               orderNumber: order.orderNumber,
             };
           },
           { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
         );
-        const capability = this.rawCapability(result.accessId, result.orderId);
         return {
-          customerAccessLink: `${this.config.get('WEB_ORIGIN', { infer: true })}/order/access#capability=${capability}`,
           order: { id: result.orderId, orderNumber: result.orderNumber },
         };
       } catch (error) {
@@ -390,6 +374,246 @@ export class RentalOrderService {
     }
     throw new ConflictException(
       'A unique rental order number could not be generated',
+    );
+  }
+
+  async generateCustomerAccess(
+    actor: StaffUserResponse,
+    orderId: string,
+    input: OrderAccessOperationInput,
+  ): Promise<AdminCustomerAccessMutationResponse> {
+    return prisma.$transaction(
+      async (tx) => {
+        await this.requireActor(tx, actor.id, ['order.view', 'order.update']);
+        await this.lockOrder(tx, orderId);
+        const payloadHash = this.hash({ action: 'generate', orderId });
+        const replay = await tx.orderCustomerAccess.findUnique({
+          where: { operationId: input.operationId },
+        });
+        if (replay)
+          return this.replayAccessMutation(
+            replay,
+            actor.id,
+            orderId,
+            payloadHash,
+            true,
+          );
+        await this.rejectActivityOperationReuse(tx, input.operationId);
+        const now = await this.databaseNow(tx);
+        const active = await this.activeAccess(tx, orderId, now);
+        if (active)
+          throw new ConflictException(
+            'This order already has active customer access',
+          );
+        if (input.expectedAccessId)
+          throw new ConflictException('Customer access state has changed');
+        const expired = await tx.orderCustomerAccess.findFirst({
+          where: {
+            expiresAt: { lte: now },
+            rentalOrderId: orderId,
+            revokedAt: null,
+          },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (expired) {
+          await tx.orderCustomerAccess.update({
+            where: { id: expired.id },
+            data: { revokedAt: now },
+          });
+          await tx.rentalOrderActivity.create({
+            data: {
+              actorUserId: actor.id,
+              rentalOrderId: orderId,
+              type: RentalOrderActivityType.ORDER_CUSTOMER_ACCESS_REVOKED,
+            },
+          });
+        }
+        const access = await this.createAccess(
+          tx,
+          actor.id,
+          orderId,
+          input.operationId,
+          payloadHash,
+          now,
+        );
+        await tx.rentalOrderActivity.create({
+          data: {
+            actorUserId: actor.id,
+            rentalOrderId: orderId,
+            type: RentalOrderActivityType.ORDER_CUSTOMER_ACCESS_CREATED,
+          },
+        });
+        return this.accessMutationResponse(access, true);
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
+  async revokeCustomerAccess(
+    actor: StaffUserResponse,
+    orderId: string,
+    input: OrderAccessOperationInput,
+  ): Promise<AdminCustomerAccessMutationResponse> {
+    return prisma.$transaction(
+      async (tx) => {
+        await this.requireActor(tx, actor.id, ['order.view', 'order.update']);
+        await this.lockOrder(tx, orderId);
+        const payloadHash = this.hash({
+          action: 'revoke',
+          expectedAccessId: input.expectedAccessId ?? null,
+          orderId,
+        });
+        const replay = await tx.rentalOrderActivity.findUnique({
+          where: { operationId: input.operationId },
+        });
+        if (replay) {
+          this.assertActivityReplay(replay, actor.id, orderId, payloadHash);
+          const revokedAccess = input.expectedAccessId
+            ? await tx.orderCustomerAccess.findUnique({
+                where: { id: input.expectedAccessId },
+              })
+            : null;
+          if (!revokedAccess || revokedAccess.rentalOrderId !== orderId)
+            throw new ConflictException('Customer access state has changed');
+          return this.accessMutationResponse(revokedAccess, false);
+        }
+        await this.rejectAccessOperationReuse(tx, input.operationId);
+        const now = await this.databaseNow(tx);
+        const active = await this.requireExpectedActiveAccess(
+          tx,
+          orderId,
+          input.expectedAccessId,
+          now,
+        );
+        await tx.orderCustomerAccess.update({
+          where: { id: active.id },
+          data: { revokedAt: now },
+        });
+        await tx.rentalOrderActivity.create({
+          data: {
+            actorUserId: actor.id,
+            operationId: input.operationId,
+            payloadHash,
+            rentalOrderId: orderId,
+            type: RentalOrderActivityType.ORDER_CUSTOMER_ACCESS_REVOKED,
+          },
+        });
+        return {
+          access: this.mapAccessStatus({ ...active, revokedAt: now }, now),
+          accessLink: null,
+          deliveryMode: null,
+        };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
+  async rotateCustomerAccess(
+    actor: StaffUserResponse,
+    orderId: string,
+    input: OrderAccessOperationInput,
+  ): Promise<AdminCustomerAccessMutationResponse> {
+    return prisma.$transaction(
+      async (tx) => {
+        await this.requireActor(tx, actor.id, ['order.view', 'order.update']);
+        await this.lockOrder(tx, orderId);
+        const payloadHash = this.hash({
+          action: 'rotate',
+          expectedAccessId: input.expectedAccessId ?? null,
+          orderId,
+        });
+        const replay = await tx.orderCustomerAccess.findUnique({
+          where: { operationId: input.operationId },
+        });
+        if (replay)
+          return this.replayAccessMutation(
+            replay,
+            actor.id,
+            orderId,
+            payloadHash,
+            true,
+          );
+        await this.rejectActivityOperationReuse(tx, input.operationId);
+        const now = await this.databaseNow(tx);
+        const active = await this.requireExpectedActiveAccess(
+          tx,
+          orderId,
+          input.expectedAccessId,
+          now,
+        );
+        await tx.orderCustomerAccess.update({
+          where: { id: active.id },
+          data: { revokedAt: now },
+        });
+        const replacement = await this.createAccess(
+          tx,
+          actor.id,
+          orderId,
+          input.operationId,
+          payloadHash,
+          now,
+        );
+        await tx.rentalOrderActivity.create({
+          data: {
+            actorUserId: actor.id,
+            rentalOrderId: orderId,
+            type: RentalOrderActivityType.ORDER_CUSTOMER_ACCESS_ROTATED,
+          },
+        });
+        return this.accessMutationResponse(replacement, true);
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
+  async resendCustomerAccess(
+    actor: StaffUserResponse,
+    orderId: string,
+    input: OrderAccessOperationInput,
+  ): Promise<AdminCustomerAccessMutationResponse> {
+    return prisma.$transaction(
+      async (tx) => {
+        await this.requireActor(tx, actor.id, ['order.view', 'order.update']);
+        await this.lockOrder(tx, orderId);
+        const payloadHash = this.hash({
+          action: 'resend',
+          expectedAccessId: input.expectedAccessId ?? null,
+          orderId,
+        });
+        const replay = await tx.rentalOrderActivity.findUnique({
+          where: { operationId: input.operationId },
+        });
+        if (replay) {
+          this.assertActivityReplay(replay, actor.id, orderId, payloadHash);
+          const now = await this.databaseNow(tx);
+          const active = await this.requireExpectedActiveAccess(
+            tx,
+            orderId,
+            input.expectedAccessId,
+            now,
+          );
+          return this.accessMutationResponse(active, true);
+        }
+        await this.rejectAccessOperationReuse(tx, input.operationId);
+        const now = await this.databaseNow(tx);
+        const active = await this.requireExpectedActiveAccess(
+          tx,
+          orderId,
+          input.expectedAccessId,
+          now,
+        );
+        await tx.rentalOrderActivity.create({
+          data: {
+            actorUserId: actor.id,
+            operationId: input.operationId,
+            payloadHash,
+            rentalOrderId: orderId,
+            type: RentalOrderActivityType.ORDER_CUSTOMER_ACCESS_RESENT,
+          },
+        });
+        return this.accessMutationResponse(active, true);
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
   }
 
@@ -433,6 +657,20 @@ export class RentalOrderService {
     return this.publicCurrent(raw);
   }
 
+  async staffPdf(id: string) {
+    const order = await prisma.rentalOrder.findUnique({
+      where: { id },
+      include: orderInclude,
+    });
+    if (!order) throw new NotFoundException('Rental order not found');
+    return this.buildPdf(order);
+  }
+
+  async publicPdf(raw: string) {
+    const access = await this.access(raw);
+    return this.buildPdf(access.rentalOrder);
+  }
+
   private async access(raw: string) {
     const access = await prisma.orderCustomerAccess.findUnique({
       where: { tokenHash: this.hash(raw) },
@@ -453,7 +691,10 @@ export class RentalOrderService {
     confirmedAt: Date;
     contactFirstNameSnapshot: string;
     contactLastNameSnapshot: string;
+    discountBaseCents: bigint;
     discountCents: bigint;
+    discountRateBasisPoints: number | null;
+    discountType: 'FIXED_AMOUNT' | 'PERCENTAGE';
     fulfillmentMethodSnapshot: AdminRentalOrderSummaryResponse['fulfillmentMethod'];
     id: string;
     itemSubtotalCents: bigint;
@@ -475,7 +716,10 @@ export class RentalOrderService {
       chargeTotalCents: this.safeNumber(order.chargeTotalCents),
       confirmedAt: order.confirmedAt.toISOString(),
       customerName: `${order.contactFirstNameSnapshot} ${order.contactLastNameSnapshot}`,
+      discountBaseCents: this.safeNumber(order.discountBaseCents),
       discountCents: this.safeNumber(order.discountCents),
+      discountRateBasisPoints: order.discountRateBasisPoints,
+      discountType: order.discountType,
       fulfillmentMethod: order.fulfillmentMethodSnapshot,
       id: order.id,
       itemSubtotalCents: this.safeNumber(order.itemSubtotalCents),
@@ -525,6 +769,11 @@ export class RentalOrderService {
       },
       deliveryAddress: order.deliveryAddressSnapshot,
       discountTaxable: order.discountTaxable,
+      taxableDiscountCents: this.safeNumber(order.taxableDiscountCents),
+      customerAccess: this.mapAccessStatus(
+        order.customerAccess[0] ?? null,
+        new Date(),
+      ),
       items: order.items.map((item) => ({
         approvedQuantity: item.approvedQuantitySnapshot,
         categoryName: item.categoryNameSnapshot,
@@ -577,6 +826,9 @@ export class RentalOrderService {
       customerNotes: detail.quoteCustomerNotes,
       deliveryAddress: detail.deliveryAddress,
       discountCents: detail.discountCents,
+      discountBaseCents: detail.discountBaseCents,
+      discountRateBasisPoints: detail.discountRateBasisPoints,
+      discountType: detail.discountType,
       fulfillmentMethod: detail.fulfillmentMethod,
       itemSubtotalCents: detail.itemSubtotalCents,
       items: detail.items.map(
@@ -619,11 +871,72 @@ export class RentalOrderService {
     };
   }
 
+  private buildPdf(order: OrderRecord) {
+    const detail = this.mapPublic(order);
+    const money = (value: number) =>
+      new Intl.NumberFormat('en-CA', {
+        currency: detail.currency,
+        style: 'currency',
+      }).format(value / 100);
+    const discount =
+      detail.discountType === 'PERCENTAGE'
+        ? `${((detail.discountRateBasisPoints ?? 0) / 100).toFixed(2)}% (${money(detail.discountCents)})`
+        : money(detail.discountCents);
+    const lines = [
+      `Order number: ${detail.orderNumber}`,
+      `Status: ${detail.status}`,
+      `Confirmed: ${detail.confirmedAt}`,
+      `Customer: ${detail.customerName}${detail.companyName ? ` (${detail.companyName})` : ''}`,
+      `Project: ${detail.projectName}`,
+      `Project type: ${detail.projectType}`,
+      `Project location: ${detail.projectLocation}`,
+      `Rental dates: ${detail.rentalStartDate} to ${detail.rentalEndDate}`,
+      `Fulfillment: ${detail.fulfillmentMethod}`,
+      ...(detail.deliveryAddress
+        ? [`Delivery address: ${detail.deliveryAddress}`]
+        : []),
+      '',
+      'Items',
+      ...detail.items.map(
+        (item) =>
+          `${item.productName} | ${item.quotedQuantity} ${item.rentalUnit} x ${money(item.unitPriceCents)} = ${money(item.lineSubtotalCents)}`,
+      ),
+      ...(detail.charges.length
+        ? [
+            '',
+            'Charges',
+            ...detail.charges.map(
+              (charge) => `${charge.label}: ${money(charge.amountCents)}`,
+            ),
+          ]
+        : []),
+      '',
+      `Items subtotal: ${money(detail.itemSubtotalCents)}`,
+      `Charges total: ${money(detail.chargeTotalCents)}`,
+      `Discount: ${discount}`,
+      `Tax (${detail.tax.name} ${(detail.tax.rateBasisPoints / 100).toFixed(2)}%): ${money(detail.taxCents)}`,
+      `Total: ${money(detail.totalCents)} ${detail.currency}`,
+      ...(detail.terms ? ['', 'Terms', detail.terms] : []),
+      '',
+      detail.notice,
+    ];
+    return {
+      buffer: buildSelectableTextPdf({
+        lines,
+        title: 'Mensah Rentals - Confirmed Rental Order',
+      }),
+      filename: safePdfFilename('mensah-rentals-order', detail.orderNumber),
+    };
+  }
+
   private verifyMoney(revision: {
     chargeTotalCents: bigint;
     charges: Array<{ amountCents: bigint; taxable: boolean }>;
     discountCents: bigint;
+    discountBaseCents: bigint;
+    discountRateBasisPoints: number | null;
     discountTaxable: boolean;
+    discountType: 'FIXED_AMOUNT' | 'PERCENTAGE';
     itemSubtotalCents: bigint;
     items: Array<{
       lineSubtotalCents: bigint;
@@ -638,6 +951,7 @@ export class RentalOrderService {
       taxableAmountCents: bigint;
     } | null;
     taxableSubtotalCents: bigint;
+    taxableDiscountCents: bigint;
     taxCents: bigint;
     totalCents: bigint;
   }) {
@@ -663,12 +977,17 @@ export class RentalOrderService {
       })),
       discountCents: this.safeNumber(revision.discountCents),
       discountTaxable: revision.discountTaxable,
+      discountType: revision.discountType,
+      discountRateBasisPoints: revision.discountRateBasisPoints,
       taxRateBasisPoints: revision.tax.rateBasisPoints,
     });
     if (
       totals.itemSubtotalCents !== revision.itemSubtotalCents ||
       totals.chargeTotalCents !== revision.chargeTotalCents ||
       totals.subtotalCents !== revision.subtotalCents ||
+      totals.discountBaseCents !== revision.discountBaseCents ||
+      totals.discountCents !== revision.discountCents ||
+      totals.taxableDiscountCents !== revision.taxableDiscountCents ||
       totals.taxableSubtotalCents !== revision.taxableSubtotalCents ||
       totals.taxCents !== revision.taxCents ||
       totals.taxCents !== revision.tax.taxAmountCents ||
@@ -678,6 +997,174 @@ export class RentalOrderService {
       throw new ConflictException(
         'Accepted quote money snapshot is inconsistent',
       );
+  }
+
+  private async createAccess(
+    tx: Prisma.TransactionClient,
+    actorId: string,
+    orderId: string,
+    operationId: string,
+    payloadHash: string,
+    now: Date,
+  ) {
+    const id = randomUUID();
+    const raw = this.rawCapability(id, orderId);
+    return tx.orderCustomerAccess.create({
+      data: {
+        createdByUserId: actorId,
+        expiresAt: new Date(
+          now.valueOf() +
+            this.config.get('PUBLIC_ORDER_ACCESS_TTL_DAYS', { infer: true }) *
+              86_400_000,
+        ),
+        id,
+        operationId,
+        payloadHash,
+        rentalOrderId: orderId,
+        tokenHash: this.hash(raw),
+      },
+    });
+  }
+
+  private async activeAccess(
+    tx: Prisma.TransactionClient,
+    orderId: string,
+    now: Date,
+  ) {
+    return tx.orderCustomerAccess.findFirst({
+      where: {
+        expiresAt: { gt: now },
+        rentalOrderId: orderId,
+        revokedAt: null,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  private async requireExpectedActiveAccess(
+    tx: Prisma.TransactionClient,
+    orderId: string,
+    expectedAccessId: string | undefined,
+    now: Date,
+  ) {
+    const active = await this.activeAccess(tx, orderId, now);
+    if (!active || !expectedAccessId || active.id !== expectedAccessId)
+      throw new ConflictException('Customer access state has changed');
+    return active;
+  }
+
+  private accessMutationResponse(
+    access: Prisma.OrderCustomerAccessGetPayload<Record<string, never>>,
+    revealLink: boolean,
+  ): AdminCustomerAccessMutationResponse {
+    const status = this.mapAccessStatus(access, new Date());
+    const mayReveal = revealLink && status.state === 'ACTIVE';
+    return {
+      access: status,
+      accessLink: mayReveal
+        ? `${this.config.get('WEB_ORIGIN', { infer: true })}/order/access#capability=${this.rawCapability(access.id, access.rentalOrderId)}`
+        : null,
+      deliveryMode: mayReveal ? 'SECURE_TEST_LINK' : null,
+    };
+  }
+
+  private async replayAccessMutation(
+    access: Prisma.OrderCustomerAccessGetPayload<Record<string, never>>,
+    actorId: string,
+    orderId: string,
+    payloadHash: string,
+    revealLink: boolean,
+  ) {
+    if (
+      access.createdByUserId !== actorId ||
+      access.rentalOrderId !== orderId ||
+      access.payloadHash !== payloadHash
+    )
+      throw new ConflictException(
+        'Operation identifier was reused differently',
+      );
+    return this.accessMutationResponse(access, revealLink);
+  }
+
+  private assertActivityReplay(
+    activity: {
+      actorUserId: string | null;
+      payloadHash: string | null;
+      rentalOrderId: string;
+    },
+    actorId: string,
+    orderId: string,
+    payloadHash: string,
+  ) {
+    if (
+      activity.actorUserId !== actorId ||
+      activity.rentalOrderId !== orderId ||
+      activity.payloadHash !== payloadHash
+    )
+      throw new ConflictException(
+        'Operation identifier was reused differently',
+      );
+  }
+
+  private async rejectActivityOperationReuse(
+    tx: Prisma.TransactionClient,
+    operationId: string,
+  ) {
+    if (
+      await tx.rentalOrderActivity.findUnique({
+        where: { operationId },
+        select: { id: true },
+      })
+    )
+      throw new ConflictException(
+        'Operation identifier was reused differently',
+      );
+  }
+
+  private async rejectAccessOperationReuse(
+    tx: Prisma.TransactionClient,
+    operationId: string,
+  ) {
+    if (
+      await tx.orderCustomerAccess.findUnique({
+        where: { operationId },
+        select: { id: true },
+      })
+    )
+      throw new ConflictException(
+        'Operation identifier was reused differently',
+      );
+  }
+
+  private mapAccessStatus(
+    access: {
+      createdAt: Date;
+      expiresAt: Date;
+      firstViewedAt: Date | null;
+      id: string;
+      revokedAt: Date | null;
+    } | null,
+    now: Date,
+  ) {
+    return access
+      ? {
+          accessId: access.id,
+          createdAt: access.createdAt.toISOString(),
+          expiresAt: access.expiresAt.toISOString(),
+          firstViewedAt: access.firstViewedAt?.toISOString() ?? null,
+          state: access.revokedAt
+            ? ('REVOKED' as const)
+            : access.expiresAt <= now
+              ? ('EXPIRED' as const)
+              : ('ACTIVE' as const),
+        }
+      : {
+          accessId: null,
+          createdAt: null,
+          expiresAt: null,
+          firstViewedAt: null,
+          state: 'NONE' as const,
+        };
   }
 
   private rawCapability(accessId: string, orderId: string) {
@@ -732,6 +1219,12 @@ export class RentalOrderService {
       SELECT "id" FROM "Quote" WHERE "id"=${id} FOR UPDATE
     `;
     if (!rows.length) throw new NotFoundException('Quote not found');
+  }
+  private async lockOrder(tx: Prisma.TransactionClient, id: string) {
+    const rows = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT "id" FROM "RentalOrder" WHERE "id"=${id} FOR UPDATE
+    `;
+    if (!rows.length) throw new NotFoundException('Rental order not found');
   }
   private async databaseNow(tx: Prisma.TransactionClient) {
     const [row] = await tx.$queryRaw<Array<{ now: Date }>>`

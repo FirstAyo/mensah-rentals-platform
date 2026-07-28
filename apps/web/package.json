@@ -24,6 +24,7 @@
     "test:e2e:admin-orders": "node ../../scripts/run-admin-decisions-e2e.mjs orders-admin",
     "test:e2e:customer-orders": "node ../../scripts/run-admin-decisions-e2e.mjs orders-customer",
     "test:e2e:orders": "node ../../scripts/run-admin-decisions-e2e.mjs orders-all",
+    "test:e2e:phase12-1": "node ../../scripts/run-admin-decisions-e2e.mjs phase12-1-layout && node ../../scripts/run-admin-decisions-e2e.mjs phase12-1-quote && node ../../scripts/run-admin-decisions-e2e.mjs phase12-1-order",
     "test:e2e:smoke": "playwright test --grep @smoke"
   },
   "dependencies": {

@@ -1,7 +1,7 @@
 'use client';
 
 import type { PublicQuoteResponse } from '@mensah-rentals/types';
-import { Quote, ShieldCheck } from 'lucide-react';
+import { FileDown, Quote, ShieldCheck } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
 const cad = new Intl.NumberFormat('en-CA', {
@@ -157,7 +157,12 @@ export function CustomerQuote() {
             <dd>{money(quote.subtotalCents)}</dd>
           </div>
           <div className="flex justify-between">
-            <dt>Discount</dt>
+            <dt>
+              Discount
+              {quote.discountType === 'PERCENTAGE'
+                ? ` (${(quote.discountRateBasisPoints ?? 0) / 100}%)`
+                : ''}
+            </dt>
             <dd>-{money(quote.discountCents)}</dd>
           </div>
           <div className="flex justify-between">
@@ -195,6 +200,13 @@ export function CustomerQuote() {
           {error}
         </p>
       ) : null}
+      <a
+        className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-5 py-3 font-semibold"
+        href="/api/quote/pdf"
+      >
+        <FileDown className="h-4 w-4" aria-hidden="true" />
+        Download quote PDF
+      </a>
       {actionable ? (
         <div className="flex flex-col gap-3 sm:flex-row">
           <button

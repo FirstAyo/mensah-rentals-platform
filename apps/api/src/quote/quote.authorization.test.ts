@@ -1,4 +1,4 @@
-import type { INestApplication } from '@nestjs/common';
+import { NotFoundException, type INestApplication } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import type { StaffUserResponse } from '@mensah-rentals/types';
@@ -52,12 +52,30 @@ describe('quote HTTP authorization', () => {
     })),
     createFirst: vi.fn(async () => ({ id })),
     createRevision: vi.fn(async () => ({ id: revisionId })),
+    updateDraft: vi.fn(async () => ({ id: revisionId, draftVersion: 1 })),
     detail: vi.fn(async (_id: string, includeOrder: boolean) => ({
       id,
       order: includeOrder ? { id: 'order-id', orderNumber: 'RO-TEST' } : null,
       revisions: [],
     })),
     send: vi.fn(async () => ({ status: 'SENT' })),
+    resend: vi.fn(async () => ({ status: 'SENT' })),
+    rotateAccess: vi.fn(async () => ({ status: 'SENT' })),
+    staffPdf: vi.fn(async () => ({
+      buffer: Buffer.from('%PDF-1.4\n'),
+      filename: 'quote.pdf',
+    })),
+    publicPdf: vi.fn(async (capability: string) => {
+      if (!capability) throw new NotFoundException('Quote is unavailable');
+      return {
+        buffer: Buffer.from('%PDF-1.4\n'),
+        filename: 'quote.pdf',
+      };
+    }),
+    validateCapability: vi.fn(async (capability: string) => {
+      if (!capability) throw new NotFoundException('Quote is unavailable');
+      return { expiresAt: new Date(0).toISOString() };
+    }),
   };
   beforeAll(async () => {
     const module = await Test.createTestingModule({
@@ -68,6 +86,7 @@ describe('quote HTTP authorization', () => {
             () => ({
               ADMIN_ORIGIN: 'http://localhost:3001',
               STAFF_SESSION_COOKIE_NAME: 'mensah_staff_session',
+              WEB_ORIGIN: 'http://localhost:3000',
             }),
           ],
         }),
@@ -178,5 +197,86 @@ describe('quote HTTP authorization', () => {
     await send().expect(403);
     current = { ...base, permissionKeys: ['quote.view', 'quote.send'] };
     await send().expect(201);
+  });
+  it('protects draft editing, delivery actions, access rotation, and PDFs', async () => {
+    const edit = () =>
+      request(app.getHttpServer())
+        .put(`/admin/quotes/${id}/revisions/${revisionId}`)
+        .set('Cookie', cookie)
+        .set('Origin', 'http://localhost:3001')
+        .send({
+          ...revisionBody,
+          expectedDraftVersion: 0,
+          expectedLatestRevisionNumber: 1,
+        });
+    current = { ...base, permissionKeys: ['quote.view'] };
+    await edit().expect(403);
+    current = { ...base, permissionKeys: ['quote.view', 'quote.update'] };
+    await edit().expect(200);
+
+    const deliveryBody = {
+      expectedAccessId: '00000000-0000-4000-8000-000000000010',
+      expectedLifecycleVersion: 1,
+      operationId: '00000000-0000-4000-8000-000000000011',
+    };
+    current = { ...base, permissionKeys: ['quote.view'] };
+    await request(app.getHttpServer())
+      .post(`/admin/quotes/${id}/revisions/${revisionId}/resend`)
+      .set('Cookie', cookie)
+      .set('Origin', 'http://localhost:3001')
+      .send(deliveryBody)
+      .expect(403);
+    current = { ...base, permissionKeys: ['quote.view', 'quote.send'] };
+    await request(app.getHttpServer())
+      .post(`/admin/quotes/${id}/revisions/${revisionId}/resend`)
+      .set('Cookie', cookie)
+      .set('Origin', 'http://localhost:3001')
+      .send(deliveryBody)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/admin/quotes/${id}/revisions/${revisionId}/access/rotate`)
+      .set('Cookie', cookie)
+      .set('Origin', 'http://localhost:3001')
+      .send({
+        ...deliveryBody,
+        operationId: '00000000-0000-4000-8000-000000000012',
+      })
+      .expect(201);
+
+    current = { ...base, permissionKeys: [] };
+    await request(app.getHttpServer())
+      .get(`/admin/quotes/${id}/revisions/${revisionId}/pdf`)
+      .set('Cookie', cookie)
+      .expect(403);
+    current = { ...base, permissionKeys: ['quote.view'] };
+    await request(app.getHttpServer())
+      .get(`/admin/quotes/${id}/revisions/${revisionId}/pdf`)
+      .set('Cookie', cookie)
+      .expect(200)
+      .expect('Content-Type', /application\/pdf/)
+      .expect('Cache-Control', 'private, no-store');
+  });
+  it('uses the uniform unavailable response for malformed public exchange and protects public PDFs', async () => {
+    const absent = await request(app.getHttpServer())
+      .post('/public/quotes/access')
+      .set('Origin', 'http://localhost:3000')
+      .send({})
+      .expect(404);
+    const malformed = await request(app.getHttpServer())
+      .post('/public/quotes/access')
+      .set('Origin', 'http://localhost:3000')
+      .send({ capability: 'malformed' })
+      .expect(404);
+    if (absent.body.message !== malformed.body.message)
+      throw new Error('Malformed quote access was distinguishable');
+    await request(app.getHttpServer())
+      .get('/public/quotes/current/pdf')
+      .expect(404);
+    await request(app.getHttpServer())
+      .get('/public/quotes/current/pdf')
+      .set('x-quote-capability', 'test-capability')
+      .expect(200)
+      .expect('Content-Type', /application\/pdf/)
+      .expect('Cache-Control', 'private, no-store');
   });
 });

@@ -162,3 +162,25 @@ API maps an explicit DTO and the web BFF recursively rejects unknown fields.
 It never exposes staff/roles/permissions, internal notes or decisions,
 operation/payload identifiers, capabilities/access/activity, inventory
 quantities/states/assets, availability, reservation records, or allocations.
+
+## Phase 12.1 private documents and work summaries
+
+Quote and order PDFs use dedicated customer-document projections, not
+administrative DTOs with fields removed. They may contain the corresponding
+document number, revision/status, snapshotted customer/project/rental details,
+items, charges, discount type/rate/base/calculated cents, tax, total,
+customer-visible notes/terms, and the required non-reservation or scheduling
+notice. They never contain internal notes, staff, decisions, activity,
+source/operation/payload IDs, raw or hashed capability material, capability
+URLs, inventory, availability, reservations, or allocations.
+
+Staff PDF routes require the live domain view permission. Customer PDF routes
+require the same exact valid capability as the matching private HTML/JSON view.
+Readable quote or order numbers never authorize a PDF. Binary BFF responses are
+size bounded, accept only `application/pdf`, forward only allowlisted headers,
+and are `private, no-store`.
+
+The administrative work summary is not public. It conditionally omits request,
+quote, or order groups unless the active staff user has the documented
+permissions. Counts are current workflow facts only; they are not inventory
+availability, reservation, return, missing/damaged, or financial-report data.

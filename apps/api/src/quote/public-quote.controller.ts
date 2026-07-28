@@ -5,12 +5,12 @@ import {
   Headers,
   Inject,
   Post,
+  StreamableFile,
   UseInterceptors,
 } from '@nestjs/common';
 import {
   quoteCustomerAccessSchema,
   quoteCustomerResponseSchema,
-  type QuoteCustomerAccessInput,
   type QuoteCustomerResponseInput,
 } from '@mensah-rentals/validation';
 
@@ -28,16 +28,25 @@ export class PublicQuoteController {
   constructor(@Inject(QuoteService) private readonly quotes: QuoteService) {}
 
   @Post('access')
-  access(
-    @Body(new QuoteZodPipe(quoteCustomerAccessSchema))
-    input: QuoteCustomerAccessInput,
-  ) {
-    return this.quotes.validateCapability(input.capability);
+  access(@Body() input: unknown) {
+    const parsed = quoteCustomerAccessSchema.safeParse(input);
+    return this.quotes.validateCapability(
+      parsed.success ? parsed.data.capability : '',
+    );
   }
 
   @Get('current')
   current(@Headers(capabilityHeader) capability: string | undefined) {
     return this.quotes.publicCurrent(capability ?? '');
+  }
+
+  @Get('current/pdf')
+  async pdf(@Headers(capabilityHeader) capability: string | undefined) {
+    const pdf = await this.quotes.publicPdf(capability ?? '');
+    return new StreamableFile(pdf.buffer, {
+      disposition: `attachment; filename="${pdf.filename}"`,
+      type: 'application/pdf',
+    });
   }
 
   @Post('current/view')

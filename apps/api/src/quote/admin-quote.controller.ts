@@ -6,15 +6,19 @@ import {
   NotFoundException,
   Param,
   Post,
+  Put,
   Query,
+  StreamableFile,
   UseInterceptors,
 } from '@nestjs/common';
 import type { StaffUserResponse } from '@mensah-rentals/types';
 import {
   cuidParamSchema,
+  quoteAccessOperationSchema,
   quoteListQuerySchema,
   quoteRevisionInputSchema,
   sendQuoteRevisionSchema,
+  type QuoteAccessOperationInput,
   type QuoteListQuery,
   type QuoteRevisionInput,
   type SendQuoteRevisionInput,
@@ -76,6 +80,17 @@ export class AdminQuoteController {
     return this.quotes.createRevision(actor, id, input);
   }
 
+  @Put(':id/revisions/:revisionId')
+  @RequirePermissions('quote.view', 'quote.update')
+  updateDraft(
+    @CurrentStaffUser() actor: StaffUserResponse,
+    @Param('id', new QuoteZodPipe(cuidParamSchema)) id: string,
+    @Param('revisionId', new QuoteZodPipe(cuidParamSchema)) revisionId: string,
+    @Body(new QuoteZodPipe(quoteRevisionInputSchema)) input: QuoteRevisionInput,
+  ) {
+    return this.quotes.updateDraft(actor, id, revisionId, input);
+  }
+
   @Post(':id/revisions/:revisionId/send')
   @RequirePermissions('quote.view', 'quote.send')
   send(
@@ -86,6 +101,43 @@ export class AdminQuoteController {
     input: SendQuoteRevisionInput,
   ) {
     return this.quotes.send(actor, id, revisionId, input);
+  }
+
+  @Post(':id/revisions/:revisionId/resend')
+  @RequirePermissions('quote.view', 'quote.send')
+  resend(
+    @CurrentStaffUser() actor: StaffUserResponse,
+    @Param('id', new QuoteZodPipe(cuidParamSchema)) id: string,
+    @Param('revisionId', new QuoteZodPipe(cuidParamSchema)) revisionId: string,
+    @Body(new QuoteZodPipe(quoteAccessOperationSchema))
+    input: QuoteAccessOperationInput,
+  ) {
+    return this.quotes.resend(actor, id, revisionId, input);
+  }
+
+  @Post(':id/revisions/:revisionId/access/rotate')
+  @RequirePermissions('quote.view', 'quote.send')
+  rotateAccess(
+    @CurrentStaffUser() actor: StaffUserResponse,
+    @Param('id', new QuoteZodPipe(cuidParamSchema)) id: string,
+    @Param('revisionId', new QuoteZodPipe(cuidParamSchema)) revisionId: string,
+    @Body(new QuoteZodPipe(quoteAccessOperationSchema))
+    input: QuoteAccessOperationInput,
+  ) {
+    return this.quotes.rotateAccess(actor, id, revisionId, input);
+  }
+
+  @Get(':id/revisions/:revisionId/pdf')
+  @RequirePermissions('quote.view')
+  async pdf(
+    @Param('id', new QuoteZodPipe(cuidParamSchema)) id: string,
+    @Param('revisionId', new QuoteZodPipe(cuidParamSchema)) revisionId: string,
+  ) {
+    const pdf = await this.quotes.staffPdf(id, revisionId);
+    return new StreamableFile(pdf.buffer, {
+      disposition: `attachment; filename="${pdf.filename}"`,
+      type: 'application/pdf',
+    });
   }
 }
 

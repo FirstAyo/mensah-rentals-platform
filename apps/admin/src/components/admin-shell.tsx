@@ -12,6 +12,7 @@ import {
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { LogoutButton } from './logout-button';
+import { ActionableWorkBadge } from './actionable-work-badge';
 
 const links = [
   { href: '/', icon: LayoutDashboard, label: 'Dashboard' },
@@ -72,7 +73,7 @@ export function AdminShell({
       >
         Skip to content
       </a>
-      <div className="mx-auto grid min-h-screen w-full max-w-[1760px] lg:grid-cols-[17rem_minmax(0,1fr)]">
+      <div className="grid min-h-screen w-full min-w-0 lg:grid-cols-[17rem_minmax(0,1fr)]">
         <aside className="hidden border-r border-border bg-card p-5 lg:block">
           <Link className="text-xl font-bold" href="/">
             Mensah Rentals
@@ -83,12 +84,13 @@ export function AdminShell({
           <nav aria-label="Administrative sections" className="mt-8 space-y-1">
             {visible.map(({ href, icon: Icon, label }) => (
               <Link
-                className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
+                className="flex min-w-0 items-center gap-3 rounded-lg px-3 py-2.5 text-sm hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                 href={href}
                 key={href}
               >
                 <Icon className="h-4 w-4" aria-hidden="true" />
-                {label}
+                <span className="min-w-0 flex-1 truncate">{label}</span>
+                {href === '/rental-requests' ? <ActionableWorkBadge /> : null}
               </Link>
             ))}
           </nav>
@@ -106,7 +108,10 @@ export function AdminShell({
                     href={href}
                     key={href}
                   >
-                    {label}
+                    <span>{label}</span>
+                    {href === '/rental-requests' ? (
+                      <ActionableWorkBadge compact />
+                    ) : null}
                   </Link>
                 ))}
               </nav>
@@ -119,7 +124,10 @@ export function AdminShell({
               </div>
             </div>
           </header>
-          <main className="p-4 sm:p-6 lg:p-8" id="main-content">
+          <main
+            className="min-w-0 overflow-x-clip p-4 sm:p-6 lg:p-8"
+            id="main-content"
+          >
             {children}
           </main>
         </div>

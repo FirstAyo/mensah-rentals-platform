@@ -1,4 +1,4 @@
-import { randomBytes } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -16,6 +16,9 @@ const modes = new Set([
   'orders-admin',
   'orders-customer',
   'orders-all',
+  'phase12-1-layout',
+  'phase12-1-quote',
+  'phase12-1-order',
 ]);
 if (!modes.has(mode)) throw new Error(`Unknown decision browser mode: ${mode}`);
 
@@ -144,7 +147,7 @@ const [{ prisma }, { verifyPassword }] = await Promise.all([
 ]);
 const fixture = await prisma.user.findUnique({
   where: { email: browserEnvironment.STAFF_BOOTSTRAP_EMAIL },
-  select: { passwordHash: true, status: true },
+  select: { id: true, passwordHash: true, status: true },
 });
 if (
   !fixture ||
@@ -155,14 +158,158 @@ if (
   ))
 )
   throw new Error('The isolated browser staff fixture failed verification.');
+if (mode === 'phase12-1-layout') {
+  const product = await prisma.product.findFirstOrThrow({
+    where: { isActive: true },
+    include: { category: true },
+    orderBy: { createdAt: 'asc' },
+  });
+  const rentalStartDate = new Date();
+  rentalStartDate.setUTCDate(rentalStartDate.getUTCDate() + 10);
+  await prisma.rentalRequest.create({
+    data: {
+      referenceNumber: 'MR-2026-P121E2ETST',
+      submissionKeyHash: '1'.repeat(64),
+      submissionPayloadHash: '2'.repeat(64),
+      sourceCartTokenHash: '3'.repeat(64),
+      fulfillmentMethod: 'PICKUP',
+      contactFirstName: 'Actionable',
+      contactLastName: 'Work',
+      contactEmail: 'phase12-1-layout@example.test',
+      contactPhone: '+233 20 000 0121',
+      projectName: 'Phase 12.1 layout verification',
+      projectType: 'Automated test',
+      projectLocation: 'Accra',
+      rentalStartDate,
+      rentalEndDate: new Date(
+        rentalStartDate.getTime() + 2 * 24 * 60 * 60 * 1_000,
+      ),
+      requestedTimeZone: 'Africa/Accra',
+      items: {
+        create: {
+          productId: product.id,
+          requestedQuantity: 2,
+          productName: product.name,
+          productSlug: product.slug,
+          categoryName: product.category.name,
+          categorySlug: product.category.slug,
+          rentalUnit: product.rentalUnit,
+        },
+      },
+    },
+  });
+}
+if (mode === 'phase12-1-quote' || mode === 'phase12-1-order') {
+  const product = await prisma.product.findFirstOrThrow({
+    where: { isActive: true },
+    include: { category: true },
+    orderBy: { createdAt: 'asc' },
+  });
+  const isQuote = mode === 'phase12-1-quote';
+  const referenceNumber = isQuote ? 'MR-2026-P121QUOT01' : 'MR-2026-P121ORDR01';
+  const projectName = isQuote
+    ? 'Phase 12.1 quote fixture'
+    : 'Phase 12.1 order fixture';
+  const rentalStartDate = new Date();
+  rentalStartDate.setUTCDate(rentalStartDate.getUTCDate() + 7);
+  const request = await prisma.rentalRequest.create({
+    data: {
+      referenceNumber,
+      submissionKeyHash: (isQuote ? '4' : '7').repeat(64),
+      submissionPayloadHash: (isQuote ? '5' : '8').repeat(64),
+      sourceCartTokenHash: (isQuote ? '6' : '9').repeat(64),
+      fulfillmentMethod: 'PICKUP',
+      contactFirstName: isQuote ? 'Quote' : 'Order',
+      contactLastName: 'Customer',
+      contactEmail: `${mode}@example.test`,
+      contactPhone: '+233 20 000 0121',
+      projectName,
+      projectType: 'Automated test',
+      projectLocation: 'Accra',
+      rentalStartDate,
+      rentalEndDate: new Date(
+        rentalStartDate.getTime() + 2 * 24 * 60 * 60 * 1_000,
+      ),
+      requestedTimeZone: 'Africa/Accra',
+      reviewStartedAt: new Date(),
+      reviewVersion: 1,
+      status: 'UNDER_REVIEW',
+      items: {
+        create: {
+          productId: product.id,
+          requestedQuantity: 3,
+          productName: product.name,
+          productSlug: product.slug,
+          categoryName: product.category.name,
+          categorySlug: product.category.slug,
+          rentalUnit: product.rentalUnit,
+        },
+      },
+    },
+    include: { items: true },
+  });
+  await prisma.$transaction(async (tx) => {
+    const decision = await tx.rentalRequestDecision.create({
+      data: {
+        rentalRequestId: request.id,
+        outcome: 'APPROVED',
+        decidedByUserId: fixture.id,
+        operationId: randomUUID(),
+        payloadHash: 'a'.repeat(64),
+        internalReason: 'Isolated Phase 12.1 browser fixture',
+        reviewVersionBefore: 1,
+        reviewVersionAfter: 2,
+        items: {
+          create: request.items.map((item) => ({
+            rentalRequestItemId: item.id,
+            requestedQuantitySnapshot: item.requestedQuantity,
+            approvedQuantity: item.requestedQuantity,
+          })),
+        },
+      },
+    });
+    await tx.rentalRequestActivity.create({
+      data: {
+        rentalRequestId: request.id,
+        actorUserId: fixture.id,
+        decisionId: decision.id,
+        previousStatus: 'UNDER_REVIEW',
+        newStatus: 'APPROVED',
+        type: 'APPROVED',
+      },
+    });
+    await tx.rentalRequest.update({
+      where: { id: request.id },
+      data: { status: 'APPROVED', reviewVersion: 2 },
+    });
+  });
+  browserEnvironment.PHASE121_APPROVED_REQUEST_ID = request.id;
+  browserEnvironment.PHASE121_REQUEST_REFERENCE = referenceNumber;
+  browserEnvironment.PHASE121_PROJECT_NAME = projectName;
+}
 await prisma.$disconnect();
 
+const phase121Mode = mode.startsWith('phase12-1-');
+if (phase121Mode)
+  run(
+    pnpm,
+    [
+      'exec',
+      'turbo',
+      'run',
+      'build',
+      '--filter=@mensah-rentals/web',
+      '--filter=@mensah-rentals/admin',
+      '--filter=@mensah-rentals/api',
+    ],
+    browserEnvironment,
+  );
 const servers = [
   '@mensah-rentals/web',
   '@mensah-rentals/admin',
   '@mensah-rentals/api',
 ].map((workspace) =>
-  spawn(pnpm, ['--filter', workspace, 'dev'], {
+  spawn(pnpm, ['--filter', workspace, phase121Mode ? 'start' : 'dev'], {
     cwd: repositoryRoot,
     detached: process.platform !== 'win32',
     env: browserEnvironment,
@@ -176,38 +323,30 @@ try {
     waitFor('http://localhost:3001/login', 'Admin application'),
     waitFor('http://localhost:4000/health/database', 'API database health'),
   ]);
-  const loginCheck = await fetch('http://localhost:4000/auth/login', {
-    body: JSON.stringify({
-      email: browserEnvironment.STAFF_BOOTSTRAP_EMAIL,
-      password: browserEnvironment.STAFF_BOOTSTRAP_PASSWORD,
-    }),
-    headers: {
-      'content-type': 'application/json',
-      origin: 'http://localhost:3001',
-    },
-    method: 'POST',
-  });
-  if (!loginCheck.ok)
-    throw new Error(
-      `The isolated API rejected its verified test fixture (HTTP ${loginCheck.status}).`,
-    );
+  const isPhase121 = phase121Mode;
+  const isPhase121Layout = mode === 'phase12-1-layout';
+  const isPhase121Quote = mode === 'phase12-1-quote';
   const isQuoteMode = mode.startsWith('quotes-');
   const isOrderMode = mode.startsWith('orders-');
-  const grep = isOrderMode
-    ? mode === 'orders-all'
-      ? '@orders'
-      : mode === 'orders-admin'
-        ? '@admin-orders'
-        : '@customer-orders'
-    : isQuoteMode
-      ? mode === 'quotes-all'
-        ? '@quotes'
-        : mode === 'quotes-admin'
-          ? '@admin-quotes'
-          : '@customer-quotes'
-      : mode === 'all'
-        ? '@admin-decisions'
-        : `@admin-decisions-${mode}`;
+  const grep = isPhase121
+    ? '@phase12-1'
+    : isOrderMode
+      ? mode === 'orders-all'
+        ? '@orders'
+        : mode === 'orders-admin'
+          ? '@admin-orders'
+          : '@customer-orders'
+      : isQuoteMode
+        ? mode === 'quotes-all'
+          ? '@quotes'
+          : mode === 'quotes-admin'
+            ? '@admin-quotes'
+            : '@customer-quotes'
+        : mode === 'all'
+          ? '@admin-decisions'
+          : `@admin-decisions-${mode}`;
+  const grepArgument =
+    process.platform === 'win32' && grep.includes('|') ? `"${grep}"` : grep;
   run(
     pnpm,
     [
@@ -216,13 +355,23 @@ try {
       'exec',
       'playwright',
       'test',
-      isOrderMode
-        ? 'e2e/orders.spec.ts'
-        : isQuoteMode
-          ? 'e2e/quotes.spec.ts'
-          : 'e2e/admin-decisions.spec.ts',
+      ...(isPhase121
+        ? [
+            isPhase121Layout
+              ? 'e2e/phase12-1.spec.ts'
+              : isPhase121Quote
+                ? 'e2e/quotes.spec.ts'
+                : 'e2e/orders.spec.ts',
+          ]
+        : [
+            isOrderMode
+              ? 'e2e/orders.spec.ts'
+              : isQuoteMode
+                ? 'e2e/quotes.spec.ts'
+                : 'e2e/admin-decisions.spec.ts',
+          ]),
       '--grep',
-      grep,
+      grepArgument,
     ],
     browserEnvironment,
   );

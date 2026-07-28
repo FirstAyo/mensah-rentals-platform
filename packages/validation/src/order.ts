@@ -13,6 +13,13 @@ export const orderCustomerAccessSchema = z
   })
   .strict();
 
+export const orderAccessOperationSchema = z
+  .object({
+    operationId: z.string().uuid(),
+    expectedAccessId: z.string().uuid().optional(),
+  })
+  .strict();
+
 export const rentalOrderListQuerySchema = z
   .object({
     page: z.coerce.number().int().min(1).max(10_000).default(1),
@@ -47,5 +54,8 @@ export const rentalOrderListQuerySchema = z
 export type CreateRentalOrderInput = z.infer<typeof createRentalOrderSchema>;
 export type OrderCustomerAccessInput = z.infer<
   typeof orderCustomerAccessSchema
+>;
+export type OrderAccessOperationInput = z.infer<
+  typeof orderAccessOperationSchema
 >;
 export type RentalOrderListQuery = z.infer<typeof rentalOrderListQuerySchema>;

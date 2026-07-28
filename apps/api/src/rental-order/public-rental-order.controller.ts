@@ -2,10 +2,12 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Headers,
   Inject,
   NotFoundException,
   Post,
+  StreamableFile,
   UseInterceptors,
 } from '@nestjs/common';
 import { orderCustomerAccessSchema } from '@mensah-rentals/validation';
@@ -39,5 +41,21 @@ export class PublicRentalOrderController {
   @Post('current/view')
   view(@Headers(capabilityHeader) capability: string | undefined) {
     return this.orders.markViewed(capability ?? '');
+  }
+
+  @Get('current/pdf')
+  @Header('Cache-Control', 'private, no-store, max-age=0')
+  @Header('Pragma', 'no-cache')
+  @Header('Expires', '0')
+  @Header('X-Content-Type-Options', 'nosniff')
+  @Header('X-Robots-Tag', 'noindex, nofollow, noarchive')
+  @Header('Referrer-Policy', 'no-referrer')
+  @Header('Content-Security-Policy', 'sandbox')
+  async pdf(@Headers(capabilityHeader) capability: string | undefined) {
+    const pdf = await this.orders.publicPdf(capability ?? '');
+    return new StreamableFile(pdf.buffer, {
+      disposition: `attachment; filename="${pdf.filename}"`,
+      type: 'application/pdf',
+    });
   }
 }

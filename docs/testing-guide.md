@@ -867,3 +867,61 @@ Do not call the feature verified if Docker, migration, unit/integration,
 production build, or browser execution was skipped. Common browser failures are
 occupied ports, unsafe `TEST_DATABASE_URL`, Docker Desktop closed, missing
 Chromium, or a stale generated Prisma Client.
+
+## Phase 12.1 workflow-hardening tests
+
+Run the database and non-browser gate from PowerShell:
+
+```powershell
+docker compose up -d postgres postgres-test
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+Every command must exit with code 0. Successful automated coverage includes:
+
+- exact permission-limited work-summary counts and a SUBMITTED-only badge;
+- fixed and percentage discount bases, rounding, taxable allocation, bounds,
+  migration compatibility, and exact order snapshot copying;
+- in-place DRAFT editing, version conflicts, operation replay, atomic children,
+  and immutable sent/terminal revisions;
+- resend without a revision/lifecycle/response/expiry change;
+- explicit capability generation, revoke, rotation, old-link invalidation, and
+  resend for confirmed orders;
+- staff/capability PDF authorization, attachment/no-store headers, exact CAD
+  content, safe filenames, and confidential-sentinel exclusion;
+- malformed/unknown/expired/revoked access uniformity and number-alone denial;
+- unchanged inventory, inventory transactions, decisions, and reservation
+  absence across edit/resend/PDF/access actions.
+
+Stop normal servers, install Chromium once if required, then run:
+
+```powershell
+pnpm --filter @mensah-rentals/web exec playwright install chromium
+pnpm test:e2e:phase12-1
+```
+
+The focused browser suite uses the guarded local `_test` database, one worker,
+no retries, deterministic fixtures, and production-mode builds. Its layout test
+checks 320-pixel theme/accessibility/reflow behavior and 2560-pixel sidebar x=0,
+badge, and dashboard behavior. Desktop 1024-pixel quote/order workflows cover
+percentage discounts (with fixed discounts retained in unit/integration tests),
+DRAFT editing, resend, link rotation/revocation, quote/order PDF downloads,
+number-alone denial, and axe checks. The broader existing browser suites retain
+their documented multi-viewport and customer-flow coverage.
+
+Manual success means the badge follows its actionable definition, dashboard
+values match seeded source records, PDF totals match the HTML snapshots, old
+links fail after revoke/rotation, new links work, and no inventory or
+reservation state changes. A PDF is not verified merely because a file
+downloads: open it and inspect document number, revision where applicable,
+dates, item/charge lines, discount, tax, total, terms, status, and notices.

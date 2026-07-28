@@ -335,3 +335,36 @@ HttpOnly cookie, public mapper, and fail-closed web validator. Private responses
 are no-store/noindex. The order is `CONFIRMED` and `NOT_RESERVED`; this module
 has no inventory, availability, allocation, or reservation dependency. See
 [Confirmed rental orders](rental-orders.md).
+
+## Phase 12.1 workflow-hardening architecture
+
+The admin shell is a true viewport-wide application grid: its desktop sidebar
+starts at the physical left edge, while individual pages may apply their own
+readability constraints. A private `GET /admin/work-summary` boundary calculates
+only counts supported by current request, quote, and order records. Sections are
+omitted unless the active staff principal has their required permissions. The
+Rental Requests badge means `SUBMITTED` requests awaiting review—not unread
+messages—and uses bounded polling plus focus/invalidation refreshes rather than
+WebSockets.
+
+Quote percentage discounts use integer basis points. Each revision snapshots
+the type, pre-tax item-plus-charge base, calculated discount cents, and the
+proportional taxable discount used by the server-owned tax calculation. Only
+the latest `DRAFT` may change in place, under a version check and quote lock.
+Sent and terminal commercial snapshots remain immutable. Resending preserves
+the active revision, lifecycle, response, access identity, and expiry; explicit
+rotation is the only operation that replaces a capability.
+
+Quote and order access records are append-only history with at most one
+unrevoked capability per document. Raw capabilities are reconstructed only for
+an authorized mutation response and are never stored. Order conversion no
+longer implicitly distributes customer access; authorized staff explicitly
+generate, revoke, rotate, or prepare the active link for resend.
+
+PDFs are generated inside the NestJS boundary from dedicated customer-safe
+document projections. Staff downloads require the corresponding live view
+permission; customer downloads reuse the exact existing capability resolver.
+The binary BFF routes forward only the named HttpOnly capability/session,
+accept only PDFs, impose a size ceiling, and return private/no-store attachment
+headers. Documents contain no staff, internal notes, decisions, activities,
+operations, capability material, inventory, availability, or reservations.

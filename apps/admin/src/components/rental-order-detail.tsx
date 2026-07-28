@@ -1,6 +1,10 @@
 'use client';
 
-import type { AdminRentalOrderDetailResponse } from '@mensah-rentals/types';
+import type {
+  AdminCustomerAccessMutationResponse,
+  AdminRentalOrderDetailResponse,
+} from '@mensah-rentals/types';
+import { Copy, FileDown, KeyRound, Link2, Send, Unlink } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -16,13 +20,24 @@ const activityLabels: Record<
   ORDER_CREATED: 'Order confirmed',
   ORDER_CUSTOMER_ACCESS_CREATED: 'Customer access created',
   ORDER_VIEWED: 'Customer viewed order',
+  ORDER_CUSTOMER_ACCESS_REVOKED: 'Customer access revoked',
+  ORDER_CUSTOMER_ACCESS_ROTATED: 'Customer access rotated',
+  ORDER_CUSTOMER_ACCESS_RESENT: 'Customer access resent',
 };
 
-export function RentalOrderDetail({ id }: { id: string }) {
+export function RentalOrderDetail({
+  canManageAccess,
+  id,
+}: {
+  canManageAccess: boolean;
+  id: string;
+}) {
   const [order, setOrder] = useState<AdminRentalOrderDetailResponse | null>(
     null,
   );
   const [error, setError] = useState<string | null>(null);
+  const [pending, setPending] = useState(false);
+  const [accessLink, setAccessLink] = useState<string | null>(null);
   const load = useCallback(async () => {
     const response = await fetch(`/api/orders/${id}`, { cache: 'no-store' });
     if (!response.ok) throw new Error('Rental order could not be loaded.');
@@ -38,6 +53,55 @@ export function RentalOrderDetail({ id }: { id: string }) {
       ),
     );
   }, [load]);
+
+  async function accessAction(
+    action: 'generate' | 'revoke' | 'rotate' | 'resend',
+  ) {
+    if (!order || pending) return;
+    const warning =
+      action === 'revoke'
+        ? 'This immediately makes the current customer link unusable.'
+        : action === 'rotate'
+          ? 'This revokes the current link and issues a new one.'
+          : action === 'resend'
+            ? 'This records a resend without creating a new order.'
+            : 'This creates a new private customer link.';
+    if (!window.confirm(`${warning} Continue?`)) return;
+    setPending(true);
+    setError(null);
+    try {
+      const suffix =
+        action === 'generate' ? 'customer-access' : `customer-access/${action}`;
+      const response = await fetch(`/api/orders/${id}/${suffix}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          operationId: crypto.randomUUID(),
+          ...(order.customerAccess.accessId
+            ? { expectedAccessId: order.customerAccess.accessId }
+            : {}),
+        }),
+      });
+      if (!response.ok)
+        throw new Error(
+          response.status === 409
+            ? 'Customer access changed. Refresh and try again.'
+            : 'Customer access could not be updated.',
+        );
+      const result =
+        (await response.json()) as AdminCustomerAccessMutationResponse;
+      setAccessLink(result.accessLink);
+      await load();
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : 'Customer access could not be updated.',
+      );
+    } finally {
+      setPending(false);
+    }
+  }
 
   if (!order)
     return (
@@ -85,6 +149,98 @@ export function RentalOrderDetail({ id }: { id: string }) {
       <p className="rounded-xl border bg-muted/40 p-4 font-medium">
         {order.notice}
       </p>
+
+      <section className="rounded-xl border border-border bg-card p-5">
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <h2 className="text-xl font-semibold">Private customer access</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              State:{' '}
+              <strong className="text-foreground">
+                {order.customerAccess.state}
+              </strong>
+              {order.customerAccess.expiresAt
+                ? ` · expires ${new Date(order.customerAccess.expiresAt).toLocaleString()}`
+                : ''}
+            </p>
+          </div>
+          <a
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2 font-semibold"
+            href={`/api/orders/${id}/pdf`}
+          >
+            <FileDown className="h-4 w-4" aria-hidden="true" />
+            Download order PDF
+          </a>
+        </div>
+        {canManageAccess ? (
+          <div className="mt-4 flex flex-wrap gap-3">
+            {order.customerAccess.state !== 'ACTIVE' ? (
+              <button
+                className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground disabled:opacity-50"
+                disabled={pending}
+                onClick={() => void accessAction('generate')}
+                type="button"
+              >
+                <Link2 className="h-4 w-4" aria-hidden="true" /> Generate
+                customer link
+              </button>
+            ) : (
+              <>
+                <button
+                  className="inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2 font-semibold disabled:opacity-50"
+                  disabled={pending}
+                  onClick={() => void accessAction('resend')}
+                  type="button"
+                >
+                  <Send className="h-4 w-4" aria-hidden="true" /> Resend current
+                  link
+                </button>
+                <button
+                  className="inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2 font-semibold disabled:opacity-50"
+                  disabled={pending}
+                  onClick={() => void accessAction('rotate')}
+                  type="button"
+                >
+                  <KeyRound className="h-4 w-4" aria-hidden="true" /> Rotate
+                  link
+                </button>
+                <button
+                  className="inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2 font-semibold disabled:opacity-50"
+                  disabled={pending}
+                  onClick={() => void accessAction('revoke')}
+                  type="button"
+                >
+                  <Unlink className="h-4 w-4" aria-hidden="true" /> Revoke link
+                </button>
+              </>
+            )}
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-muted-foreground">
+            You can view access status, but do not have permission to manage
+            links.
+          </p>
+        )}
+        {accessLink ? (
+          <div className="mt-4 rounded-lg border bg-muted/50 p-4">
+            <p className="text-sm font-semibold">
+              Secure link shown for this action only
+            </p>
+            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+              <code className="min-w-0 flex-1 break-all rounded bg-background p-3 text-xs">
+                {accessLink}
+              </code>
+              <button
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border px-4"
+                onClick={() => void navigator.clipboard.writeText(accessLink)}
+                type="button"
+              >
+                <Copy className="h-4 w-4" aria-hidden="true" /> Copy
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </section>
 
       <div className="grid gap-5 xl:grid-cols-3">
         <section className="rounded-xl border border-border bg-card p-5 xl:col-span-2">
@@ -225,7 +381,12 @@ export function RentalOrderDetail({ id }: { id: string }) {
                 </dd>
               </div>
             ))}
-            <dt>Discount</dt>
+            <dt>
+              Discount
+              {order.discountType === 'PERCENTAGE'
+                ? ` (${(order.discountRateBasisPoints ?? 0) / 100}%)`
+                : ''}
+            </dt>
             <dd className="text-right">
               -{cad.format(order.discountCents / 100)}
             </dd>

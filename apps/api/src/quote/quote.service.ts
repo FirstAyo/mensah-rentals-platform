@@ -34,11 +34,17 @@ import type {
 import {
   calculateQuoteMoney,
   type ApiEnvironment,
+  type QuoteAccessOperationInput,
   type QuoteCustomerResponseInput,
   type QuoteListQuery,
   type QuoteRevisionInput,
   type SendQuoteRevisionInput,
 } from '@mensah-rentals/validation';
+
+import {
+  buildSelectableTextPdf,
+  safePdfFilename,
+} from '../common/selectable-text-pdf';
 
 const unavailable = () => new NotFoundException('Quote is unavailable');
 const notice =
@@ -56,6 +62,20 @@ const revisionInclude = {
 type RevisionRecord = Prisma.QuoteRevisionGetPayload<{
   include: typeof revisionInclude;
 }>;
+
+type RevisionSnapshotSource = {
+  companyName: string | null;
+  contactFirstName: string;
+  contactLastName: string;
+  deliveryAddress: string | null;
+  fulfillmentMethod: Prisma.RentalRequestGetPayload<object>['fulfillmentMethod'];
+  projectLocation: string;
+  projectName: string;
+  projectType: string;
+  rentalEndDate: Date;
+  rentalStartDate: Date;
+  requestedTimeZone: string;
+};
 
 @Injectable()
 export class QuoteService {
@@ -165,7 +185,7 @@ export class QuoteService {
     return {
       items: rows.map((row) => ({
         createdAt: row.createdAt.toISOString(),
-        customerName: `${row.rentalRequest.contactFirstName} ${row.rentalRequest.contactLastName}`,
+        customerName: `${row.latestRevision!.contactFirstNameSnapshot} ${row.latestRevision!.contactLastNameSnapshot}`,
         id: row.id,
         quoteNumber: row.quoteNumber,
         rentalRequestId: row.rentalRequestId,
@@ -200,11 +220,15 @@ export class QuoteService {
       },
     });
     if (!quote) throw new NotFoundException('Quote not found');
+    const latest = quote.revisions.find(
+      (revision) => revision.id === quote.latestRevisionId,
+    );
+    if (!latest) throw new NotFoundException('Quote revision not found');
     return {
       createdAt: quote.createdAt.toISOString(),
       customer: {
-        companyName: quote.rentalRequest.companyName,
-        name: `${quote.rentalRequest.contactFirstName} ${quote.rentalRequest.contactLastName}`,
+        companyName: latest.companyNameSnapshot,
+        name: `${latest.contactFirstNameSnapshot} ${latest.contactLastNameSnapshot}`,
       },
       customerRevisionId: quote.customerRevisionId,
       id: quote.id,
@@ -215,8 +239,8 @@ export class QuoteService {
       rentalRequest: {
         id: quote.rentalRequest.id,
         referenceNumber: quote.rentalRequest.referenceNumber,
-        rentalEndDate: this.dateOnly(quote.rentalRequest.rentalEndDate),
-        rentalStartDate: this.dateOnly(quote.rentalRequest.rentalStartDate),
+        rentalEndDate: this.dateOnly(latest.rentalEndDateSnapshot),
+        rentalStartDate: this.dateOnly(latest.rentalStartDateSnapshot),
       },
       revisions: quote.revisions.map((revision) => this.mapRevision(revision)),
     };
@@ -288,6 +312,7 @@ export class QuoteService {
           quote.id,
           1,
           request.decision,
+          request,
           actor.id,
           input,
           payloadHash,
@@ -393,25 +418,17 @@ export class QuoteService {
           throw new ConflictException(
             'An accepted quote cannot be revised in this phase',
           );
-        if (
-          quote.latestRevision.lifecycle?.state === QuoteRevisionState.DRAFT
-        ) {
-          const now = await this.databaseNow(tx);
-          await tx.quoteRevisionLifecycle.update({
-            where: { quoteRevisionId: quote.latestRevision.id },
-            data: {
-              state: QuoteRevisionState.SUPERSEDED,
-              terminalAt: now,
-              lifecycleVersion: { increment: 1 },
-            },
-          });
-        }
+        if (quote.latestRevision.lifecycle?.state === QuoteRevisionState.DRAFT)
+          throw new ConflictException(
+            'Edit the latest unsent draft instead of creating another revision',
+          );
         const revisionNumber = quote.latestRevision.revisionNumber + 1;
         const revisionId = await this.insertRevision(
           tx,
           quote.id,
           revisionNumber,
           quote.rentalRequest.decision,
+          quote.rentalRequest,
           actor.id,
           input,
           payloadHash,
@@ -434,6 +451,151 @@ export class QuoteService {
     } catch (error) {
       if (this.code(error) === 'P2002')
         throw new ConflictException('The revision or operation already exists');
+      throw error;
+    }
+  }
+
+  async updateDraft(
+    actor: StaffUserResponse,
+    quoteId: string,
+    revisionId: string,
+    input: QuoteRevisionInput,
+  ) {
+    if (
+      input.expectedLatestRevisionNumber === undefined ||
+      input.expectedDraftVersion === undefined
+    )
+      throw new UnprocessableEntityException(
+        'Expected revision and draft versions are required',
+      );
+    const normalized = this.normalizedInput(input);
+    const payloadHash = this.hash({
+      action: 'draft-update',
+      quoteId,
+      revisionId,
+      ...normalized,
+    });
+    try {
+      await prisma.$transaction(async (tx) => {
+        await this.requireActor(tx, actor.id, ['quote.view', 'quote.update']);
+        await this.lockQuote(tx, quoteId);
+        const replay = await tx.quoteActivity.findUnique({
+          where: { operationId: input.operationId },
+        });
+        if (replay) {
+          if (
+            replay.actorUserId === actor.id &&
+            replay.quoteId === quoteId &&
+            replay.quoteRevisionId === revisionId &&
+            replay.type === QuoteActivityType.QUOTE_DRAFT_UPDATED &&
+            replay.payloadHash === payloadHash
+          )
+            return;
+          throw new ConflictException(
+            'Operation identifier was reused differently',
+          );
+        }
+        const quote = await tx.quote.findUnique({
+          where: { id: quoteId },
+          include: {
+            latestRevision: { include: { lifecycle: true } },
+            rentalRequest: {
+              include: {
+                decision: {
+                  include: { items: { include: { rentalRequestItem: true } } },
+                },
+              },
+            },
+          },
+        });
+        if (!quote?.latestRevision || !quote.rentalRequest.decision)
+          throw new NotFoundException('Quote not found');
+        if (
+          quote.latestRevision.id !== revisionId ||
+          quote.latestRevision.revisionNumber !==
+            input.expectedLatestRevisionNumber
+        )
+          throw new ConflictException(
+            'The quote changed. Refresh and try again.',
+          );
+        if (
+          quote.latestRevision.lifecycle?.state !== QuoteRevisionState.DRAFT ||
+          quote.latestRevision.draftVersion !== input.expectedDraftVersion
+        )
+          throw new ConflictException(
+            'This draft changed or is no longer editable. Refresh and try again.',
+          );
+        const prepared = await this.prepareCommercial(
+          tx,
+          quote.rentalRequest.decision,
+          input,
+        );
+        await tx.quoteRevisionItem.deleteMany({
+          where: { quoteRevisionId: revisionId },
+        });
+        await tx.quoteRevisionCharge.deleteMany({
+          where: { quoteRevisionId: revisionId },
+        });
+        await tx.quoteRevisionTax.delete({
+          where: { quoteRevisionId: revisionId },
+        });
+        await tx.quoteRevision.update({
+          where: { id: revisionId },
+          data: {
+            chargeTotalCents: prepared.totals.chargeTotalCents,
+            customerNotes: input.customerNotes ?? null,
+            discountBaseCents: prepared.totals.discountBaseCents,
+            discountCents: prepared.totals.discountCents,
+            discountRateBasisPoints:
+              input.discountType === 'PERCENTAGE'
+                ? input.discountRateBasisPoints
+                : null,
+            discountTaxable: input.discountTaxable,
+            discountType: input.discountType,
+            draftVersion: { increment: 1 },
+            internalNotes: input.internalNotes ?? null,
+            itemSubtotalCents: prepared.totals.itemSubtotalCents,
+            subtotalCents: prepared.totals.subtotalCents,
+            taxableDiscountCents: prepared.totals.taxableDiscountCents,
+            taxableSubtotalCents: prepared.totals.taxableSubtotalCents,
+            taxCents: prepared.totals.taxCents,
+            terms: input.terms ?? null,
+            totalCents: prepared.totals.totalCents,
+            validUntil: new Date(input.validUntil),
+            items: { create: prepared.items },
+            charges: {
+              create: input.charges.map((charge, sortOrder) => ({
+                ...charge,
+                sortOrder,
+              })),
+            },
+            tax: {
+              create: {
+                name: input.tax.name,
+                rateBasisPoints: input.tax.rateBasisPoints,
+                taxableAmountCents: prepared.totals.taxableSubtotalCents,
+                taxAmountCents: prepared.totals.taxCents,
+              },
+            },
+          },
+        });
+        await tx.quoteActivity.create({
+          data: {
+            actorUserId: actor.id,
+            operationId: input.operationId,
+            payloadHash,
+            quoteId,
+            quoteRevisionId: revisionId,
+            type: QuoteActivityType.QUOTE_DRAFT_UPDATED,
+          },
+        });
+      });
+      return this.revisionById(revisionId);
+    } catch (error) {
+      if (this.code(error) === 'P2002')
+        throw new ConflictException(
+          'The draft update operation already exists',
+        );
       throw error;
     }
   }
@@ -464,8 +626,8 @@ export class QuoteService {
           replay.type === QuoteActivityType.QUOTE_SENT &&
           replay.payloadHash === payloadHash
         ) {
-          const access = await tx.quoteCustomerAccess.findUniqueOrThrow({
-            where: { quoteRevisionId: revisionId },
+          const access = await tx.quoteCustomerAccess.findFirstOrThrow({
+            where: { quoteRevisionId: revisionId, revokedAt: null },
           });
           return { accessId: access.id, expiresAt: access.expiresAt };
         }
@@ -509,9 +671,12 @@ export class QuoteService {
             lifecycleVersion: { increment: 1 },
           },
         });
-        if (quote.customerRevision.customerAccess)
-          await tx.quoteCustomerAccess.update({
-            where: { quoteRevisionId: quote.customerRevision.id },
+        if (quote.customerRevision.customerAccess.length > 0)
+          await tx.quoteCustomerAccess.updateMany({
+            where: {
+              quoteRevisionId: quote.customerRevision.id,
+              revokedAt: null,
+            },
             data: { revokedAt: now },
           });
         await tx.quoteActivity.create({
@@ -544,6 +709,9 @@ export class QuoteService {
       await tx.quoteCustomerAccess.create({
         data: {
           id: accessId,
+          createdByUserId: actor.id,
+          operationId: input.operationId,
+          payloadHash,
           quoteRevisionId: revisionId,
           tokenHash: this.hash(raw),
           expiresAt,
@@ -568,10 +736,175 @@ export class QuoteService {
     const capability = this.rawCapability(result.accessId, revisionId);
     return {
       accessLink: `${this.config.get('WEB_ORIGIN', { infer: true })}/quote/access#capability=${capability}`,
+      accessId: result.accessId,
+      deliveryMode: 'SECURE_TEST_LINK',
+      expiresAt: result.expiresAt.toISOString(),
       quoteId,
       revisionId,
       status: 'SENT',
     };
+  }
+
+  async resend(
+    actor: StaffUserResponse,
+    quoteId: string,
+    revisionId: string,
+    input: QuoteAccessOperationInput,
+  ): Promise<AdminQuoteSendResponse> {
+    return this.accessOperation(actor, quoteId, revisionId, input, 'resend');
+  }
+
+  async rotateAccess(
+    actor: StaffUserResponse,
+    quoteId: string,
+    revisionId: string,
+    input: QuoteAccessOperationInput,
+  ): Promise<AdminQuoteSendResponse> {
+    return this.accessOperation(actor, quoteId, revisionId, input, 'rotate');
+  }
+
+  private async accessOperation(
+    actor: StaffUserResponse,
+    quoteId: string,
+    revisionId: string,
+    input: QuoteAccessOperationInput,
+    action: 'resend' | 'rotate',
+  ): Promise<AdminQuoteSendResponse> {
+    const activityType =
+      action === 'resend'
+        ? QuoteActivityType.QUOTE_RESENT
+        : QuoteActivityType.QUOTE_ACCESS_ROTATED;
+    const payloadHash = this.hash({ action, quoteId, revisionId, ...input });
+    try {
+      const result = await prisma.$transaction(async (tx) => {
+        await this.requireActor(tx, actor.id, ['quote.view', 'quote.send']);
+        await this.lockQuote(tx, quoteId);
+        const replay = await tx.quoteActivity.findUnique({
+          where: { operationId: input.operationId },
+        });
+        if (replay) {
+          if (
+            replay.actorUserId === actor.id &&
+            replay.quoteId === quoteId &&
+            replay.quoteRevisionId === revisionId &&
+            replay.type === activityType &&
+            replay.payloadHash === payloadHash
+          ) {
+            const access = await tx.quoteCustomerAccess.findFirstOrThrow({
+              where:
+                action === 'rotate'
+                  ? { operationId: input.operationId }
+                  : { quoteRevisionId: revisionId, revokedAt: null },
+            });
+            const lifecycle = await tx.quoteRevisionLifecycle.findUniqueOrThrow(
+              {
+                where: { quoteRevisionId: revisionId },
+              },
+            );
+            return { access, lifecycle };
+          }
+          throw new ConflictException(
+            'Operation identifier was reused differently',
+          );
+        }
+        const quote = await tx.quote.findUnique({
+          where: { id: quoteId },
+          include: {
+            customerRevision: { include: { lifecycle: true } },
+          },
+        });
+        const revision = quote?.customerRevision;
+        if (
+          !revision ||
+          revision.id !== revisionId ||
+          !revision.lifecycle ||
+          !this.isActionable(revision.lifecycle.state)
+        )
+          throw new ConflictException(
+            'Only the active sent or viewed quote revision can be delivered',
+          );
+        if (
+          revision.lifecycle.lifecycleVersion !== input.expectedLifecycleVersion
+        )
+          throw new ConflictException(
+            'The quote changed. Refresh and try again.',
+          );
+        const active = await tx.quoteCustomerAccess.findFirst({
+          where: { quoteRevisionId: revisionId, revokedAt: null },
+          orderBy: { createdAt: 'desc' },
+        });
+        if (
+          !active ||
+          (input.expectedAccessId && input.expectedAccessId !== active.id)
+        )
+          throw new ConflictException(
+            'The customer access link changed. Refresh and try again.',
+          );
+        const now = await this.databaseNow(tx);
+        if (
+          revision.validUntil <= now ||
+          (action === 'resend' && active.expiresAt <= now)
+        )
+          throw new ConflictException('This quote is no longer deliverable');
+        let access = active;
+        if (action === 'rotate') {
+          await tx.quoteCustomerAccess.update({
+            where: { id: active.id },
+            data: { revokedAt: now },
+          });
+          const id = randomUUID();
+          const raw = this.rawCapability(id, revisionId);
+          access = await tx.quoteCustomerAccess.create({
+            data: {
+              id,
+              createdByUserId: actor.id,
+              expiresAt: new Date(
+                Math.min(
+                  revision.validUntil.valueOf(),
+                  now.valueOf() +
+                    this.config.get('PUBLIC_QUOTE_ACCESS_TTL_DAYS', {
+                      infer: true,
+                    }) *
+                      86_400_000,
+                ),
+              ),
+              operationId: input.operationId,
+              payloadHash,
+              quoteRevisionId: revisionId,
+              tokenHash: this.hash(raw),
+            },
+          });
+        }
+        await tx.quoteActivity.create({
+          data: {
+            actorUserId: actor.id,
+            operationId: input.operationId,
+            payloadHash,
+            quoteId,
+            quoteRevisionId: revisionId,
+            type: activityType,
+          },
+        });
+        return { access, lifecycle: revision.lifecycle };
+      });
+      const capability = this.rawCapability(result.access.id, revisionId);
+      return {
+        accessId: result.access.id,
+        accessLink: `${this.config.get('WEB_ORIGIN', { infer: true })}/quote/access#capability=${capability}`,
+        deliveryMode: 'SECURE_TEST_LINK',
+        expiresAt: result.access.expiresAt.toISOString(),
+        quoteId,
+        revisionId,
+        status:
+          result.lifecycle.state === QuoteRevisionState.VIEWED
+            ? 'VIEWED'
+            : 'SENT',
+      };
+    } catch (error) {
+      if (this.code(error) === 'P2002')
+        throw new ConflictException('The access operation already exists');
+      throw error;
+    }
   }
 
   async validateCapability(raw: string) {
@@ -583,6 +916,30 @@ export class QuoteService {
     const access = await this.access(raw);
     const revision = access.quoteRevision;
     return this.mapPublic(revision, revision.quote);
+  }
+
+  async staffPdf(quoteId: string, revisionId: string) {
+    const revision = await prisma.quoteRevision.findFirst({
+      where: { id: revisionId, quoteId },
+      include: { ...revisionInclude, quote: true },
+    });
+    if (!revision) throw new NotFoundException('Quote revision not found');
+    if (
+      !revision.lifecycle ||
+      revision.lifecycle.state === QuoteRevisionState.DRAFT
+    )
+      throw new ConflictException(
+        'Draft quotes must be sent before PDF generation',
+      );
+    return this.quotePdf(revision, revision.quote.quoteNumber);
+  }
+
+  async publicPdf(raw: string) {
+    const access = await this.access(raw);
+    return this.quotePdf(
+      access.quoteRevision,
+      access.quoteRevision.quote.quoteNumber,
+    );
   }
 
   async markViewed(raw: string): Promise<PublicQuoteResponse> {
@@ -609,6 +966,64 @@ export class QuoteService {
       }
     });
     return this.publicCurrent(raw);
+  }
+
+  private quotePdf(revision: RevisionRecord, quoteNumber: string) {
+    const mapped = this.mapRevision(revision);
+    const money = (value: number) =>
+      new Intl.NumberFormat('en-CA', {
+        currency: 'CAD',
+        style: 'currency',
+      }).format(value / 100);
+    const lines = [
+      `Quote number: ${quoteNumber}`,
+      `Revision: ${mapped.revisionNumber}`,
+      `Status: ${mapped.status}`,
+      `Customer: ${revision.contactFirstNameSnapshot} ${revision.contactLastNameSnapshot}`,
+      ...(revision.companyNameSnapshot
+        ? [`Company: ${revision.companyNameSnapshot}`]
+        : []),
+      `Project: ${revision.projectNameSnapshot}`,
+      `Rental dates: ${this.dateOnly(revision.rentalStartDateSnapshot)} to ${this.dateOnly(revision.rentalEndDateSnapshot)}`,
+      `Valid until: ${mapped.validUntil}`,
+      '',
+      'Items',
+      ...mapped.items.map(
+        (item) =>
+          `${item.productName} - ${item.quotedQuantity} ${item.rentalUnit} x ${money(item.unitPriceCents)} = ${money(item.lineSubtotalCents)}`,
+      ),
+      '',
+      'Charges',
+      ...(mapped.charges.length
+        ? mapped.charges.map(
+            (charge) => `${charge.label}: ${money(charge.amountCents)}`,
+          )
+        : ['None']),
+      '',
+      `Subtotal: ${money(mapped.subtotalCents)}`,
+      mapped.discountType === 'PERCENTAGE'
+        ? `Discount (${((mapped.discountRateBasisPoints ?? 0) / 100).toFixed(2)}% of ${money(mapped.discountBaseCents)}): -${money(mapped.discountCents)}`
+        : `Discount: -${money(mapped.discountCents)}`,
+      `${mapped.tax.name} (${(mapped.tax.rateBasisPoints / 100).toFixed(2)}%): ${money(mapped.taxCents)}`,
+      `Total: ${money(mapped.totalCents)} CAD`,
+      '',
+      ...(mapped.customerNotes
+        ? [`Customer notes: ${mapped.customerNotes}`, '']
+        : []),
+      ...(mapped.terms ? [`Terms: ${mapped.terms}`, ''] : []),
+      notice,
+    ];
+    return {
+      buffer: buildSelectableTextPdf({
+        title: `Mensah Rentals Quote ${quoteNumber}`,
+        lines,
+      }),
+      filename: safePdfFilename(
+        'mensah-rentals-quote',
+        quoteNumber,
+        `revision-${mapped.revisionNumber}`,
+      ),
+    };
   }
 
   async respond(
@@ -704,16 +1119,12 @@ export class QuoteService {
     return this.publicCurrent(raw);
   }
 
-  private async insertRevision(
+  private async prepareCommercial(
     tx: Prisma.TransactionClient,
-    quoteId: string,
-    revisionNumber: number,
     decision: Prisma.RentalRequestDecisionGetPayload<{
       include: { items: { include: { rentalRequestItem: true } } };
     }>,
-    actorId: string,
     input: QuoteRevisionInput,
-    payloadHash: string,
   ) {
     const positive = decision.items.filter((item) => item.approvedQuantity > 0);
     const submitted = new Map(
@@ -726,7 +1137,7 @@ export class QuoteService {
       throw new UnprocessableEntityException(
         'Every positive approved item must appear exactly once',
       );
-    const items = positive.map((decisionItem, sortOrder) => {
+    const selected = positive.map((decisionItem, sortOrder) => {
       const entered = submitted.get(decisionItem.id)!;
       if (entered.quotedQuantity > decisionItem.approvedQuantity)
         throw new UnprocessableEntityException(
@@ -734,29 +1145,80 @@ export class QuoteService {
         );
       return { decisionItem, entered, sortOrder };
     });
-    const totals = calculateQuoteMoney({
-      items: items.map(({ entered }) => ({
-        quantity: entered.quotedQuantity,
-        taxable: entered.taxable,
-        unitPriceCents: entered.unitPriceCents,
-      })),
-      charges: input.charges,
-      discountCents: input.discountCents,
-      discountTaxable: input.discountTaxable,
-      taxRateBasisPoints: input.tax.rateBasisPoints,
-    });
+    let totals: ReturnType<typeof calculateQuoteMoney>;
+    try {
+      totals = calculateQuoteMoney({
+        items: selected.map(({ entered }) => ({
+          quantity: entered.quotedQuantity,
+          taxable: entered.taxable,
+          unitPriceCents: entered.unitPriceCents,
+        })),
+        charges: input.charges,
+        discountCents: input.discountCents,
+        discountTaxable: input.discountTaxable,
+        discountType: input.discountType,
+        discountRateBasisPoints: input.discountRateBasisPoints,
+        taxRateBasisPoints: input.tax.rateBasisPoints,
+      });
+    } catch (error) {
+      throw new UnprocessableEntityException(
+        error instanceof Error ? error.message : 'Invalid quote totals',
+      );
+    }
     if (new Date(input.validUntil) <= (await this.databaseNow(tx)))
       throw new UnprocessableEntityException(
         'Quote validity must end in the future',
       );
+    return {
+      totals,
+      items: selected.map(({ decisionItem, entered, sortOrder }) => ({
+        approvedQuantitySnapshot: decisionItem.approvedQuantity,
+        categoryNameSnapshot: decisionItem.rentalRequestItem.categoryName,
+        categorySlugSnapshot: decisionItem.rentalRequestItem.categorySlug,
+        lineSubtotalCents:
+          BigInt(entered.quotedQuantity) * BigInt(entered.unitPriceCents),
+        productIdSnapshot: decisionItem.rentalRequestItem.productId,
+        productNameSnapshot: decisionItem.rentalRequestItem.productName,
+        productSlugSnapshot: decisionItem.rentalRequestItem.productSlug,
+        quotedQuantity: entered.quotedQuantity,
+        rentalRequestDecisionItemId: decisionItem.id,
+        rentalUnitSnapshot: decisionItem.rentalRequestItem.rentalUnit,
+        sortOrder,
+        taxable: entered.taxable,
+        unitPriceCents: entered.unitPriceCents,
+      })),
+    };
+  }
+
+  private async insertRevision(
+    tx: Prisma.TransactionClient,
+    quoteId: string,
+    revisionNumber: number,
+    decision: Prisma.RentalRequestDecisionGetPayload<{
+      include: { items: { include: { rentalRequestItem: true } } };
+    }>,
+    snapshot: RevisionSnapshotSource,
+    actorId: string,
+    input: QuoteRevisionInput,
+    payloadHash: string,
+  ) {
+    const prepared = await this.prepareCommercial(tx, decision, input);
+    const totals = prepared.totals;
     const revision = await tx.quoteRevision.create({
       data: {
         chargeTotalCents: totals.chargeTotalCents,
         createdByUserId: actorId,
         currency: 'CAD',
         customerNotes: input.customerNotes ?? null,
-        discountCents: input.discountCents,
+        discountBaseCents: totals.discountBaseCents,
+        discountCents: totals.discountCents,
+        discountRateBasisPoints:
+          input.discountType === 'PERCENTAGE'
+            ? input.discountRateBasisPoints
+            : null,
         discountTaxable: input.discountTaxable,
+        discountType: input.discountType,
+        taxableDiscountCents: totals.taxableDiscountCents,
         internalNotes: input.internalNotes ?? null,
         itemSubtotalCents: totals.itemSubtotalCents,
         operationId: input.operationId,
@@ -770,23 +1232,19 @@ export class QuoteService {
         terms: input.terms ?? null,
         totalCents: totals.totalCents,
         validUntil: new Date(input.validUntil),
+        companyNameSnapshot: snapshot.companyName,
+        contactFirstNameSnapshot: snapshot.contactFirstName,
+        contactLastNameSnapshot: snapshot.contactLastName,
+        deliveryAddressSnapshot: snapshot.deliveryAddress,
+        fulfillmentMethodSnapshot: snapshot.fulfillmentMethod,
+        projectLocationSnapshot: snapshot.projectLocation,
+        projectNameSnapshot: snapshot.projectName,
+        projectTypeSnapshot: snapshot.projectType,
+        rentalEndDateSnapshot: snapshot.rentalEndDate,
+        rentalStartDateSnapshot: snapshot.rentalStartDate,
+        requestedTimeZoneSnapshot: snapshot.requestedTimeZone,
         items: {
-          create: items.map(({ decisionItem, entered, sortOrder }) => ({
-            approvedQuantitySnapshot: decisionItem.approvedQuantity,
-            categoryNameSnapshot: decisionItem.rentalRequestItem.categoryName,
-            categorySlugSnapshot: decisionItem.rentalRequestItem.categorySlug,
-            lineSubtotalCents:
-              BigInt(entered.quotedQuantity) * BigInt(entered.unitPriceCents),
-            productIdSnapshot: decisionItem.rentalRequestItem.productId,
-            productNameSnapshot: decisionItem.rentalRequestItem.productName,
-            productSlugSnapshot: decisionItem.rentalRequestItem.productSlug,
-            quotedQuantity: entered.quotedQuantity,
-            rentalRequestDecisionItemId: decisionItem.id,
-            rentalUnitSnapshot: decisionItem.rentalRequestItem.rentalUnit,
-            sortOrder,
-            taxable: entered.taxable,
-            unitPriceCents: entered.unitPriceCents,
-          })),
+          create: prepared.items,
         },
         charges: {
           create: input.charges.map((charge, sortOrder) => ({
@@ -840,7 +1298,11 @@ export class QuoteService {
           }
         : null,
       discountCents: this.safeNumber(revision.discountCents),
+      discountBaseCents: this.safeNumber(revision.discountBaseCents),
+      discountRateBasisPoints: revision.discountRateBasisPoints,
       discountTaxable: revision.discountTaxable,
+      discountType: revision.discountType,
+      draftVersion: revision.draftVersion,
       id: revision.id,
       internalNotes: revision.internalNotes,
       itemSubtotalCents: this.safeNumber(revision.itemSubtotalCents),
@@ -865,6 +1327,7 @@ export class QuoteService {
       status: this.effectiveState(revision),
       subtotalCents: this.safeNumber(revision.subtotalCents),
       taxableSubtotalCents: this.safeNumber(revision.taxableSubtotalCents),
+      taxableDiscountCents: this.safeNumber(revision.taxableDiscountCents),
       taxCents: this.safeNumber(revision.taxCents),
       tax: {
         name: revision.tax!.name,
@@ -881,15 +1344,7 @@ export class QuoteService {
 
   private mapPublic(
     revision: RevisionRecord,
-    quote: {
-      quoteNumber: string;
-      rentalRequest: {
-        contactFirstName: string;
-        contactLastName: string;
-        rentalStartDate: Date;
-        rentalEndDate: Date;
-      };
-    },
+    quote: { quoteNumber: string },
   ): PublicQuoteResponse {
     const admin = this.mapRevision(revision);
     const status = admin.status === 'DRAFT' ? 'EXPIRED' : admin.status;
@@ -902,9 +1357,12 @@ export class QuoteService {
         type,
       })),
       currency: 'CAD',
-      customerName: `${quote.rentalRequest.contactFirstName} ${quote.rentalRequest.contactLastName}`,
+      customerName: `${revision.contactFirstNameSnapshot} ${revision.contactLastNameSnapshot}`,
       customerNotes: admin.customerNotes,
+      discountBaseCents: admin.discountBaseCents,
       discountCents: admin.discountCents,
+      discountRateBasisPoints: admin.discountRateBasisPoints,
+      discountType: admin.discountType,
       itemSubtotalCents: admin.itemSubtotalCents,
       items: admin.items.map(
         ({
@@ -929,8 +1387,8 @@ export class QuoteService {
       ),
       notice,
       quoteNumber: quote.quoteNumber,
-      rentalEndDate: this.dateOnly(quote.rentalRequest.rentalEndDate),
-      rentalStartDate: this.dateOnly(quote.rentalRequest.rentalStartDate),
+      rentalEndDate: this.dateOnly(revision.rentalEndDateSnapshot),
+      rentalStartDate: this.dateOnly(revision.rentalStartDateSnapshot),
       revisionNumber: admin.revisionNumber,
       status,
       subtotalCents: admin.subtotalCents,

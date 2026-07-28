@@ -19,6 +19,7 @@ import { useForm } from 'react-hook-form';
 type FormValues = {
   customerNotes: string;
   discount: string;
+  discountType: 'FIXED_AMOUNT' | 'PERCENTAGE';
   internalNotes: string;
   taxName: string;
   taxRate: string;
@@ -73,6 +74,7 @@ export function QuoteEditor({
     defaultValues: {
       customerNotes: '',
       discount: '0.00',
+      discountType: 'FIXED_AMOUNT',
       internalNotes: '',
       taxName: 'Tax',
       taxRate: '0',
@@ -140,7 +142,11 @@ export function QuoteEditor({
         if (latest) {
           resetForm.current({
             customerNotes: latest.customerNotes ?? '',
-            discount: (latest.discountCents / 100).toFixed(2),
+            discount:
+              latest.discountType === 'PERCENTAGE'
+                ? ((latest.discountRateBasisPoints ?? 0) / 100).toFixed(2)
+                : (latest.discountCents / 100).toFixed(2),
+            discountType: latest.discountType,
             internalNotes: latest.internalNotes ?? '',
             taxName: latest.tax.name,
             taxRate: (latest.tax.rateBasisPoints / 100).toFixed(2),
@@ -185,13 +191,28 @@ export function QuoteEditor({
       }));
       if (chargeValues.some((charge) => charge.amountCents === null))
         return null;
-      const discountCents = parseCadToCents(watched.discount);
+      const discountCents =
+        watched.discountType === 'FIXED_AMOUNT'
+          ? parseCadToCents(watched.discount)
+          : 0;
+      const discountRateBasisPoints =
+        watched.discountType === 'PERCENTAGE'
+          ? parsePercentToBasisPoints(watched.discount)
+          : null;
       const rate = parsePercentToBasisPoints(watched.taxRate);
-      if (discountCents === null || rate === null) return null;
+      if (
+        discountCents === null ||
+        (discountRateBasisPoints === null &&
+          watched.discountType === 'PERCENTAGE') ||
+        rate === null
+      )
+        return null;
       return calculateQuoteMoney({
         items: itemValues,
         charges: chargeValues,
         discountCents,
+        discountType: watched.discountType,
+        discountRateBasisPoints,
         discountTaxable: true,
         taxRateBasisPoints: rate,
       });
@@ -205,6 +226,7 @@ export function QuoteEditor({
     quantities,
     taxable,
     watched.discount,
+    watched.discountType,
     watched.taxRate,
   ]);
 
@@ -214,6 +236,9 @@ export function QuoteEditor({
       ...(existing
         ? {
             expectedLatestRevisionNumber: existing.revisions[0]?.revisionNumber,
+            ...(existing.revisions[0]?.status === 'DRAFT'
+              ? { expectedDraftVersion: existing.revisions[0].draftVersion }
+              : {}),
           }
         : {}),
       items: positive.map((item) => ({
@@ -228,8 +253,16 @@ export function QuoteEditor({
         amountCents: parseCadToCents(charge.amount),
         taxable: charge.taxable,
       })),
-      discountCents: parseCadToCents(values.discount),
+      discountCents:
+        values.discountType === 'FIXED_AMOUNT'
+          ? parseCadToCents(values.discount)
+          : 0,
       discountTaxable: true,
+      discountType: values.discountType,
+      discountRateBasisPoints:
+        values.discountType === 'PERCENTAGE'
+          ? parsePercentToBasisPoints(values.discount)
+          : null,
       tax: {
         name: values.taxName,
         rateBasisPoints: parsePercentToBasisPoints(values.taxRate),
@@ -255,12 +288,15 @@ export function QuoteEditor({
     setPending(true);
     setError(null);
     try {
+      const editingDraft = existing?.revisions[0]?.status === 'DRAFT';
       const response = await fetch(
         existing
-          ? `/api/quotes/${existing.id}/revisions`
+          ? editingDraft
+            ? `/api/quotes/${existing.id}/revisions/${existing.revisions[0]!.id}`
+            : `/api/quotes/${existing.id}/revisions`
           : `/api/rental-requests/${requestId}/quotes`,
         {
-          method: 'POST',
+          method: editingDraft ? 'PUT' : 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(candidate.data),
         },
@@ -307,11 +343,15 @@ export function QuoteEditor({
           {request.referenceNumber}
         </p>
         <h1 className="mt-2 text-3xl font-bold">
-          {existing ? 'Create quote revision' : 'Create custom quote'}
+          {existing?.revisions[0]?.status === 'DRAFT'
+            ? 'Edit draft quote'
+            : existing
+              ? 'Create quote revision'
+              : 'Create custom quote'}
         </h1>
         <p className="mt-2 text-muted-foreground">
-          Pricing is entered by staff. Saving creates an immutable revision and
-          does not reserve inventory.
+          Pricing is entered by staff. Drafts can be corrected before sending;
+          sent revisions remain immutable. This does not reserve inventory.
         </p>
       </header>
       <section className="rounded-xl border bg-card p-5">
@@ -508,7 +548,16 @@ export function QuoteEditor({
       </section>
       <section className="grid gap-4 rounded-xl border bg-card p-5 sm:grid-cols-3">
         <label>
-          <span className="text-sm">Discount (CAD)</span>
+          <span className="text-sm">Discount type</span>
+          <select className={field} {...form.register('discountType')}>
+            <option value="FIXED_AMOUNT">Fixed amount</option>
+            <option value="PERCENTAGE">Percentage</option>
+          </select>
+        </label>
+        <label>
+          <span className="text-sm">
+            Discount ({watched.discountType === 'PERCENTAGE' ? '%' : 'CAD'})
+          </span>
           <input
             className={field}
             inputMode="decimal"
@@ -558,11 +607,13 @@ export function QuoteEditor({
           <dl className="mt-3 grid gap-2 sm:grid-cols-2">
             <dt>Subtotal</dt>
             <dd>{cad.format(Number(totals.subtotalCents) / 100)}</dd>
-            <dt>Discount</dt>
-            <dd>
-              -
-              {cad.format(Number(parseCadToCents(watched.discount) ?? 0) / 100)}
-            </dd>
+            <dt>
+              Discount
+              {watched.discountType === 'PERCENTAGE'
+                ? ` (${watched.discount}%)`
+                : ''}
+            </dt>
+            <dd>-{cad.format(Number(totals.discountCents) / 100)}</dd>
             <dt>Tax</dt>
             <dd>{cad.format(Number(totals.taxCents) / 100)}</dd>
             <dt className="font-bold">Total</dt>
@@ -587,10 +638,12 @@ export function QuoteEditor({
         type="submit"
       >
         {pending
-          ? 'Saving immutable revision…'
-          : existing
-            ? 'Create immutable revision'
-            : 'Create draft quote'}
+          ? 'Saving quote…'
+          : existing?.revisions[0]?.status === 'DRAFT'
+            ? 'Save draft changes'
+            : existing
+              ? 'Create immutable revision'
+              : 'Create draft quote'}
       </button>
     </form>
   );

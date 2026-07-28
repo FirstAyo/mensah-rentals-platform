@@ -107,8 +107,29 @@ SUPER_ADMIN has all five. ADMIN has all five under the existing broad mapping. S
 
 - `order.view`: list/view immutable internal confirmed-order snapshots.
 - `order.create`: explicitly convert the authoritative accepted revision.
-- `order.update`: reserved for a future reviewed lifecycle; unused now.
+- `order.update`: controls Phase 12.1 customer-access lifecycle actions only;
+  order commercial and reservation-state updates remain unimplemented.
 
 SUPER_ADMIN and ADMIN have all three. SALES_PERSON and EDITOR have none by
 default; quote permissions never imply order authority. Conversion rechecks
 active status and live `order.create` inside the locked transaction.
+
+## Phase 12.1 hardening enforcement
+
+- `quote.update` permits in-place changes only to the latest unsent `DRAFT`;
+  sent and terminal commercial snapshots remain immutable.
+- `quote.send` plus `quote.view` permits initial send, safe resend of the same
+  active link, and explicit capability rotation. Resend and rotation are
+  distinct audited actions.
+- `quote.view` permits staff PDF download for an immutable revision.
+- `order.view` permits order detail and staff PDF download.
+- `order.update` plus `order.view` permits generate, revoke, rotate, and resend
+  of order customer access. It does not edit order snapshots, reserve inventory,
+  or change order/reservation status.
+
+`GET /admin/work-summary` returns only sections supported by the active user's
+permissions. The actionable rental-request badge requires
+`rental_request.view`; approved-awaiting-quote also requires `quote.create`;
+accepted-awaiting-order requires `order.create`; order cards require
+`order.view`. Backend omission, not frontend hiding, is the confidentiality
+boundary.

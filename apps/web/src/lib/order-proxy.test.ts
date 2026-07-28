@@ -21,6 +21,9 @@ const publicOrder = {
   customerNotes: 'Please call on arrival.',
   deliveryAddress: '1 Example Street',
   discountCents: 500,
+  discountBaseCents: 12_000,
+  discountRateBasisPoints: null,
+  discountType: 'FIXED_AMOUNT',
   fulfillmentMethod: 'DELIVERY',
   itemSubtotalCents: 10_000,
   items: [

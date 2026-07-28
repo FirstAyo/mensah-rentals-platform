@@ -1,9 +1,22 @@
-import { getApiInternalUrl, getStaffSessionCookieName } from './auth-config';
+import {
+  getAdminOrigin,
+  getApiInternalUrl,
+  getStaffSessionCookieName,
+} from './auth-config';
 
 const id = '[a-z0-9]+';
 const routes = [
   { pattern: /^$/, methods: new Set(['GET']) },
   { pattern: new RegExp(`^${id}$`), methods: new Set(['GET']) },
+  { pattern: new RegExp(`^${id}/pdf$`), methods: new Set(['GET']) },
+  {
+    pattern: new RegExp(`^${id}/customer-access$`),
+    methods: new Set(['POST']),
+  },
+  {
+    pattern: new RegExp(`^${id}/customer-access/(revoke|rotate|resend)$`),
+    methods: new Set(['POST']),
+  },
 ] as const;
 
 const queryKeys = new Set([
@@ -35,6 +48,33 @@ export async function proxyOrder(
       { status: 404 },
     );
 
+  const unsafe = request.method !== 'GET';
+  if (unsafe && request.headers.get('origin') !== getAdminOrigin())
+    return Response.json(
+      { message: 'Request origin is not allowed' },
+      { status: 403 },
+    );
+  let body: string | undefined;
+  if (unsafe) {
+    if (
+      request.headers
+        .get('content-type')
+        ?.split(';', 1)[0]
+        ?.trim()
+        .toLowerCase() !== 'application/json'
+    )
+      return Response.json(
+        { message: 'Content-Type must be application/json' },
+        { status: 415 },
+      );
+    body = await request.text();
+    if (new TextEncoder().encode(body).byteLength > 8 * 1024)
+      return Response.json(
+        { message: 'Request body is too large' },
+        { status: 413 },
+      );
+  }
+
   const headers = new Headers({ Accept: 'application/json' });
   const cookieName = getStaffSessionCookieName();
   const session = request.headers
@@ -43,6 +83,10 @@ export async function proxyOrder(
     .map((part) => part.trim())
     .find((part) => part.startsWith(`${cookieName}=`));
   if (session) headers.set('Cookie', session);
+  if (unsafe) {
+    headers.set('Content-Type', 'application/json');
+    headers.set('Origin', getAdminOrigin());
+  }
 
   const incoming = new URL(request.url);
   const query = new URLSearchParams();
@@ -52,15 +96,39 @@ export async function proxyOrder(
   try {
     const upstream = await fetcher(
       `${getApiInternalUrl()}/admin/orders${path ? `/${path}` : ''}${query.size ? `?${query}` : ''}`,
-      { method: 'GET', headers, cache: 'no-store' },
+      { method: request.method, headers, body, cache: 'no-store' },
     );
+    const pdf = path.endsWith('/pdf');
+    if (
+      pdf &&
+      upstream.ok &&
+      upstream.headers.get('content-type')?.split(';', 1)[0] !==
+        'application/pdf'
+    )
+      return Response.json(
+        { message: 'Rental order service returned an unsafe document' },
+        { status: 502, headers: { 'Cache-Control': 'private, no-store' } },
+      );
+    const responseHeaders = new Headers({
+      'Cache-Control': 'private, no-store',
+      'Content-Type': pdf
+        ? 'application/pdf'
+        : (upstream.headers.get('content-type') ?? 'application/json'),
+    });
+    if (pdf) {
+      const disposition = upstream.headers.get('content-disposition');
+      responseHeaders.set(
+        'Content-Disposition',
+        disposition &&
+          /^attachment; filename="[A-Za-z0-9._-]+"$/.test(disposition)
+          ? disposition
+          : 'attachment; filename="mensah-rentals-order.pdf"',
+      );
+      responseHeaders.set('X-Content-Type-Options', 'nosniff');
+    }
     return new Response(upstream.body, {
       status: upstream.status,
-      headers: {
-        'Cache-Control': 'private, no-store',
-        'Content-Type':
-          upstream.headers.get('content-type') ?? 'application/json',
-      },
+      headers: responseHeaders,
     });
   } catch {
     return Response.json(

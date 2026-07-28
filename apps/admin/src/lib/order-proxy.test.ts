@@ -48,4 +48,25 @@ describe('admin rental order BFF', () => {
       message: 'Rental order service is unavailable',
     });
   });
+
+  it('preserves a safe order-number PDF filename', async () => {
+    const response = await proxyOrder(
+      new Request('http://localhost:3001/api/orders/orderid/pdf', {
+        headers: { cookie: 'mensah_staff_session=safe' },
+      }),
+      ['orderid', 'pdf'],
+      vi.fn<typeof fetch>().mockResolvedValue(
+        new Response('%PDF-1.4', {
+          headers: {
+            'Content-Disposition':
+              'attachment; filename="mensah-rentals-order-RO-2026-0001.pdf"',
+            'Content-Type': 'application/pdf',
+          },
+        }),
+      ),
+    );
+    expect(response.headers.get('Content-Disposition')).toBe(
+      'attachment; filename="mensah-rentals-order-RO-2026-0001.pdf"',
+    );
+  });
 });

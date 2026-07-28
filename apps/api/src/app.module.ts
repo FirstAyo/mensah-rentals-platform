@@ -15,6 +15,7 @@ import { CartModule } from './cart/cart.module';
 import { RentalRequestModule } from './rental-request/rental-request.module';
 import { QuoteModule } from './quote/quote.module';
 import { RentalOrderModule } from './rental-order/rental-order.module';
+import { WorkSummaryModule } from './work-summary/work-summary.module';
 
 @Module({
   imports: [
@@ -31,6 +32,7 @@ import { RentalOrderModule } from './rental-order/rental-order.module';
     RentalRequestModule,
     QuoteModule,
     RentalOrderModule,
+    WorkSummaryModule,
   ],
   controllers: [HealthController],
   providers: [DatabaseService, HealthService],

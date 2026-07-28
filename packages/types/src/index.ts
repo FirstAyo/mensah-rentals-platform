@@ -331,6 +331,9 @@ export type QuoteRevisionStatus =
 export interface QuoteMoneyResponse {
   chargeTotalCents: number;
   discountCents: number;
+  discountBaseCents: number;
+  discountRateBasisPoints: number | null;
+  discountType: 'FIXED_AMOUNT' | 'PERCENTAGE';
   itemSubtotalCents: number;
   subtotalCents: number;
   taxableSubtotalCents: number;
@@ -375,6 +378,8 @@ export interface AdminQuoteRevisionResponse extends QuoteMoneyResponse {
     response: 'ACCEPTED' | 'REJECTED';
   } | null;
   discountTaxable: boolean;
+  taxableDiscountCents: number;
+  draftVersion: number;
   id: string;
   internalNotes: string | null;
   items: AdminQuoteItemResponse[];
@@ -426,9 +431,12 @@ export interface AdminQuoteDetailResponse {
 
 export interface AdminQuoteSendResponse {
   accessLink: string;
+  accessId: string;
+  deliveryMode: 'SECURE_TEST_LINK';
+  expiresAt: string;
   quoteId: string;
   revisionId: string;
-  status: 'SENT';
+  status: 'SENT' | 'VIEWED';
 }
 
 export interface PublicQuoteResponse extends QuoteMoneyResponse {
@@ -499,7 +507,13 @@ export interface AdminRentalOrderDetailResponse
     actor: AdminRentalRequestStaffSummary | null;
     createdAt: string;
     id: string;
-    type: 'ORDER_CREATED' | 'ORDER_CUSTOMER_ACCESS_CREATED' | 'ORDER_VIEWED';
+    type:
+      | 'ORDER_CREATED'
+      | 'ORDER_CUSTOMER_ACCESS_CREATED'
+      | 'ORDER_VIEWED'
+      | 'ORDER_CUSTOMER_ACCESS_REVOKED'
+      | 'ORDER_CUSTOMER_ACCESS_ROTATED'
+      | 'ORDER_CUSTOMER_ACCESS_RESENT';
   }>;
   charges: AdminQuoteChargeResponse[];
   confirmedBy: AdminRentalRequestStaffSummary;
@@ -513,6 +527,8 @@ export interface AdminRentalOrderDetailResponse
   };
   deliveryAddress: string | null;
   discountTaxable: boolean;
+  taxableDiscountCents: number;
+  customerAccess: AdminCustomerAccessStatus;
   items: AdminRentalOrderItemResponse[];
   notice: string;
   project: {
@@ -529,8 +545,23 @@ export interface AdminRentalOrderDetailResponse
 }
 
 export interface AdminRentalOrderCreateResponse {
-  customerAccessLink: string;
   order: { id: string; orderNumber: string };
+}
+
+export type CustomerAccessState = 'NONE' | 'ACTIVE' | 'EXPIRED' | 'REVOKED';
+
+export interface AdminCustomerAccessStatus {
+  accessId: string | null;
+  createdAt: string | null;
+  expiresAt: string | null;
+  firstViewedAt: string | null;
+  state: CustomerAccessState;
+}
+
+export interface AdminCustomerAccessMutationResponse {
+  access: AdminCustomerAccessStatus;
+  accessLink: string | null;
+  deliveryMode: 'SECURE_TEST_LINK' | null;
 }
 
 export interface PublicRentalOrderResponse extends QuoteMoneyResponse {
@@ -569,6 +600,23 @@ export interface PublicRentalOrderResponse extends QuoteMoneyResponse {
   status: RentalOrderStatusResponse;
   tax: AdminQuoteRevisionResponse['tax'];
   terms: string | null;
+}
+
+export interface AdminWorkSummaryResponse {
+  generatedAt: string;
+  rentalRequests?: {
+    approvedAwaitingQuote?: number;
+    submittedAwaitingReview: number;
+    underReview: number;
+  };
+  quotes?: {
+    acceptedAwaitingOrder?: number;
+    sentAwaitingResponse: number;
+  };
+  orders?: {
+    confirmedNotReserved: number;
+    upcomingRentalDates: number;
+  };
 }
 
 export type InventoryTrackingModeResponse = 'BULK' | 'SERIALIZED';

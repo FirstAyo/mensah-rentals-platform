@@ -195,3 +195,12 @@ Phase 12 explicitly converts a timely accepted quote into an immutable
 confirmed order with separate private customer access. The order remains
 `NOT_RESERVED`; date-based reservations, availability, asset allocation, and
 inventory mutation remain the next separate phase.
+
+Phase 12.1 hardens those completed workflows. The admin shell now uses the
+viewport correctly, work counts and dashboard cards come from permission-aware
+server queries, quotes support authoritative fixed or percentage discounts and
+safe editing only while still an unsent draft, and resend remains separate from
+capability rotation. Quote and order PDFs contain customer-safe snapshots only.
+Confirmed-order customer links are explicitly generated, revoked, rotated, or
+prepared for resend by authorized staff. None of these actions reserves or
+changes inventory.

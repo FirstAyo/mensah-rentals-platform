@@ -6,6 +6,11 @@ export default async function RentalOrderDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireStaffPermission('order.view');
-  return <RentalOrderDetail id={(await params).id} />;
+  const user = await requireStaffPermission('order.view');
+  return (
+    <RentalOrderDetail
+      canManageAccess={user.permissionKeys.includes('order.update')}
+      id={(await params).id}
+    />
+  );
 }

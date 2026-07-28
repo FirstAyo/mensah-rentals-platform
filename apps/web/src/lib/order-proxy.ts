@@ -21,6 +21,9 @@ const rootKeys = [
   'customerNotes',
   'deliveryAddress',
   'discountCents',
+  'discountBaseCents',
+  'discountRateBasisPoints',
+  'discountType',
   'fulfillmentMethod',
   'itemSubtotalCents',
   'items',
@@ -88,6 +91,15 @@ export function isPublicRentalOrder(
     value.currency !== 'CAD' ||
     !['PICKUP', 'DELIVERY', 'DELIVERY_AND_SETUP'].includes(
       String(value.fulfillmentMethod),
+    )
+  )
+    return false;
+  if (
+    !['FIXED_AMOUNT', 'PERCENTAGE'].includes(String(value.discountType)) ||
+    !nonNegativeInteger(value.discountBaseCents) ||
+    !(
+      value.discountRateBasisPoints === null ||
+      nonNegativeInteger(value.discountRateBasisPoints)
     )
   )
     return false;
@@ -196,7 +208,9 @@ export async function proxyOrder(
         ? 'access'
         : joined === 'view' && request.method === 'POST'
           ? 'current/view'
-          : null;
+          : joined === 'pdf' && request.method === 'GET'
+            ? 'current/pdf'
+            : null;
   if (!route)
     return Response.json({ message: 'Order route not found' }, { status: 404 });
 
@@ -274,6 +288,29 @@ export async function proxyOrder(
       body: upstreamBody,
       cache: 'no-store',
     });
+    if (route === 'current/pdf') {
+      const contentType = upstream.headers
+        .get('content-type')
+        ?.split(';', 1)[0]
+        ?.trim()
+        .toLowerCase();
+      if (!upstream.ok || contentType !== 'application/pdf')
+        return unavailable(upstream.ok ? 502 : 404);
+      const disposition = upstream.headers.get('content-disposition');
+      return new Response(upstream.body, {
+        status: 200,
+        headers: {
+          ...unavailableHeaders,
+          'Content-Type': 'application/pdf',
+          'Content-Disposition':
+            disposition &&
+            /^attachment; filename="[A-Za-z0-9._-]+"$/.test(disposition)
+              ? disposition
+              : 'attachment; filename="mensah-rentals-order.pdf"',
+          'X-Content-Type-Options': 'nosniff',
+        },
+      });
+    }
     const data: unknown = await upstream.json().catch(() => null);
     if (!upstream.ok) return unavailable();
 

@@ -4,13 +4,20 @@ Phase 11 implements custom, staff-priced CAD quotes after an immutable rental-re
 
 ## Eligibility and domain separation
 
-Only `APPROVED` and `PARTIALLY_APPROVED` requests with an authoritative `RentalRequestDecision` are eligible. Each request has at most one `Quote` thread, containing immutable `QuoteRevision` snapshots. Future `RentalOrder` and `InventoryReservation` concepts remain separate and unimplemented.
+Only `APPROVED` and `PARTIALLY_APPROVED` requests with an authoritative
+`RentalRequestDecision` are eligible. Each request has at most one `Quote`
+thread. A `QuoteRevision` is editable only while it is the latest unsent DRAFT
+and becomes immutable when sent. `RentalOrder` and future
+`InventoryReservation` remain separate concepts.
 
 Every positive approved decision line appears exactly once in a revision. Quoted quantity is positive and cannot exceed approved quantity. Zero-approved lines stay in decision history but cannot become billable. Product, category, rental-unit, approved-quantity, and pricing snapshots ensure catalogue edits never rewrite quote history.
 
 ## State machine and revisions
 
-Commercial revision fields, items, charges, and tax are append-only at the database boundary. A separate lifecycle row allows:
+Commercial content becomes append-only when sent. Before then, only the latest
+`DRAFT` may be edited in place with optimistic concurrency, idempotent operation
+identity, server recalculation, database validation, and append-only activity.
+A separate lifecycle row allows:
 
 ```text
 DRAFT -> SENT -> VIEWED -> ACCEPTED
@@ -24,7 +31,13 @@ DRAFT ------------------> SUPERSEDED (corrected by a new draft revision)
 
 `Quote.latestRevisionId` identifies the newest staff revision. `Quote.customerRevisionId` identifies the customer-active or responded revision. Preparing a draft does not invalidate a sent revision. Sending a replacement atomically supersedes the old `SENT`/`VIEWED` revision and revokes its access. Only one revision is customer-actionable.
 
-Unsaved form changes are not revisions. Saving creates an immutable draft snapshot. Correcting a saved draft creates a new immutable draft and supersedes the earlier draft. Revision numbers are allocated under a quote-row lock and are unique per quote. Canonical payload hashes and UUID operation identifiers make exact retries idempotent; conflicting reuse returns `409`.
+Unsaved form changes are not revisions. The first save creates revision 1 as an
+editable unsent draft. Correcting it keeps the same revision ID and number and
+increments its draft version. A new revision is created only after the preceding
+customer-facing revision is immutable and the quote remains revisable. Revision
+numbers are allocated under a quote-row lock and are unique per quote. Canonical
+payload hashes and UUID operation identifiers make exact retries idempotent;
+stale versions and conflicting reuse return `409`.
 
 ## Exact CAD money and tax
 
@@ -41,7 +54,13 @@ tax = (taxable subtotal * rate basis points + 5,000) / 10,000
 grand total = subtotal - discount + tax
 ```
 
-Tax is rounded once at quote level using non-negative half-up rounding. A discount is a separate non-negative value, never a negative arbitrary charge. It cannot exceed the subtotal; a taxable discount cannot exceed taxable gross. The tax snapshot preserves name, rate, basis, and amount. Business owners must review tax applicability before production; the application makes no tax-law claim.
+Tax is rounded once at quote level using non-negative half-up rounding. A
+discount is separate and non-negative. `FIXED_AMOUNT` preserves entered cents.
+`PERCENTAGE` stores integer basis points and uses the complete item subtotal
+plus additive charges as its pre-tax base. The calculated discount and its
+proportional taxable reduction are rounded half-up once and snapshotted with the
+type, rate, base, and totals. Business owners must review tax applicability
+before production; the application makes no tax-law claim.
 
 Each unit price, charge, or discount is bounded at 100,000,000 cents (CAD 1,000,000). Revision aggregates are bounded at 100,000,000,000,000 cents, below signed `BIGINT` overflow after rate multiplication and JavaScript's safe-integer ceiling for DTOs. A revision supports at most 100 items, 25 charges, quantities up to 1,000, and rates up to 10,000 basis points. Client totals are rejected.
 
@@ -55,7 +74,14 @@ Allowlisted additive charge types are `DELIVERY`, `PICKUP`, `SETUP`, `TEARDOWN`,
 - `GET /admin/quotes/:id/revisions/:revisionId` — `quote.view`.
 - `POST /admin/rental-requests/:id/quotes` — `rental_request.view` and `quote.create`.
 - `POST /admin/quotes/:id/revisions` — `quote.view` and `quote.update`.
+- `PUT /admin/quotes/:id/revisions/:revisionId` — latest DRAFT only;
+  `quote.view` and `quote.update`.
 - `POST /admin/quotes/:id/revisions/:revisionId/send` — `quote.view` and `quote.send`.
+- `POST /admin/quotes/:id/revisions/:revisionId/resend` — current valid
+  SENT/VIEWED revision; `quote.view` and `quote.send`.
+- `POST /admin/quotes/:id/revisions/:revisionId/access/rotate` — explicit
+  capability replacement; `quote.view` and `quote.send`.
+- `GET /admin/quotes/:id/revisions/:revisionId/pdf` — `quote.view`.
 
 The request guard and every mutation transaction resolve the current ACTIVE user and live permissions. Current seeded mappings give `SUPER_ADMIN` every permission, `ADMIN` all quote permissions, `SALES_PERSON` view/create/update/send, and `EDITOR` none. `quote.approve` remains intentionally unused; Phase 11 does not invent a managerial approval gate merely because that key exists.
 
@@ -67,11 +93,19 @@ Sending requires the latest `DRAFT`, matching lifecycle version, and `quote.send
 
 The generated link is `WEB_ORIGIN/quote/access#capability=...`. Fragments are not sent in HTTP requests or referrers. The access page immediately removes the fragment and submits it to a fixed same-origin BFF. The BFF validates it and sets a separate HttpOnly, host-only, SameSite=Lax cookie. Local HTTP uses Secure=false; production requires Secure=true and a `__Host-` cookie name. Access expires no later than `validUntil` or the configured TTL. Replacement sends revoke old access.
 
-Raw capabilities appear only in an authorized send/replay response. They are never stored, logged, returned by list/detail, or placed in analytics. External email is deferred; staff copy the link through an approved private channel during local testing.
+Raw capabilities appear only in an authorized send, resend, or rotation
+response. They are never stored, logged, returned by list/detail, placed in a
+PDF, or placed in analytics. Resend reuses the current access and expiry without
+changing revision, lifecycle, or customer response. Rotation explicitly revokes
+the old access before appending a replacement. External email remains deferred;
+the system prepares a secure test link and does not claim email delivery.
 
 ## Customer APIs and response
 
-Private API routes are `POST /public/quotes/access`, `GET /public/quotes/current`, `POST /public/quotes/current/view`, and `POST /public/quotes/current/respond`. The web BFF mirrors only `/api/quote/access`, `/api/quote`, `/api/quote/view`, and `/api/quote/respond`.
+Private API routes are `POST /public/quotes/access`, `GET /public/quotes/current`,
+`GET /public/quotes/current/pdf`, `POST /public/quotes/current/view`, and
+`POST /public/quotes/current/respond`. The web BFF mirrors these through fixed
+same-origin paths and never accepts a capability in a query string.
 
 Mutations require exact Origin and JSON, bodies are bounded, responses are `private, no-store`, and private pages are `noindex`, `nofollow`, and `nocache`. Quote number alone grants no access. Missing, invalid, expired, revoked, mismatched, and superseded access produces the same unavailable response.
 
@@ -117,7 +151,17 @@ The quote browser runner refuses occupied application ports, validates a distinc
 
 ## Deferred work
 
-Transactional email, distributed public rate limiting for multiple API instances, business-approved tax configuration, order conversion, reservations, date availability, inventory mutation, payments, and customer accounts are deferred. Redis remains unjustified for this local/single-VPS foundation.
+Transactional email, distributed public rate limiting for multiple API instances, business-approved tax configuration, reservations, date availability, inventory mutation, payments, and customer accounts are deferred. Accepted-quote order conversion is implemented; Redis remains unjustified for this local/single-VPS foundation.
+
+## Phase 12.1 PDF boundary
+
+Staff with `quote.view`, or the customer holding that exact valid revision
+capability, can download a private selectable-text PDF for a non-draft
+customer-facing revision. The document uses snapshotted customer/project/date
+and commercial fields. It includes document number/revision, dates, items,
+charges, discount, tax, total, customer-visible notes/terms, status, and the
+non-reservation notice. It excludes internal notes, staff, decisions, activity,
+operations, access records or URLs, inventory, availability, and reservations.
 
 ## Phase 12 continuation
 

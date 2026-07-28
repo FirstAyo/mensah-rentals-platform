@@ -8,6 +8,11 @@ import {
 import { quoteConfig } from './quote-config';
 
 const capabilityHeader = 'x-quote-capability';
+const unavailableHeaders = {
+  'Cache-Control': 'private, no-store',
+  'Referrer-Policy': 'no-referrer',
+  'X-Robots-Tag': 'noindex, nofollow, noarchive',
+};
 const rootKeys = [
   'chargeTotalCents',
   'charges',
@@ -15,6 +20,9 @@ const rootKeys = [
   'customerName',
   'customerNotes',
   'discountCents',
+  'discountBaseCents',
+  'discountRateBasisPoints',
+  'discountType',
   'itemSubtotalCents',
   'items',
   'notice',
@@ -70,6 +78,15 @@ function isPublicQuote(value: unknown): value is PublicQuoteResponse {
     typeof value.rentalStartDate !== 'string' ||
     typeof value.rentalEndDate !== 'string' ||
     typeof value.validUntil !== 'string'
+  )
+    return false;
+  if (
+    !['FIXED_AMOUNT', 'PERCENTAGE'].includes(String(value.discountType)) ||
+    !cents(value.discountBaseCents) ||
+    !(
+      value.discountRateBasisPoints === null ||
+      cents(value.discountRateBasisPoints)
+    )
   )
     return false;
   if (
@@ -169,7 +186,9 @@ export async function proxyQuote(
           ? 'current/view'
           : joined === 'respond' && request.method === 'POST'
             ? 'current/respond'
-            : null;
+            : joined === 'pdf' && request.method === 'GET'
+              ? 'current/pdf'
+              : null;
   if (!route)
     return Response.json({ message: 'Quote route not found' }, { status: 404 });
   const unsafe = request.method === 'POST';
@@ -260,6 +279,32 @@ export async function proxyQuote(
       body: upstreamBody,
       cache: 'no-store',
     });
+    if (route === 'current/pdf') {
+      const contentType = upstream.headers
+        .get('content-type')
+        ?.split(';', 1)[0]
+        ?.trim()
+        .toLowerCase();
+      if (!upstream.ok || contentType !== 'application/pdf')
+        return Response.json(
+          { message: 'Quote is unavailable' },
+          { status: upstream.ok ? 502 : 404, headers: unavailableHeaders },
+        );
+      const disposition = upstream.headers.get('content-disposition');
+      return new Response(upstream.body, {
+        status: 200,
+        headers: {
+          ...unavailableHeaders,
+          'Content-Type': 'application/pdf',
+          'Content-Disposition':
+            disposition &&
+            /^attachment; filename="[A-Za-z0-9._-]+"$/.test(disposition)
+              ? disposition
+              : 'attachment; filename="mensah-rentals-quote.pdf"',
+          'X-Content-Type-Options': 'nosniff',
+        },
+      });
+    }
     const data: unknown = await upstream.json().catch(() => null);
     if (!upstream.ok)
       return Response.json(

@@ -7,6 +7,17 @@ vi.mock('@mensah-rentals/ui', () => ({
 vi.mock('./logout-button', () => ({
   LogoutButton: () => <button type="button">Sign out</button>,
 }));
+vi.mock('@/lib/work-summary', () => ({
+  useWorkSummary: () => ({
+    data: {
+      generatedAt: '2026-07-27T00:00:00.000Z',
+      rentalRequests: { submittedAwaitingReview: 7, underReview: 2 },
+    },
+    error: null,
+    loading: false,
+    refresh: vi.fn(),
+  }),
+}));
 
 import { AdminShell } from './admin-shell';
 
@@ -33,9 +44,9 @@ function render(permissionKeys: string[]) {
 
 describe('permission-aware admin shell', () => {
   it('shows rental requests only to a staff user with view permission', () => {
-    expect(render(['rental_request.view'])).toContain(
-      'href="/rental-requests"',
-    );
+    const authorized = render(['rental_request.view']);
+    expect(authorized).toContain('href="/rental-requests"');
+    expect(authorized).toContain('7 submitted rental requests awaiting review');
     expect(render([])).not.toContain('href="/rental-requests"');
   });
 

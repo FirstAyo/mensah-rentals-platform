@@ -22,10 +22,40 @@ describe('quote money', () => {
     expect(totals).toEqual({
       itemSubtotalCents: 37650n,
       chargeTotalCents: 6200n,
+      discountBaseCents: 43850n,
+      discountCents: 2500n,
       subtotalCents: 43850n,
+      taxableDiscountCents: 2500n,
       taxableSubtotalCents: 40150n,
       taxCents: 2008n,
       totalCents: 43358n,
+    });
+  });
+
+  it('calculates a percentage discount from its immutable base', () => {
+    expect(
+      calculateQuoteMoney({
+        items: [
+          { quantity: 1, unitPriceCents: 10000, taxable: true },
+          { quantity: 1, unitPriceCents: 5000, taxable: false },
+        ],
+        charges: [],
+        discountCents: 0,
+        discountRateBasisPoints: 1000,
+        discountTaxable: true,
+        discountType: 'PERCENTAGE',
+        taxRateBasisPoints: 500,
+      }),
+    ).toEqual({
+      chargeTotalCents: 0n,
+      discountBaseCents: 15000n,
+      discountCents: 1500n,
+      itemSubtotalCents: 15000n,
+      subtotalCents: 15000n,
+      taxableDiscountCents: 1000n,
+      taxableSubtotalCents: 9000n,
+      taxCents: 450n,
+      totalCents: 13950n,
     });
   });
 
@@ -88,6 +118,17 @@ describe('quote revision validation', () => {
       quoteRevisionInputSchema.safeParse({
         ...base,
         items: [base.items[0], base.items[0]],
+      }).success,
+    ).toBe(false);
+  });
+
+  it('requires percentage discounts to apply proportionally to taxable lines', () => {
+    expect(
+      quoteRevisionInputSchema.safeParse({
+        ...base,
+        discountTaxable: false,
+        discountType: 'PERCENTAGE',
+        discountRateBasisPoints: 1_000,
       }).success,
     ).toBe(false);
   });

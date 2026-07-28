@@ -12,10 +12,25 @@ const routes = [
     pattern: new RegExp(`^${id}/revisions$`),
     methods: new Set(['GET', 'POST']),
   },
-  { pattern: new RegExp(`^${id}/revisions/${id}$`), methods: new Set(['GET']) },
+  {
+    pattern: new RegExp(`^${id}/revisions/${id}$`),
+    methods: new Set(['GET', 'PUT']),
+  },
   {
     pattern: new RegExp(`^${id}/revisions/${id}/send$`),
     methods: new Set(['POST']),
+  },
+  {
+    pattern: new RegExp(`^${id}/revisions/${id}/resend$`),
+    methods: new Set(['POST']),
+  },
+  {
+    pattern: new RegExp(`^${id}/revisions/${id}/access/rotate$`),
+    methods: new Set(['POST']),
+  },
+  {
+    pattern: new RegExp(`^${id}/revisions/${id}/pdf$`),
+    methods: new Set(['GET']),
   },
   {
     pattern: new RegExp(`^${id}/revisions/${id}/order$`),
@@ -110,13 +125,37 @@ export async function proxyQuote(
       `${getApiInternalUrl()}${upstreamPath}${query.size ? `?${query}` : ''}`,
       { method: request.method, headers, body, cache: 'no-store' },
     );
+    const pdf = path.endsWith('/pdf');
+    const contentType = upstream.headers
+      .get('content-type')
+      ?.split(';', 1)[0]
+      ?.trim()
+      .toLowerCase();
+    if (pdf && upstream.ok && contentType !== 'application/pdf')
+      return Response.json(
+        { message: 'Quote service returned an unsafe document' },
+        { status: 502, headers: { 'Cache-Control': 'private, no-store' } },
+      );
+    const responseHeaders = new Headers({
+      'Cache-Control': 'private, no-store',
+      'Content-Type': pdf
+        ? 'application/pdf'
+        : (upstream.headers.get('content-type') ?? 'application/json'),
+    });
+    if (pdf) {
+      const disposition = upstream.headers.get('content-disposition');
+      responseHeaders.set(
+        'Content-Disposition',
+        disposition &&
+          /^attachment; filename="[A-Za-z0-9._-]+"$/.test(disposition)
+          ? disposition
+          : 'attachment; filename="mensah-rentals-quote.pdf"',
+      );
+      responseHeaders.set('X-Content-Type-Options', 'nosniff');
+    }
     return new Response(upstream.body, {
       status: upstream.status,
-      headers: {
-        'Cache-Control': 'private, no-store',
-        'Content-Type':
-          upstream.headers.get('content-type') ?? 'application/json',
-      },
+      headers: responseHeaders,
     });
   } catch {
     return Response.json(

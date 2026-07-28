@@ -7,6 +7,7 @@ import type {
   AdminRentalRequestDetailResponse,
   AdminRentalRequestNoteResponse,
 } from '@mensah-rentals/types';
+import { invalidateWorkSummary } from '@/lib/work-summary';
 import {
   createRentalRequestInternalNoteSchema,
   type CreateRentalRequestInternalNoteInput,
@@ -194,6 +195,7 @@ function DetailBody({
         return;
       }
       await refreshReviewState();
+      invalidateWorkSummary();
     } catch {
       setMutationError('Unable to update the assignment. Please try again.');
     } finally {
@@ -227,6 +229,7 @@ function DetailBody({
         return;
       }
       await refreshReviewState();
+      invalidateWorkSummary();
     } catch {
       setMutationError('Unable to start review. Please try again.');
     } finally {

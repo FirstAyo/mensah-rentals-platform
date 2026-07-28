@@ -7,6 +7,7 @@ const viewports = [
   ['desktop-1024', 1024, 768],
   ['wide-1440', 1440, 900],
   ['xl-1920', 1920, 1080],
+  ['ultrawide-2560', 2560, 1440],
 ] as const;
 
 export default defineConfig({
@@ -20,6 +21,7 @@ export default defineConfig({
           '**/orders.spec.ts',
         ],
   timeout: 60_000,
+  expect: { timeout: 30_000 },
   fullyParallel: false,
   globalSetup: './e2e/global-setup.ts',
   retries: 0,

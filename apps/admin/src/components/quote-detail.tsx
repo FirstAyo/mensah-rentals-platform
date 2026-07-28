@@ -5,10 +5,19 @@ import type {
   AdminRentalOrderCreateResponse,
   AdminQuoteSendResponse,
 } from '@mensah-rentals/types';
-import { Copy, Send, ShoppingBag, X } from 'lucide-react';
+import {
+  Copy,
+  FileDown,
+  KeyRound,
+  RefreshCw,
+  Send,
+  ShoppingBag,
+  X,
+} from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { QuoteEditor } from './quote-editor';
+import { invalidateWorkSummary } from '@/lib/work-summary';
 
 const cad = new Intl.NumberFormat('en-CA', {
   style: 'currency',
@@ -31,11 +40,11 @@ export function QuoteDetail({
   const [pending, setPending] = useState(false);
   const [accessLink, setAccessLink] = useState<string | null>(null);
   const [revising, setRevising] = useState(false);
-  const [orderAccessLink, setOrderAccessLink] = useState<string | null>(null);
   const [createdOrder, setCreatedOrder] = useState<
     AdminRentalOrderCreateResponse['order'] | null
   >(null);
   const sendOperation = useRef<{ id: string; key: string } | null>(null);
+  const deliveryOperation = useRef<{ id: string; key: string } | null>(null);
   const orderOperation = useRef<{ id: string; key: string } | null>(null);
   const orderDialog = useRef<HTMLDialogElement | null>(null);
   const load = useCallback(async () => {
@@ -85,11 +94,62 @@ export function QuoteDetail({
       const result = (await response.json()) as AdminQuoteSendResponse;
       setAccessLink(result.accessLink);
       await load();
+      invalidateWorkSummary();
     } catch (caught) {
       setError(
         caught instanceof Error
           ? caught.message
           : 'The quote could not be sent.',
+      );
+    } finally {
+      setPending(false);
+    }
+  }
+  async function deliverAgain(mode: 'resend' | 'access/rotate') {
+    const revision = quote?.revisions[0];
+    if (!revision || pending) return;
+    const action =
+      mode === 'resend'
+        ? 'resend the current secure link'
+        : 'revoke the current link and issue a new one';
+    if (
+      !window.confirm(
+        `Confirm that you want to ${action}? This does not create a quote revision.`,
+      )
+    )
+      return;
+    setPending(true);
+    setError(null);
+    try {
+      const key = `${mode}:${revision.id}:${revision.lifecycleVersion}`;
+      if (deliveryOperation.current?.key !== key)
+        deliveryOperation.current = { id: crypto.randomUUID(), key };
+      const response = await fetch(
+        `/api/quotes/${id}/revisions/${revision.id}/${mode}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            operationId: deliveryOperation.current.id,
+            expectedLifecycleVersion: revision.lifecycleVersion,
+          }),
+        },
+      );
+      if (!response.ok)
+        throw new Error(
+          response.status === 409
+            ? 'The secure link changed. Refresh and try again.'
+            : 'The secure link action could not be completed.',
+        );
+      const result = (await response.json()) as AdminQuoteSendResponse;
+      setAccessLink(result.accessLink);
+      await load();
+      invalidateWorkSummary();
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : 'The secure link action could not be completed.',
       );
     } finally {
       setPending(false);
@@ -131,9 +191,9 @@ export function QuoteDetail({
       }
       const result = (await response.json()) as AdminRentalOrderCreateResponse;
       setCreatedOrder(result.order);
-      setOrderAccessLink(result.customerAccessLink);
       orderDialog.current?.close();
       await load();
+      invalidateWorkSummary();
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -210,12 +270,47 @@ export function QuoteDetail({
             {pending ? 'Sending…' : 'Send current revision'}
           </button>
         ) : null}
+        {canSend && (latest.status === 'SENT' || latest.status === 'VIEWED') ? (
+          <>
+            <button
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2 font-semibold disabled:opacity-50"
+              disabled={pending}
+              onClick={() => void deliverAgain('resend')}
+              type="button"
+            >
+              <RefreshCw className="h-4 w-4" aria-hidden="true" />
+              Resend current link
+            </button>
+            <button
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2 font-semibold disabled:opacity-50"
+              disabled={pending}
+              onClick={() => void deliverAgain('access/rotate')}
+              type="button"
+            >
+              <KeyRound className="h-4 w-4" aria-hidden="true" />
+              Rotate secure link
+            </button>
+          </>
+        ) : null}
+        {latest.status !== 'DRAFT' ? (
+          <a
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2 font-semibold"
+            href={`/api/quotes/${id}/revisions/${latest.id}/pdf`}
+          >
+            <FileDown className="h-4 w-4" aria-hidden="true" />
+            Download PDF
+          </a>
+        ) : null}
         {canUpdate && latest.status !== 'ACCEPTED' ? (
           <button
             className="min-h-11 rounded-lg border px-4 py-2 font-semibold"
             onClick={() => setRevising((value) => !value)}
           >
-            {revising ? 'Cancel new revision' : 'Create new revision'}
+            {revising
+              ? 'Cancel editing'
+              : latest.status === 'DRAFT'
+                ? 'Edit draft'
+                : 'Create new revision'}
           </button>
         ) : null}
       </div>
@@ -234,13 +329,11 @@ export function QuoteDetail({
           </Link>
         </section>
       ) : null}
-      {createdOrder && orderAccessLink ? (
+      {createdOrder ? (
         <section className="rounded-xl border border-border bg-card p-5">
-          <h2 className="font-semibold">Secure customer order link</h2>
+          <h2 className="font-semibold">Rental order created</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Shown only after order creation or its idempotent retry. Share it
-            through an approved private channel. It is separate from the quote
-            access link.
+            Open the order to explicitly generate or manage its customer link.
           </p>
           <Link
             className="mt-3 inline-block font-semibold underline"
@@ -248,20 +341,6 @@ export function QuoteDetail({
           >
             Open {createdOrder.orderNumber}
           </Link>
-          <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-            <code className="min-w-0 flex-1 break-all rounded bg-muted p-3 text-xs">
-              {orderAccessLink}
-            </code>
-            <button
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border px-4"
-              onClick={() =>
-                void navigator.clipboard.writeText(orderAccessLink)
-              }
-            >
-              <Copy className="h-4 w-4" aria-hidden="true" />
-              Copy
-            </button>
-          </div>
         </section>
       ) : null}
       {accessLink ? (
@@ -414,7 +493,12 @@ export function QuoteDetail({
               <dl className="mt-4 grid grid-cols-2 gap-2 border-t pt-4">
                 <dt>Subtotal</dt>
                 <dd>{cad.format(revision.subtotalCents / 100)}</dd>
-                <dt>Discount</dt>
+                <dt>
+                  Discount
+                  {revision.discountType === 'PERCENTAGE'
+                    ? ` (${(revision.discountRateBasisPoints ?? 0) / 100}%)`
+                    : ''}
+                </dt>
                 <dd>-{cad.format(revision.discountCents / 100)}</dd>
                 <dt>{revision.tax.name}</dt>
                 <dd>{cad.format(revision.taxCents / 100)}</dd>
