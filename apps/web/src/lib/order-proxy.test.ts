@@ -5,6 +5,9 @@ import { proxyOrder } from './order-proxy';
 const capability = '00000000-0000-4000-8000-000000000000.' + 'a'.repeat(43);
 
 const publicOrder = {
+  checkedOutItems: [
+    { productName: 'Folding Chair', quantity: 10, rentalUnit: 'each' },
+  ],
   chargeTotalCents: 2_000,
   charges: [
     {
@@ -19,12 +22,14 @@ const publicOrder = {
   currency: 'CAD',
   customerName: 'Customer Name',
   customerNotes: 'Please call on arrival.',
+  customerFulfilmentStatus: { key: 'RENTAL_ACTIVE', label: 'Rental active' },
   deliveryAddress: '1 Example Street',
   discountCents: 500,
   discountBaseCents: 12_000,
   discountRateBasisPoints: null,
   discountType: 'FIXED_AMOUNT',
   fulfillmentMethod: 'DELIVERY',
+  expectedReturnDate: '2027-01-03',
   itemSubtotalCents: 10_000,
   items: [
     {

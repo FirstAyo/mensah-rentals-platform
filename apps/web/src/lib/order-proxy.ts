@@ -42,6 +42,9 @@ const rootKeys = [
   'taxCents',
   'terms',
   'totalCents',
+  'customerFulfilmentStatus',
+  'expectedReturnDate',
+  'checkedOutItems',
 ] as const;
 const itemKeys = [
   'approvedQuantity',
@@ -89,6 +92,30 @@ export function isPublicRentalOrder(
     value.currency !== 'CAD' ||
     !['PICKUP', 'DELIVERY', 'DELIVERY_AND_SETUP'].includes(
       String(value.fulfillmentMethod),
+    )
+  )
+    return false;
+  if (
+    !object(value.customerFulfilmentStatus) ||
+    !exact(value.customerFulfilmentStatus, ['key', 'label']) ||
+    ![
+      'CONFIRMED',
+      'PREPARING',
+      'READY_FOR_PICKUP',
+      'READY_FOR_DELIVERY',
+      'OUT_FOR_DELIVERY',
+      'RENTAL_ACTIVE',
+    ].includes(String(value.customerFulfilmentStatus.key)) ||
+    typeof value.customerFulfilmentStatus.label !== 'string' ||
+    !nullableString(value.expectedReturnDate) ||
+    !Array.isArray(value.checkedOutItems) ||
+    !value.checkedOutItems.every(
+      (entry) =>
+        object(entry) &&
+        exact(entry, ['productName', 'quantity', 'rentalUnit']) &&
+        typeof entry.productName === 'string' &&
+        nonNegativeInteger(entry.quantity) &&
+        typeof entry.rentalUnit === 'string',
     )
   )
     return false;

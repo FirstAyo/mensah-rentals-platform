@@ -87,7 +87,7 @@ export function CustomerOrder() {
         </div>
         <span className="inline-flex min-h-10 items-center gap-2 self-start rounded-full bg-primary/10 px-4 py-2 text-sm font-semibold text-primary">
           <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
-          Confirmed
+          {order.customerFulfilmentStatus?.label ?? 'Confirmed'}
         </span>
       </header>
 
@@ -110,6 +110,14 @@ export function CustomerOrder() {
             Fulfilment
           </h2>
           <p className="mt-3">{fulfillmentLabels[order.fulfillmentMethod]}</p>
+          <p className="mt-1 text-sm font-medium">
+            {order.customerFulfilmentStatus?.label ?? 'Order confirmed'}
+          </p>
+          {order.expectedReturnDate ? (
+            <p className="mt-1 text-sm text-muted-foreground">
+              Expected return date: {order.expectedReturnDate}
+            </p>
+          ) : null}
           {order.deliveryAddress ? (
             <p className="mt-2 flex items-start gap-2 text-sm text-muted-foreground">
               <MapPin className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
@@ -167,6 +175,21 @@ export function CustomerOrder() {
           ))}
         </div>
       </section>
+      {order.checkedOutItems?.length ? (
+        <section className="rounded-xl border border-border bg-card p-5">
+          <h2 className="text-xl font-semibold">Equipment handed over</h2>
+          <ul className="mt-3 space-y-2">
+            {order.checkedOutItems.map((item) => (
+              <li className="flex justify-between gap-4" key={item.productName}>
+                <span>{item.productName}</span>
+                <span>
+                  {item.quantity} {item.rentalUnit}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,26rem)]">
         <div className="space-y-4">
@@ -232,7 +255,9 @@ export function CustomerOrder() {
             aria-hidden="true"
           />
           <div>
-            <h2 className="font-semibold">Order confirmed</h2>
+            <h2 className="font-semibold">
+              {order.customerFulfilmentStatus?.label ?? 'Order confirmed'}
+            </h2>
             <p className="mt-1 text-sm text-muted-foreground">{order.notice}</p>
           </div>
         </div>

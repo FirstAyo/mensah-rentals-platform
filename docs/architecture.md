@@ -1,5 +1,9 @@
 # Architecture
 
+## Phase 15 fulfilment boundary
+
+The NestJS API is the sole authority for preparation, reservation consumption, physical inventory movement, handoff, and active-rental creation. A serializable transaction connects these separate aggregates without changing order/quote snapshots. Admin BFF routes are fixed allowlists; customer mapping is a separate coarse allowlist.
+
 ## Phase 14 reservation architecture
 
 `InventoryReservation` is a separate aggregate between a confirmed order and

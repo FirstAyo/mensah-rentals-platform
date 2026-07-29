@@ -29,7 +29,13 @@ async function axe(page: Page) {
   ).toEqual([]);
 }
 
-async function createAcceptedQuote(page: Page) {
+async function createAcceptedQuote(
+  page: Page,
+  productIndex = 0,
+  desiredQuantity = 3,
+  fulfillmentMethod: 'PICKUP' | 'DELIVERY' = 'PICKUP',
+  productName?: string,
+) {
   const approvedRequestId = process.env.PHASE121_APPROVED_REQUEST_ID;
   let marker = process.env.PHASE121_PROJECT_NAME ?? '';
   let reference = process.env.PHASE121_REQUEST_REFERENCE ?? '';
@@ -52,13 +58,16 @@ async function createAcceptedQuote(page: Page) {
     await page.getByRole('link', { name: 'Create quote' }).click();
   } else {
     await page.goto('http://localhost:3000/rentals');
-    const productHref = await page
-      .locator('article a[href^="/rentals/"]')
+    const productCard = productName
+      ? page.locator('article').filter({ hasText: productName }).first()
+      : page.locator('article').nth(productIndex);
+    const productHref = await productCard
+      .locator('a[href^="/rentals/"]')
       .first()
       .getAttribute('href');
     expect(productHref).toBeTruthy();
     await page.goto(`http://localhost:3000${productHref}`);
-    await page.getByLabel('Desired quantity').fill('3');
+    await page.getByLabel('Desired quantity').fill(desiredQuantity.toString());
     await page.getByRole('button', { name: 'Add to rental cart' }).click();
     await expect(
       page.getByRole('link', { name: 'Rental cart, 1 equipment type' }),
@@ -78,6 +87,10 @@ async function createAcceptedQuote(page: Page) {
     await page.getByLabel('Rental start date').fill(future(7));
     await page.getByLabel('Rental end date').fill(future(9));
     await page.getByLabel('Project or event location').fill('Accra');
+    if (fulfillmentMethod === 'DELIVERY') {
+      await page.getByLabel('Delivery', { exact: true }).check();
+      await page.getByLabel('Delivery address').fill('15 Phase Street, Accra');
+    }
     await page.getByRole('button', { name: 'Review request' }).click();
     await page.getByRole('button', { name: 'Submit rental request' }).click();
     await expect(page).toHaveURL(/rental-requests\/MR-/, { timeout: 90_000 });
@@ -150,8 +163,20 @@ async function createAcceptedQuote(page: Page) {
   return { marker, reference };
 }
 
-async function createOrder(page: Page) {
-  const fixture = await createAcceptedQuote(page);
+async function createOrder(
+  page: Page,
+  productIndex = 0,
+  desiredQuantity = 3,
+  fulfillmentMethod: 'PICKUP' | 'DELIVERY' = 'PICKUP',
+  productName?: string,
+) {
+  const fixture = await createAcceptedQuote(
+    page,
+    productIndex,
+    desiredQuantity,
+    fulfillmentMethod,
+    productName,
+  );
   await page.getByRole('button', { name: 'Create rental order' }).click();
   const dialog = page.getByRole('dialog');
   await expect(dialog).toBeVisible();
@@ -354,4 +379,322 @@ test('@reservations @reservation-concurrency duplicate reservation submission is
   ]);
   expect(firstBody.id).toBe(replayBody.id);
   expect(firstBody.version).toBe(replayBody.version);
+});
+
+async function createPartiallyReservedOrder(page: Page, productIndex = 0) {
+  const created = await createOrder(page, productIndex);
+  await page
+    .getByLabel(
+      'Override/shortfall reason (required only when applying an override)',
+    )
+    .fill('Phase 15 isolated reservation shortfall');
+  await page
+    .getByRole('button', { name: 'Confirm partial reservation' })
+    .click();
+  await page
+    .getByRole('alertdialog')
+    .getByRole('button', { name: 'Confirm action' })
+    .click();
+  await expect(
+    page.getByText('PARTIALLY RESERVED', { exact: true }),
+  ).toBeVisible({ timeout: 30_000 });
+  await page.reload();
+  return created;
+}
+
+test('@fulfilment @admin-fulfilment @active-rentals prepares, checks out partially, and exposes only customer-safe status', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'mobile-320');
+  const { customerLink, orderId, orderNumber } =
+    await createPartiallyReservedOrder(page, 0);
+  await page.getByRole('button', { name: 'Start preparation' }).click();
+  await expect(page.getByText('PREPARING', { exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+  const prepared = page.getByLabel('Prepared total').first();
+  await prepared.fill('2');
+  await page.getByRole('button', { name: 'Save preparation' }).click();
+  await expect(page.getByLabel('Prepared quantity')).toHaveText('2');
+  await page.getByRole('button', { name: 'Mark ready' }).click();
+  await expect(page.getByText('READY', { exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.getByLabel('Recipient name').fill('Phase 15 Customer');
+  await page.getByLabel('This is an intentional partial checkout').check();
+  await page
+    .getByLabel('Internal partial-checkout reason')
+    .fill('One commercially requested unit remains unavailable.');
+  await page
+    .getByRole('button', { name: 'Confirm pickup and check out' })
+    .click();
+  await expect(
+    page.getByText('PARTIALLY CHECKED OUT', { exact: true }),
+  ).toBeVisible({ timeout: 30_000 });
+  await page.goto('http://localhost:3001/active-rentals');
+  await expect(page.getByText(orderNumber, { exact: true })).toBeVisible();
+  await page.getByText(orderNumber, { exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Checked-out equipment' }),
+  ).toBeVisible();
+  const [firstPdf, repeatedPdf] = await Promise.all([
+    page.request.get(
+      `http://localhost:3001/api/orders/${orderId}/fulfilment/picking-pdf`,
+    ),
+    page.request.get(
+      `http://localhost:3001/api/orders/${orderId}/fulfilment/picking-pdf`,
+    ),
+  ]);
+  expect([firstPdf.status(), repeatedPdf.status()]).toEqual([200, 200]);
+  expect(firstPdf.headers()['content-type']).toContain('application/pdf');
+  await page.goto(customerLink);
+  await expect(
+    page.getByText('Rental active', { exact: true }).first(),
+  ).toBeVisible();
+  const customerText = await page.locator('body').innerText();
+  expect(customerText).not.toMatch(
+    /reserved remaining|prepared quantity|shortfall|asset number|serial number|internal partial/i,
+  );
+  await page.getByRole('button', { name: /switch to dark theme/i }).click();
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  await page.reload();
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  await axe(page);
+});
+
+test('@fulfilment @admin-fulfilment @active-rentals fully checks out a delivery order', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'desktop-1024');
+  const productName = process.env.PHASE15_DELIVERY_PRODUCT_NAME;
+  expect(productName).toBeTruthy();
+  const { customerLink, orderNumber } = await createOrder(
+    page,
+    0,
+    2,
+    'DELIVERY',
+    productName,
+  );
+  await page.getByRole('button', { name: 'Reserve in full' }).click();
+  await page
+    .getByRole('alertdialog')
+    .getByRole('button', { name: 'Confirm action' })
+    .click();
+  await expect(page.getByText('RESERVED', { exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.reload();
+  await page.getByRole('button', { name: 'Start preparation' }).click();
+  await page.getByLabel('Prepared total').fill('2');
+  await page.getByRole('button', { name: 'Save preparation' }).click();
+  await expect(page.getByLabel('Prepared quantity')).toHaveText('2');
+  await page.getByRole('button', { name: 'Mark ready' }).click();
+  await page.getByLabel('Checkout now').fill('2');
+  await page.getByLabel('Recipient name').fill('Delivery Recipient');
+  await page
+    .getByRole('button', { name: 'Confirm delivery and check out' })
+    .click();
+  await expect(page.getByText('CHECKED OUT', { exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+  const activeList = await (
+    await page.request.get(
+      `http://localhost:3001/api/active-rentals?search=${encodeURIComponent(orderNumber)}`,
+    )
+  ).json();
+  expect(activeList.items).toHaveLength(1);
+  const activeDetail = await (
+    await page.request.get(
+      `http://localhost:3001/api/active-rentals/${activeList.items[0].id}`,
+    )
+  ).json();
+  expect(activeDetail).toMatchObject({
+    fulfilmentMethod: 'DELIVERY',
+    handoffs: [
+      {
+        destination: '15 Phase Street, Accra',
+        recipientName: 'Delivery Recipient',
+        type: 'DELIVERY',
+      },
+    ],
+    status: 'ACTIVE',
+  });
+  await page.goto('http://localhost:3001/active-rentals');
+  await page.getByText(orderNumber, { exact: true }).click();
+  await expect(page.getByText('ACTIVE', { exact: true }).first()).toBeVisible();
+  await page.goto(customerLink);
+  await expect(
+    page.getByText('Rental active', { exact: true }).first(),
+  ).toBeVisible();
+  expect(await page.locator('body').innerText()).not.toMatch(
+    /reserved quantity|prepared quantity|asset number|serial number|staff/i,
+  );
+});
+
+test('@fulfilment @admin-fulfilment checks out the exact prepared serialized asset once', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'desktop-1024');
+  const productName = process.env.PHASE15_SERIALIZED_PRODUCT_NAME;
+  const assetNumber = process.env.PHASE15_SERIALIZED_ASSET_NUMBER;
+  expect(productName).toBeTruthy();
+  expect(assetNumber).toBeTruthy();
+  const { customerLink, orderId } = await createOrder(
+    page,
+    0,
+    1,
+    'PICKUP',
+    productName,
+  );
+  await page.getByRole('button', { name: 'Load eligible assets' }).click();
+  await page.getByLabel(new RegExp(assetNumber!)).first().check();
+  await page.getByRole('button', { name: 'Reserve in full' }).click();
+  await page
+    .getByRole('alertdialog')
+    .getByRole('button', { name: 'Confirm action' })
+    .click();
+  await expect(page.getByText('RESERVED', { exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.reload();
+  await page.getByRole('button', { name: 'Start preparation' }).click();
+  const fulfilmentPanel = page.locator(
+    'section[aria-labelledby="fulfilment-heading"]',
+  );
+  await fulfilmentPanel.getByLabel(new RegExp(assetNumber!)).check();
+  await page.getByRole('button', { name: 'Save preparation' }).click();
+  await expect(page.getByLabel('Prepared quantity')).toHaveText('1');
+  await page.getByRole('button', { name: 'Mark ready' }).click();
+  await page.getByLabel('Checkout now').fill('1');
+  await page.getByLabel('Recipient name').fill('Serialized Recipient');
+  await page
+    .getByRole('button', { name: 'Confirm pickup and check out' })
+    .click();
+  await expect(page.getByText('CHECKED OUT', { exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+  const fulfilment = await (
+    await page.request.get(
+      `http://localhost:3001/api/orders/${orderId}/fulfilment`,
+    )
+  ).json();
+  expect(fulfilment.items[0].serializedAllocations).toEqual([
+    expect.objectContaining({
+      assetNumber,
+      prepared: false,
+      status: 'CONSUMED',
+    }),
+  ]);
+  await page.goto(customerLink);
+  const customerText = await page.locator('body').innerText();
+  expect(customerText).not.toContain(assetNumber);
+  expect(customerText).not.toMatch(/serial number|reserved quantity|prepared/i);
+});
+
+test('@fulfilment @fulfilment-concurrency duplicate checkout is idempotent and consumes once', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'desktop-1024');
+  const { orderId } = await createPartiallyReservedOrder(page, 1);
+  const reservation = await (
+    await page.request.get(
+      `http://localhost:3001/api/orders/${orderId}/reservation`,
+    )
+  ).json();
+  const startBody = {
+    operationId: crypto.randomUUID(),
+    expectedReservationVersion: reservation.version,
+  };
+  const startedResponse = await page.request.post(
+    `http://localhost:3001/api/orders/${orderId}/fulfilment/start-preparation`,
+    {
+      data: startBody,
+      headers: { Origin: 'http://localhost:3001' },
+    },
+  );
+  expect(startedResponse.status()).toBe(201);
+  const started = await startedResponse.json();
+  const item = started.items[0];
+  const preparedResponse = await page.request.put(
+    `http://localhost:3001/api/orders/${orderId}/fulfilment/preparation`,
+    {
+      data: {
+        expectedVersion: started.version,
+        items: [
+          {
+            quantity: item.reservedQuantity,
+            rentalOrderItemId: item.rentalOrderItemId,
+            serializedAllocationIds: [],
+          },
+        ],
+        operationId: crypto.randomUUID(),
+      },
+      headers: { Origin: 'http://localhost:3001' },
+    },
+  );
+  expect(preparedResponse.status()).toBe(200);
+  const prepared = await preparedResponse.json();
+  const readyResponse = await page.request.post(
+    `http://localhost:3001/api/orders/${orderId}/fulfilment/mark-ready`,
+    {
+      data: {
+        expectedVersion: prepared.version,
+        operationId: crypto.randomUUID(),
+      },
+      headers: { Origin: 'http://localhost:3001' },
+    },
+  );
+  expect(readyResponse.status()).toBe(201);
+  const ready = await readyResponse.json();
+  const checkoutBody = {
+    allowPartial: true,
+    expectedReservationVersion: reservation.version,
+    expectedVersion: ready.version,
+    handoffAt: new Date().toISOString(),
+    internalReason: 'Browser-test partial checkout concurrency.',
+    items: [
+      {
+        quantity: item.reservedQuantity,
+        rentalOrderItemId: item.rentalOrderItemId,
+        serializedAllocationIds: [],
+      },
+    ],
+    operationId: crypto.randomUUID(),
+    recipientName: 'Concurrency Customer',
+  };
+  const competingCheckoutBody = {
+    ...checkoutBody,
+    operationId: crypto.randomUUID(),
+  };
+  const responses = await Promise.all([
+    page.request.post(
+      `http://localhost:3001/api/orders/${orderId}/fulfilment/checkout`,
+      { data: checkoutBody, headers: { Origin: 'http://localhost:3001' } },
+    ),
+    page.request.post(
+      `http://localhost:3001/api/orders/${orderId}/fulfilment/checkout`,
+      {
+        data: competingCheckoutBody,
+        headers: { Origin: 'http://localhost:3001' },
+      },
+    ),
+  ]);
+  expect(responses.map((response) => response.status()).sort()).toEqual([
+    201, 409,
+  ]);
+  const winnerIndex = responses.findIndex(
+    (response) => response.status() === 201,
+  );
+  const winner = await responses[winnerIndex]!.json();
+  const winningInput = winnerIndex === 0 ? checkoutBody : competingCheckoutBody;
+  const replay = await page.request.post(
+    `http://localhost:3001/api/orders/${orderId}/fulfilment/checkout`,
+    { data: winningInput, headers: { Origin: 'http://localhost:3001' } },
+  );
+  expect(replay.status()).toBe(201);
+  const replayed = await replay.json();
+  expect(winner.id).toBe(replayed.id);
+  expect(winner.version).toBe(replayed.version);
+  expect(winner.items[0].consumedQuantity).toBe(item.reservedQuantity);
+  expect(winner.items[0].reservedQuantity).toBe(0);
 });

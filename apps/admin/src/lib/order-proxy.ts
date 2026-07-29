@@ -37,6 +37,29 @@ const routes = [
     pattern: new RegExp(`^${id}/reservations/${id}/eligible-assets$`),
     methods: new Set(['GET']),
   },
+  { pattern: new RegExp(`^${id}/fulfilment$`), methods: new Set(['GET']) },
+  {
+    pattern: new RegExp(`^${id}/fulfilment/start-preparation$`),
+    methods: new Set(['POST']),
+  },
+  {
+    pattern: new RegExp(`^${id}/fulfilment/preparation$`),
+    methods: new Set(['PUT']),
+  },
+  {
+    pattern: new RegExp(`^${id}/fulfilment/mark-ready$`),
+    methods: new Set(['POST']),
+  },
+  {
+    pattern: new RegExp(`^${id}/fulfilment/checkout$`),
+    methods: new Set(['POST']),
+  },
+  {
+    pattern: new RegExp(
+      `^${id}/fulfilment/(picking-pdf|handoff-pdf|active-rental-pdf)$`,
+    ),
+    methods: new Set(['GET']),
+  },
 ] as const;
 
 const queryKeys = new Set([
@@ -128,7 +151,7 @@ export async function proxyOrder(
       `${getApiInternalUrl()}/admin/orders${path ? `/${path}` : ''}${query.size ? `?${query}` : ''}`,
       { method: request.method, headers, body, cache: 'no-store' },
     );
-    const pdf = path.endsWith('/pdf');
+    const pdf = path.endsWith('/pdf') || path.endsWith('-pdf');
     if (
       pdf &&
       upstream.ok &&

@@ -1,5 +1,9 @@
 # Inventory reservations
 
+## Phase 15 consumption
+
+Checkout adds explicit `consumedQuantity` and `PARTIALLY_CONSUMED`/`CONSUMED` states. Requested equals active reserved plus consumed plus shortfall. Remaining quantities stay reserved until later checkout or explicit release; history is never deleted.
+
 Phase 14 commits inventory internally to confirmed rental orders for a defined
 rental period. A reservation is not checkout, fulfilment, delivery, an active
 rental, a return, or a change to the commercial order snapshot.

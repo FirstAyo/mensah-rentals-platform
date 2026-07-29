@@ -12,7 +12,7 @@ describe('RBAC catalogue', () => {
     expect(new Set(SYSTEM_ROLES.map(({ name }) => name)).size).toBe(
       SYSTEM_ROLES.length,
     );
-    expect(PERMISSION_CATALOGUE).toHaveLength(56);
+    expect(PERMISSION_CATALOGUE).toHaveLength(63);
   });
   it('grants SUPER_ADMIN every seeded permission', () => {
     expect(DEFAULT_ROLE_PERMISSION_KEYS.SUPER_ADMIN).toEqual(
@@ -36,6 +36,19 @@ describe('RBAC catalogue', () => {
     );
     expect(DEFAULT_ROLE_PERMISSION_KEYS.SALES_PERSON).not.toContain(
       'inventory.reservation.view',
+    );
+  });
+
+  it('seeds fulfilment authority without granting checkout to sales or editor roles', () => {
+    expect(DEFAULT_ROLE_PERMISSION_KEYS.ADMIN).toContain('fulfilment.checkout');
+    expect(DEFAULT_ROLE_PERMISSION_KEYS.SALES_PERSON).toContain(
+      'fulfilment.view',
+    );
+    expect(DEFAULT_ROLE_PERMISSION_KEYS.SALES_PERSON).not.toContain(
+      'fulfilment.checkout',
+    );
+    expect(DEFAULT_ROLE_PERMISSION_KEYS.EDITOR).not.toContain(
+      'fulfilment.view',
     );
   });
   it('keeps owner-only role management out of ADMIN', () => {

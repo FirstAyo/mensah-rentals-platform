@@ -7,20 +7,28 @@ export function ActionableWorkBadge({
   kind = 'requests',
 }: {
   compact?: boolean;
-  kind?: 'requests' | 'reservations';
+  kind?: 'requests' | 'reservations' | 'fulfilment';
 }) {
   const { data } = useWorkSummary();
   const count =
     kind === 'requests'
       ? (data?.rentalRequests?.submittedAwaitingReview ?? 0)
-      : (data?.reservations?.awaitingReservation ?? 0) +
-        (data?.reservations?.partiallyReserved ?? 0);
+      : kind === 'reservations'
+        ? (data?.reservations?.awaitingReservation ?? 0) +
+          (data?.reservations?.partiallyReserved ?? 0)
+        : (data?.fulfilment?.awaitingPreparation ?? 0) +
+          (data?.fulfilment?.preparing ?? 0) +
+          (data?.fulfilment?.readyForPickup ?? 0) +
+          (data?.fulfilment?.readyForDelivery ?? 0) +
+          (data?.fulfilment?.partiallyCheckedOut ?? 0);
   if (count === 0) return null;
   const display = count > 99 ? '99+' : String(count);
   const label =
     kind === 'requests'
       ? `${count} submitted rental ${count === 1 ? 'request' : 'requests'} awaiting review`
-      : `${count} rental ${count === 1 ? 'order requires' : 'orders require'} reservation work`;
+      : kind === 'reservations'
+        ? `${count} rental ${count === 1 ? 'order requires' : 'orders require'} reservation work`
+        : `${count} rental ${count === 1 ? 'order requires' : 'orders require'} fulfilment work`;
   return (
     <span
       aria-label={label}

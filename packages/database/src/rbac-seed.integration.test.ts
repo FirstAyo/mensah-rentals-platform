@@ -1,4 +1,8 @@
-import { SUPER_ADMIN_ROLE_NAME, SYSTEM_ROLES } from '@mensah-rentals/rbac';
+import {
+  PERMISSION_CATALOGUE,
+  SUPER_ADMIN_ROLE_NAME,
+  SYSTEM_ROLES,
+} from '@mensah-rentals/rbac';
 import { randomUUID } from 'node:crypto';
 
 import { afterAll, describe, expect, it } from 'vitest';
@@ -13,7 +17,7 @@ describe('RBAC seed against PostgreSQL', () => {
     const first = await runRbacSeed(prisma);
     const second = await runRbacSeed(prisma);
     expect(second).toMatchObject({
-      permissions: 56,
+      permissions: PERMISSION_CATALOGUE.length,
       roles: SYSTEM_ROLES.length,
     });
     expect(second.permissions).toBe(first.permissions);
@@ -25,10 +29,10 @@ describe('RBAC seed against PostgreSQL', () => {
       include: { permissions: true },
       where: { name: SUPER_ADMIN_ROLE_NAME },
     });
-    expect(role?.permissions).toHaveLength(56);
+    expect(role?.permissions).toHaveLength(PERMISSION_CATALOGUE.length);
     expect(
       new Set(role?.permissions.map(({ permissionId }) => permissionId)).size,
-    ).toBe(56);
+    ).toBe(PERMISSION_CATALOGUE.length);
   });
 
   it('adds only newly introduced defaults to existing roles', async () => {

@@ -1,5 +1,7 @@
 # Rental request amendments
 
+Confirmed-order changes remain formal change requests. An unresolved change request blocks fulfilment inside the locked transaction. Amendments never mutate checkout, inventory, or active rentals.
+
 ## Phase 14 reservation boundary
 
 Amending a request still creates an immutable request revision and supersedes

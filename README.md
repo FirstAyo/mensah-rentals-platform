@@ -1,5 +1,7 @@
 # Mensah Rentals Platform
 
+Phase 15 adds protected preparation, atomic pickup/delivery checkout, and active-rental tracking. See [Fulfilment and checkout](docs/fulfilment-and-checkout.md) and [Active rentals](docs/active-rentals.md). Returns and reconciliation remain deferred.
+
 ## Phase 14: internal inventory reservations
 
 Authorised staff can now commit bulk quantities and selected serialized assets

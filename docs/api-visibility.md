@@ -1,5 +1,9 @@
 # API Data Visibility
 
+## Phase 15 fulfilment visibility
+
+Administrative DTOs may contain reserved/prepared/checked-out/shortfall quantities and serialized identities after exact permissions. Customer order DTOs may contain only a coarse status, inclusive expected return date, and checked-out product summary. They exclude reservation/preparation/shortfall counts, assets/serials, internal notes, staff, transactions, versions, operations, and hashes.
+
 ## Phase 14 reservation visibility
 
 Reservation and date-range availability endpoints exist only under

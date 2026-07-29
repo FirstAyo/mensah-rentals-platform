@@ -1,5 +1,9 @@
 # Confirmed Rental Orders
 
+## Phase 15 fulfilment
+
+The immutable order snapshot supplies method, quantities, customer/project details, dates, and destination. Preparation and checkout are separate aggregates and never change commercial pricing or approvals.
+
 ## Phase 14 reservation handoff
 
 A newly confirmed order remains `NOT_RESERVED`. Authorised staff can separately

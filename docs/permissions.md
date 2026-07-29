@@ -1,5 +1,9 @@
 # Permissions and Roles
 
+## Phase 15 permissions
+
+`fulfilment.view`, `fulfilment.prepare`, `fulfilment.checkout`, `fulfilment.partial_checkout`, `fulfilment.handoff`, `fulfilment.pdf`, and `active_rental.view` are independent. SUPER_ADMIN/ADMIN receive all, SALES_PERSON receives view-only fulfilment access, and EDITOR receives none.
+
 ## Phase 14 permissions
 
 - `inventory.reservation.view`: view internal reservation aggregates/history.

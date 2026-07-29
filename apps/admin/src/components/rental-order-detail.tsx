@@ -8,6 +8,7 @@ import { Copy, FileDown, KeyRound, Link2, Send, Unlink } from 'lucide-react';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 import { ReservationPanel } from './reservation-panel';
+import { FulfilmentPanel } from './fulfilment-panel';
 
 const cad = new Intl.NumberFormat('en-CA', {
   style: 'currency',
@@ -29,6 +30,7 @@ const activityLabels: Record<
 export function RentalOrderDetail({
   canManageAccess,
   reservationPermissions,
+  fulfilmentPermissions,
   id,
 }: {
   canManageAccess: boolean;
@@ -39,6 +41,14 @@ export function RentalOrderDetail({
     canRelease: boolean;
     canViewAvailability: boolean;
     canViewReservation: boolean;
+  };
+  fulfilmentPermissions: {
+    canView: boolean;
+    canPrepare: boolean;
+    canCheckout: boolean;
+    canPartialCheckout: boolean;
+    canHandoff: boolean;
+    canPdf: boolean;
   };
   id: string;
 }) {
@@ -164,6 +174,11 @@ export function RentalOrderDetail({
       </p>
 
       <ReservationPanel orderId={id} permissions={reservationPermissions} />
+      <FulfilmentPanel
+        orderId={id}
+        orderReservationVersion={order.reservationVersion}
+        permissions={fulfilmentPermissions}
+      />
 
       <section className="rounded-xl border border-border bg-card p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">

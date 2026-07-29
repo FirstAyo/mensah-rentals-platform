@@ -9,6 +9,7 @@ import {
   FileText,
   ShoppingBag,
   GitPullRequestArrow,
+  Clock3,
 } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -52,6 +53,12 @@ const links = [
     icon: ShoppingBag,
     label: 'Rental Orders',
     permission: 'order.view',
+  },
+  {
+    href: '/active-rentals',
+    icon: Clock3,
+    label: 'Active Rentals',
+    permission: 'active_rental.view',
   },
   {
     href: '/categories',
@@ -102,6 +109,10 @@ export function AdminShell({
                 permissions.has('inventory.reservation.view') ? (
                   <ActionableWorkBadge kind="reservations" />
                 ) : null}
+                {href === '/active-rentals' &&
+                permissions.has('fulfilment.view') ? (
+                  <ActionableWorkBadge kind="fulfilment" />
+                ) : null}
               </Link>
             ))}
           </nav>
@@ -126,6 +137,10 @@ export function AdminShell({
                     {href === '/orders' &&
                     permissions.has('inventory.reservation.view') ? (
                       <ActionableWorkBadge compact kind="reservations" />
+                    ) : null}
+                    {href === '/active-rentals' &&
+                    permissions.has('fulfilment.view') ? (
+                      <ActionableWorkBadge compact kind="fulfilment" />
                     ) : null}
                   </Link>
                 ))}

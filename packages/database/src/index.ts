@@ -42,6 +42,10 @@ export {
   RentalOrderReservationStatus,
   RentalOrderStatus,
   SerializedAssetAllocationStatus,
+  ActiveRentalStatus,
+  FulfilmentHandoffType,
+  FulfilmentOperationType,
+  OrderFulfilmentStatus,
   UserStatus,
   Prisma,
 } from '@prisma/client';

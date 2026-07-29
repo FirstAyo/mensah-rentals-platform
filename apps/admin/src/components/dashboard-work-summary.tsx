@@ -11,6 +11,8 @@ import {
   PackageOpen,
   Quote,
   ShoppingBag,
+  Truck,
+  Clock3,
 } from 'lucide-react';
 import { useWorkSummary } from '@/lib/work-summary';
 
@@ -99,6 +101,66 @@ const cards = [
     icon: CalendarClock,
     value: (data: AdminWorkSummaryResponse) =>
       data.reservations?.upcomingReservations,
+  },
+  {
+    key: 'awaiting-preparation',
+    label: 'Awaiting preparation',
+    permissions: ['fulfilment.view'],
+    icon: PackageOpen,
+    value: (data: AdminWorkSummaryResponse) =>
+      data.fulfilment?.awaitingPreparation,
+  },
+  {
+    key: 'preparing',
+    label: 'Preparing',
+    permissions: ['fulfilment.view'],
+    icon: PackageCheck,
+    value: (data: AdminWorkSummaryResponse) => data.fulfilment?.preparing,
+  },
+  {
+    key: 'ready-pickup',
+    label: 'Ready for pickup',
+    permissions: ['fulfilment.view'],
+    icon: PackageCheck,
+    value: (data: AdminWorkSummaryResponse) => data.fulfilment?.readyForPickup,
+  },
+  {
+    key: 'ready-delivery',
+    label: 'Ready for delivery',
+    permissions: ['fulfilment.view'],
+    icon: Truck,
+    value: (data: AdminWorkSummaryResponse) =>
+      data.fulfilment?.readyForDelivery,
+  },
+  {
+    key: 'partial-checkout',
+    label: 'Partially checked out',
+    permissions: ['fulfilment.view'],
+    icon: AlertTriangle,
+    value: (data: AdminWorkSummaryResponse) =>
+      data.fulfilment?.partiallyCheckedOut,
+  },
+  {
+    key: 'active-rentals',
+    label: 'Active rentals',
+    permissions: ['active_rental.view'],
+    icon: Clock3,
+    value: (data: AdminWorkSummaryResponse) => data.activeRentals?.active,
+  },
+  {
+    key: 'returns-today',
+    label: 'Expected returns today',
+    permissions: ['active_rental.view'],
+    icon: CalendarClock,
+    value: (data: AdminWorkSummaryResponse) =>
+      data.activeRentals?.expectedReturnsToday,
+  },
+  {
+    key: 'overdue-rentals',
+    label: 'Overdue active rentals',
+    permissions: ['active_rental.view'],
+    icon: AlertTriangle,
+    value: (data: AdminWorkSummaryResponse) => data.activeRentals?.overdue,
   },
 ] as const;
 

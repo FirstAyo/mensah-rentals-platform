@@ -1,5 +1,9 @@
 # Inventory Foundation
 
+## Phase 15 checkout movement
+
+Bulk checkout appends a movement from `RENTABLE` to `RENTED`; serialized checkout moves the exact allocated asset to `RENTED`. Transactions reference the fulfilment operation. Physical total is unchanged. Expected return does not alter inventory.
+
 ## Phase 14 date-range reservations
 
 Confirmed orders now commit operational capacity through a separate

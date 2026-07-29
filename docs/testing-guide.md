@@ -1,5 +1,47 @@
 # Testing Guide
 
+## Phase 15 fulfilment testing (Windows PowerShell)
+
+Run database and quality checks from the repository root:
+
+```powershell
+docker compose up -d postgres postgres-test
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+```
+
+Successful commands exit with code 0. Prisma reports a valid schema and all migrations applied; RBAC verification reports no missing mapping; formatting/lint/typecheck report no errors; tests report passed suites; all three applications build.
+
+Install the browser once:
+
+```powershell
+pnpm --filter @mensah-rentals/web exec playwright install chromium
+```
+
+Stop normal development servers before isolated browser suites, then run:
+
+```powershell
+pnpm test:e2e:admin-fulfilment
+pnpm test:e2e:active-rentals
+pnpm test:e2e:fulfilment-concurrency
+pnpm test:e2e:fulfilment
+```
+
+The harness refuses occupied ports, requires the isolated marker, resets only a database whose name ends in `_test`, creates random local staff/test-owned request/quote/order/reservation/inventory/fulfilment data, and terminates its processes in `finally`. Never point `TEST_DATABASE_URL` at development, staging, or production.
+
+Expected browser behaviour: a reserved order can start/finish preparation; ready state follows active reserved quantities; atomic handoff creates one partial/full active rental; desktop delivery and exact serialized-asset checkout succeed; customer status contains no internal inventory data; `/active-rentals` and its handoff detail render; dark mode, 320px width, and accessibility checks pass; duplicate operation replay creates no second aggregate or movement. PostgreSQL integration coverage also verifies that a fully consumed partial reservation can be completed later, prepared, and checked out into the same active rental without changing total physical quantity.
+
+Manual ledger check: before/after checkout, total physical quantity is unchanged, reserved decreases, `RENTED` increases, and an inventory transaction references the fulfilment operation. Expected return does not create a return or change inventory.
+
 ## Phase 14 reservation testing
 
 Run static, database, seed, and browser verification from PowerShell:

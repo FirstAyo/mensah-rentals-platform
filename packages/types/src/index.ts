@@ -603,7 +603,9 @@ export type RentalOrderReservationStatusResponse =
   | 'PARTIALLY_RESERVED'
   | 'RESERVED'
   | 'RESERVATION_FAILED'
-  | 'RELEASED';
+  | 'RELEASED'
+  | 'PARTIALLY_CONSUMED'
+  | 'CONSUMED';
 
 export interface AdminRentalOrderSummaryResponse extends QuoteMoneyResponse {
   confirmedAt: string;
@@ -630,6 +632,7 @@ export interface AdminRentalOrderDetailResponse
   extends AdminRentalOrderSummaryResponse {
   acceptedQuoteRevisionId: string;
   acceptedRevisionNumber: number;
+  reservationVersion: number;
   activities: Array<{
     actor: AdminRentalRequestStaffSummary | null;
     createdAt: string;
@@ -726,6 +729,22 @@ export interface PublicRentalOrderResponse extends QuoteMoneyResponse {
   status: RentalOrderStatusResponse;
   tax: AdminQuoteRevisionResponse['tax'];
   terms: string | null;
+  customerFulfilmentStatus?: {
+    key:
+      | 'CONFIRMED'
+      | 'PREPARING'
+      | 'READY_FOR_PICKUP'
+      | 'READY_FOR_DELIVERY'
+      | 'OUT_FOR_DELIVERY'
+      | 'RENTAL_ACTIVE';
+    label: string;
+  };
+  expectedReturnDate?: string | null;
+  checkedOutItems?: Array<{
+    productName: string;
+    quantity: number;
+    rentalUnit: string;
+  }>;
 }
 
 export interface AdminWorkSummaryResponse {
@@ -749,6 +768,128 @@ export interface AdminWorkSummaryResponse {
     unresolvedShortfallQuantity: number;
     upcomingReservations: number;
   };
+  fulfilment?: {
+    awaitingPreparation: number;
+    preparing: number;
+    readyForPickup: number;
+    readyForDelivery: number;
+    partiallyCheckedOut: number;
+  };
+  activeRentals?: {
+    active: number;
+    expectedReturnsToday: number;
+    overdue: number;
+  };
+}
+
+export type OrderFulfilmentStatusResponse =
+  | 'PREPARING'
+  | 'READY'
+  | 'PARTIALLY_CHECKED_OUT'
+  | 'CHECKED_OUT';
+export type ActiveRentalStatusResponse = 'PARTIALLY_ACTIVE' | 'ACTIVE';
+
+export interface AdminFulfilmentItemResponse {
+  id: string;
+  rentalOrderItemId: string;
+  productName: string;
+  trackingMode: InventoryTrackingModeResponse;
+  orderedQuantity: number;
+  reservedQuantity: number;
+  consumedQuantity: number;
+  shortfallQuantity: number;
+  preparedQuantity: number;
+  checkedOutQuantity: number;
+  remainingCommercialQuantity: number;
+  serializedAllocations: Array<{
+    allocationId: string;
+    assetNumber: string;
+    prepared: boolean;
+    serialNumber: string | null;
+    status: 'ACTIVE' | 'CONSUMED';
+  }>;
+}
+
+export interface AdminFulfilmentResponse {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  status: OrderFulfilmentStatusResponse;
+  fulfilmentMethod: PublicRentalRequestFulfillmentMethod;
+  version: number;
+  reservationVersion: number;
+  preparationStartedAt: string;
+  readyAt: string | null;
+  firstCheckedOutAt: string | null;
+  fullyCheckedOutAt: string | null;
+  items: AdminFulfilmentItemResponse[];
+  activities: Array<{
+    id: string;
+    type:
+      | 'PREPARATION_STARTED'
+      | 'PREPARATION_UPDATED'
+      | 'MARKED_READY'
+      | 'CHECKOUT';
+    createdAt: string;
+    actor: AdminRentalRequestStaffSummary;
+    internalReason: string | null;
+  }>;
+  activeRental: {
+    id: string;
+    status: ActiveRentalStatusResponse;
+    expectedReturnAt: string;
+  } | null;
+  notice: string;
+}
+
+export interface AdminActiveRentalSummaryResponse {
+  id: string;
+  orderId: string;
+  orderNumber: string;
+  customerName: string;
+  projectName: string;
+  status: ActiveRentalStatusResponse;
+  fulfilmentMethod: PublicRentalRequestFulfillmentMethod;
+  rentalStartAt: string;
+  expectedReturnAt: string;
+  checkedOutAt: string;
+  overdue: boolean;
+  itemCount: number;
+}
+
+export interface AdminActiveRentalDetailResponse
+  extends AdminActiveRentalSummaryResponse {
+  items: Array<{
+    productName: string;
+    rentalUnit: string;
+    checkedOutQuantity: number;
+    serializedAssets: Array<{
+      assetNumber: string;
+      serialNumber: string | null;
+    }>;
+  }>;
+  handoffs: Array<{
+    id: string;
+    type: 'PICKUP' | 'DELIVERY';
+    recipientName: string | null;
+    destination: string | null;
+    acknowledgementReference: string | null;
+    handoffAt: string;
+    actor: AdminRentalRequestStaffSummary;
+    internalNotes: string | null;
+  }>;
+  expectedReturnDate: string;
+  notice: string;
+}
+
+export interface AdminActiveRentalListResponse {
+  items: AdminActiveRentalSummaryResponse[];
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
 }
 
 export type InventoryReservationStatusResponse =
@@ -756,7 +897,9 @@ export type InventoryReservationStatusResponse =
   | 'PARTIALLY_RESERVED'
   | 'RESERVED'
   | 'RELEASED'
-  | 'RESERVATION_FAILED';
+  | 'RESERVATION_FAILED'
+  | 'PARTIALLY_CONSUMED'
+  | 'CONSUMED';
 
 export interface AdminAvailabilityItemResponse {
   availableToReserve: number;
@@ -789,7 +932,7 @@ export interface AdminReservationAllocationResponse {
   releasedAt: string | null;
   serialNumber: string | null;
   serializedAssetId: string;
-  status: 'ACTIVE' | 'RELEASED';
+  status: 'ACTIVE' | 'RELEASED' | 'CONSUMED';
 }
 
 export interface AdminReservationItemResponse {

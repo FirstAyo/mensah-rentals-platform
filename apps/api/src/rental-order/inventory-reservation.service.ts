@@ -34,6 +34,7 @@ const activeReservationStatuses = [
   InventoryReservationStatus.PENDING,
   InventoryReservationStatus.PARTIALLY_RESERVED,
   InventoryReservationStatus.RESERVED,
+  InventoryReservationStatus.PARTIALLY_CONSUMED,
 ];
 const availabilityNotice =
   'Internal operational availability. Never disclose quantities, shortfalls, or asset identifiers to customers.';
@@ -160,8 +161,8 @@ export class InventoryReservationService {
         input.serializedSelections,
       );
       const hasShortfall = plan.some(
-        ({ reservedAfter, requestedQuantity }) =>
-          reservedAfter < requestedQuantity,
+        ({ committedAfter, requestedQuantity }) =>
+          committedAfter < requestedQuantity,
       );
       const reservedTotal = plan.reduce(
         (sum, item) => sum + item.reservedAfter,
@@ -285,14 +286,19 @@ export class InventoryReservationService {
       if (!plan.some(({ quantityDelta }) => quantityDelta > 0))
         throw new ConflictException('No additional inventory can be reserved');
       const hasShortfall = plan.some(
-        ({ reservedAfter, requestedQuantity }) =>
-          reservedAfter < requestedQuantity,
+        ({ committedAfter, requestedQuantity }) =>
+          committedAfter < requestedQuantity,
       );
       await this.assertPartialPolicy(tx, actorId, input, hasShortfall);
       const nextVersion = reservation.version + 1;
-      const nextStatus = hasShortfall
-        ? InventoryReservationStatus.PARTIALLY_RESERVED
-        : InventoryReservationStatus.RESERVED;
+      const hasConsumption = reservation.items.some(
+        ({ consumedQuantity }) => consumedQuantity > 0,
+      );
+      const nextStatus = hasConsumption
+        ? InventoryReservationStatus.PARTIALLY_CONSUMED
+        : hasShortfall
+          ? InventoryReservationStatus.PARTIALLY_RESERVED
+          : InventoryReservationStatus.RESERVED;
       const operation = await tx.inventoryReservationOperation.create({
         data: {
           actorUserId: actorId,
@@ -516,20 +522,32 @@ export class InventoryReservationService {
       }
       const updatedItems = await tx.inventoryReservationItem.findMany({
         where: { inventoryReservationId: reservation.id },
-        select: { requestedQuantity: true, reservedQuantity: true },
+        select: {
+          consumedQuantity: true,
+          requestedQuantity: true,
+          reservedQuantity: true,
+        },
       });
       const totalReserved = updatedItems.reduce(
         (sum, item) => sum + item.reservedQuantity,
         0,
       );
+      const totalConsumed = updatedItems.reduce(
+        (sum, item) => sum + item.consumedQuantity,
+        0,
+      );
       const nextStatus =
-        totalReserved === 0
-          ? InventoryReservationStatus.RELEASED
-          : updatedItems.every(
-                (item) => item.reservedQuantity === item.requestedQuantity,
-              )
-            ? InventoryReservationStatus.RESERVED
-            : InventoryReservationStatus.PARTIALLY_RESERVED;
+        totalConsumed > 0 && totalReserved === 0
+          ? InventoryReservationStatus.CONSUMED
+          : totalConsumed > 0
+            ? InventoryReservationStatus.PARTIALLY_CONSUMED
+            : totalReserved === 0
+              ? InventoryReservationStatus.RELEASED
+              : updatedItems.every(
+                    (item) => item.reservedQuantity === item.requestedQuantity,
+                  )
+                ? InventoryReservationStatus.RESERVED
+                : InventoryReservationStatus.PARTIALLY_RESERVED;
       await tx.inventoryReservation.update({
         where: { id: reservation.id },
         data: { status: nextStatus, version: nextVersion },
@@ -732,6 +750,7 @@ export class InventoryReservationService {
       rentalOrderItemId: string;
       requestedQuantity: number;
       reservationType: InventoryReservationItemType;
+      consumedQuantity: number;
       reservedQuantity: number;
     }>,
     selections: Array<{
@@ -759,11 +778,15 @@ export class InventoryReservationService {
       await tx.$queryRaw`SELECT "id" FROM "InventoryItem" WHERE "id" IN (${Prisma.join(allAssetIds)}) ORDER BY "id" FOR UPDATE`;
     return Promise.all(
       items.map(async (item) => {
-        const remaining = item.requestedQuantity - item.reservedQuantity;
+        const remaining =
+          item.requestedQuantity -
+          item.consumedQuantity -
+          item.reservedQuantity;
         if (remaining <= 0)
           return {
             ...item,
             assetIds: [] as string[],
+            committedAfter: item.consumedQuantity + item.reservedQuantity,
             quantityDelta: 0,
             reservedAfter: item.reservedQuantity,
           };
@@ -782,6 +805,8 @@ export class InventoryReservationService {
           return {
             ...item,
             assetIds: [] as string[],
+            committedAfter:
+              item.consumedQuantity + item.reservedQuantity + quantityDelta,
             quantityDelta,
             reservedAfter: item.reservedQuantity + quantityDelta,
           };
@@ -813,6 +838,8 @@ export class InventoryReservationService {
         return {
           ...item,
           assetIds,
+          committedAfter:
+            item.consumedQuantity + item.reservedQuantity + assetIds.length,
           quantityDelta: assetIds.length,
           reservedAfter: item.reservedQuantity + assetIds.length,
         };
@@ -834,7 +861,10 @@ export class InventoryReservationService {
         where: { id: item.id },
         data: {
           reservedQuantity: item.reservedAfter,
-          shortfallQuantity: item.requestedQuantity - item.reservedAfter,
+          shortfallQuantity: Math.max(
+            0,
+            item.requestedQuantity - item.consumedQuantity - item.reservedAfter,
+          ),
         },
       });
       if (item.quantityDelta > 0 && item.assetIds.length === 0)
@@ -1071,6 +1101,10 @@ export class InventoryReservationService {
       return RentalOrderReservationStatus.RESERVED;
     if (status === InventoryReservationStatus.RELEASED)
       return RentalOrderReservationStatus.RELEASED;
+    if (status === InventoryReservationStatus.PARTIALLY_CONSUMED)
+      return RentalOrderReservationStatus.PARTIALLY_CONSUMED;
+    if (status === InventoryReservationStatus.CONSUMED)
+      return RentalOrderReservationStatus.CONSUMED;
     if (status === InventoryReservationStatus.RESERVATION_FAILED)
       return RentalOrderReservationStatus.RESERVATION_FAILED;
     return RentalOrderReservationStatus.NOT_RESERVED;

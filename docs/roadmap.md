@@ -1,5 +1,8 @@
 # Development Roadmap
 
+- Phase 15: fulfilment preparation, atomic handoff/checkout, reservation consumption, and active rentals (implemented).
+- Recommended Phase 16: append-only return intake and reconciliation, including partial returns and damage/missing intake. Payments remain separate.
+
 ## Phase 14 — internal date-range reservations
 
 Implemented confirmed-order eligibility, UTC half-open overlap calculation,

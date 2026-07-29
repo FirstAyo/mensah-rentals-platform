@@ -170,6 +170,59 @@ export class WorkSummaryService {
       };
     }
 
+    if (permissions.has('fulfilment.view')) {
+      const [
+        awaitingPreparation,
+        preparing,
+        readyForPickup,
+        readyForDelivery,
+        partiallyCheckedOut,
+      ] = await Promise.all([
+        prisma.rentalOrder.count({
+          where: {
+            status: 'CONFIRMED',
+            reservationStatus: {
+              in: ['PARTIALLY_RESERVED', 'RESERVED', 'PARTIALLY_CONSUMED'],
+            },
+            fulfilment: { is: null },
+          },
+        }),
+        prisma.orderFulfilment.count({ where: { status: 'PREPARING' } }),
+        prisma.orderFulfilment.count({
+          where: { status: 'READY', fulfilmentMethod: 'PICKUP' },
+        }),
+        prisma.orderFulfilment.count({
+          where: {
+            status: 'READY',
+            fulfilmentMethod: { in: ['DELIVERY', 'DELIVERY_AND_SETUP'] },
+          },
+        }),
+        prisma.orderFulfilment.count({
+          where: { status: 'PARTIALLY_CHECKED_OUT' },
+        }),
+      ]);
+      response.fulfilment = {
+        awaitingPreparation,
+        preparing,
+        readyForPickup,
+        readyForDelivery,
+        partiallyCheckedOut,
+      };
+    }
+
+    if (permissions.has('active_rental.view')) {
+      const tomorrowUtc = new Date(todayUtc);
+      tomorrowUtc.setUTCDate(tomorrowUtc.getUTCDate() + 1);
+      const [active, expectedReturnsToday, overdue] = await Promise.all([
+        prisma.activeRental.count(),
+        prisma.activeRental.count({
+          where: { expectedReturnAt: { gte: todayUtc, lt: tomorrowUtc } },
+        }),
+        prisma.activeRental.count({ where: { expectedReturnAt: { lt: now } } }),
+      ]);
+      response.activeRentals = { active, expectedReturnsToday, overdue };
+    }
+
     return response;
   }
 }

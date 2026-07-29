@@ -16,6 +16,7 @@ import { RentalRequestModule } from './rental-request/rental-request.module';
 import { QuoteModule } from './quote/quote.module';
 import { RentalOrderModule } from './rental-order/rental-order.module';
 import { WorkSummaryModule } from './work-summary/work-summary.module';
+import { FulfilmentModule } from './fulfilment/fulfilment.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { WorkSummaryModule } from './work-summary/work-summary.module';
     QuoteModule,
     RentalOrderModule,
     WorkSummaryModule,
+    FulfilmentModule,
   ],
   controllers: [HealthController],
   providers: [DatabaseService, HealthService],

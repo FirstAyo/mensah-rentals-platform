@@ -20,6 +20,14 @@ export default async function RentalOrderDetailPage({
         canViewAvailability: permissions.has('inventory.availability.view'),
         canViewReservation: permissions.has('inventory.reservation.view'),
       }}
+      fulfilmentPermissions={{
+        canView: permissions.has('fulfilment.view'),
+        canPrepare: permissions.has('fulfilment.prepare'),
+        canCheckout: permissions.has('fulfilment.checkout'),
+        canPartialCheckout: permissions.has('fulfilment.partial_checkout'),
+        canHandoff: permissions.has('fulfilment.handoff'),
+        canPdf: permissions.has('fulfilment.pdf'),
+      }}
     />
   );
 }

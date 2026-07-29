@@ -19,6 +19,10 @@ function isSummary(value: unknown): value is AdminWorkSummaryResponse {
   const reservations = record.reservations as
     | Record<string, unknown>
     | undefined;
+  const fulfilment = record.fulfilment as Record<string, unknown> | undefined;
+  const activeRentals = record.activeRentals as
+    | Record<string, unknown>
+    | undefined;
   return (
     (!requests ||
       (count(requests.submittedAwaitingReview) &&
@@ -38,7 +42,17 @@ function isSummary(value: unknown): value is AdminWorkSummaryResponse {
         count(reservations.fullyReserved) &&
         count(reservations.partiallyReserved) &&
         count(reservations.unresolvedShortfallQuantity) &&
-        count(reservations.upcomingReservations)))
+        count(reservations.upcomingReservations))) &&
+    (!fulfilment ||
+      (count(fulfilment.awaitingPreparation) &&
+        count(fulfilment.preparing) &&
+        count(fulfilment.readyForPickup) &&
+        count(fulfilment.readyForDelivery) &&
+        count(fulfilment.partiallyCheckedOut))) &&
+    (!activeRentals ||
+      (count(activeRentals.active) &&
+        count(activeRentals.expectedReturnsToday) &&
+        count(activeRentals.overdue)))
   );
 }
 

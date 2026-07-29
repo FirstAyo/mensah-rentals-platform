@@ -61,6 +61,19 @@ const orderInclude = {
   rentalRequest: { select: { referenceNumber: true } },
   tax: true,
   customerAccess: { orderBy: { createdAt: 'desc' as const } },
+  fulfilment: {
+    include: {
+      activeRental: true,
+      items: {
+        include: {
+          rentalOrderItem: {
+            select: { productNameSnapshot: true, rentalUnitSnapshot: true },
+          },
+        },
+        orderBy: { createdAt: 'asc' as const },
+      },
+    },
+  },
 } satisfies Prisma.RentalOrderInclude;
 
 type OrderRecord = Prisma.RentalOrderGetPayload<{
@@ -794,6 +807,7 @@ export class RentalOrderService {
       ...this.mapSummary(order, includeReservationStatus),
       acceptedQuoteRevisionId: order.acceptedQuoteRevisionId,
       acceptedRevisionNumber: order.acceptedRevisionNumber,
+      reservationVersion: order.reservationVersion,
       activities: order.activities.map((activity) => ({
         actor: activity.actor,
         createdAt: activity.createdAt.toISOString(),
@@ -861,6 +875,17 @@ export class RentalOrderService {
 
   private mapPublic(order: OrderRecord): PublicRentalOrderResponse {
     const detail = this.mapDetail(order);
+    const customerFulfilmentStatus = (() => {
+      if (!order.fulfilment)
+        return { key: 'CONFIRMED' as const, label: 'Order confirmed' };
+      if (order.fulfilment.activeRental)
+        return { key: 'RENTAL_ACTIVE' as const, label: 'Rental active' };
+      if (order.fulfilment.status === 'READY')
+        return order.fulfillmentMethodSnapshot === 'PICKUP'
+          ? { key: 'READY_FOR_PICKUP' as const, label: 'Ready for pickup' }
+          : { key: 'READY_FOR_DELIVERY' as const, label: 'Ready for delivery' };
+      return { key: 'PREPARING' as const, label: 'Preparing your equipment' };
+    })();
     return {
       chargeTotalCents: detail.chargeTotalCents,
       charges: detail.charges.map(({ amountCents, label, taxable, type }) => ({
@@ -917,6 +942,18 @@ export class RentalOrderService {
       taxCents: detail.taxCents,
       terms: detail.terms,
       totalCents: detail.totalCents,
+      customerFulfilmentStatus,
+      expectedReturnDate: order.fulfilment?.activeRental
+        ? this.dateOnly(order.rentalEndDateSnapshot)
+        : null,
+      checkedOutItems:
+        order.fulfilment?.items
+          .filter(({ checkedOutQuantity }) => checkedOutQuantity > 0)
+          .map((item) => ({
+            productName: item.rentalOrderItem.productNameSnapshot,
+            quantity: item.checkedOutQuantity,
+            rentalUnit: item.rentalOrderItem.rentalUnitSnapshot,
+          })) ?? [],
     };
   }
 

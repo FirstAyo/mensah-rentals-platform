@@ -1,5 +1,9 @@
 # Planned Domain Model
 
+## Phase 15 implemented models
+
+`OrderFulfilment`, `OrderFulfilmentItem`, `PreparedSerializedAsset`, `FulfilmentOperation`, `FulfilmentOperationItem`, `ActiveRental`, `ActiveRentalItem`, `ActiveRentalSerializedAsset`, and `FulfilmentHandoff` implement preparation and checkout. `PreparedSerializedAsset` is the exact current serialized picking set while append-only operation items preserve its changes. `InventoryReservationItem.consumedQuantity` separates active commitment from physical checkout. These are not return, damage, loss, maintenance-resolution, or payment models.
+
 ## Implemented reservation models
 
 - `InventoryReservation` is the versioned one-per-order reservation aggregate.

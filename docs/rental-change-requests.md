@@ -1,5 +1,7 @@
 # Formal rental change requests
 
+An unresolved `SUBMITTED`, `UNDER_REVIEW`, or `APPROVED_FOR_REQUOTE` change request blocks Phase 15 fulfilment eligibility. It never automatically rewrites an order, reservation, fulfilment, or active rental.
+
 ## Phase 14 reservation boundary
 
 A submitted or reviewed formal change request never mutates an active

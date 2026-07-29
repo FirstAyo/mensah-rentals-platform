@@ -147,6 +147,8 @@ enum RentalOrderReservationStatus {
   RESERVED
   RESERVATION_FAILED
   RELEASED
+  PARTIALLY_CONSUMED
+  CONSUMED
 }
 
 enum InventoryReservationStatus {
@@ -155,6 +157,8 @@ enum InventoryReservationStatus {
   RESERVED
   RESERVATION_FAILED
   RELEASED
+  PARTIALLY_CONSUMED
+  CONSUMED
 }
 
 enum InventoryReservationItemType {
@@ -178,6 +182,31 @@ enum InventoryReservationOperationType {
 enum SerializedAssetAllocationStatus {
   ACTIVE
   RELEASED
+  CONSUMED
+}
+
+enum OrderFulfilmentStatus {
+  PREPARING
+  READY
+  PARTIALLY_CHECKED_OUT
+  CHECKED_OUT
+}
+
+enum FulfilmentOperationType {
+  PREPARATION_STARTED
+  PREPARATION_UPDATED
+  MARKED_READY
+  CHECKOUT
+}
+
+enum ActiveRentalStatus {
+  PARTIALLY_ACTIVE
+  ACTIVE
+}
+
+enum FulfilmentHandoffType {
+  PICKUP
+  DELIVERY
 }
 
 enum RentalOrderActivityType {
@@ -223,6 +252,11 @@ model User {
   serializedAllocationsReleased    SerializedAssetAllocation[]     @relation("SerializedAssetAllocationReleaser")
   rentalRequestRevisionsCreated    RentalRequestRevision[]         @relation("RentalRequestRevisionStaffCreator")
   rentalChangeRequestsReviewed     RentalChangeRequest[]           @relation("RentalChangeRequestReviewer")
+  fulfilmentsCreated               OrderFulfilment[]               @relation("OrderFulfilmentCreator")
+  fulfilmentsUpdated               OrderFulfilment[]               @relation("OrderFulfilmentUpdater")
+  fulfilmentOperations             FulfilmentOperation[]           @relation("FulfilmentOperationActor")
+  activeRentalsActivated           ActiveRental[]                  @relation("ActiveRentalActivator")
+  fulfilmentHandoffs               FulfilmentHandoff[]             @relation("FulfilmentHandoffActor")
 }
 
 model StaffSession {
@@ -865,6 +899,8 @@ model RentalOrder {
   customerAccess               OrderCustomerAccess[]
   changeRequests               RentalChangeRequest[]
   reservation                  InventoryReservation?
+  fulfilment                   OrderFulfilment?
+  activeRental                 ActiveRental?
 
   @@index([status, confirmedAt, id])
   @@index([reservationStatus, confirmedAt, id])
@@ -892,6 +928,8 @@ model RentalOrderItem {
   createdAt                 DateTime                  @default(now()) @db.Timestamptz(3)
   rentalOrder               RentalOrder               @relation(fields: [rentalOrderId], references: [id], onDelete: Restrict)
   reservationItem           InventoryReservationItem?
+  fulfilmentItem            OrderFulfilmentItem?
+  activeRentalItem          ActiveRentalItem?
 
   @@unique([rentalOrderId, sortOrder])
   @@index([rentalOrderId, createdAt, id])
@@ -1059,6 +1097,7 @@ model InventoryItem {
   transactions              InventoryTransaction[]
   reservationOperationItems InventoryReservationOperationItem[]
   serializedAllocations     SerializedAssetAllocation[]
+  activeRentalAssets        ActiveRentalSerializedAsset[]
 
   @@index([inventoryId, status, id])
   @@index([serialNumber])
@@ -1082,6 +1121,7 @@ model InventoryReservation {
   createdBy                 User                            @relation("InventoryReservationCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
   items                     InventoryReservationItem[]
   operations                InventoryReservationOperation[]
+  fulfilment                OrderFulfilment?
 
   @@index([status, rangeStartUtc, rangeEndExclusiveUtc, id])
   @@index([createdByUserId, createdAt, id])
@@ -1096,6 +1136,7 @@ model InventoryReservationItem {
   reservationType        InventoryReservationItemType
   requestedQuantity      Int
   reservedQuantity       Int                                 @default(0)
+  consumedQuantity       Int                                 @default(0)
   shortfallQuantity      Int
   createdAt              DateTime                            @default(now()) @db.Timestamptz(3)
   updatedAt              DateTime                            @updatedAt @db.Timestamptz(3)
@@ -1104,6 +1145,7 @@ model InventoryReservationItem {
   inventory              Inventory                           @relation(fields: [inventoryId], references: [id], onDelete: Restrict)
   operationItems         InventoryReservationOperationItem[]
   serializedAllocations  SerializedAssetAllocation[]
+  fulfilmentItem         OrderFulfilmentItem?
 
   @@unique([inventoryReservationId, rentalOrderItemId])
   @@unique([inventoryReservationId, inventoryId])
@@ -1150,52 +1192,232 @@ model InventoryReservationOperationItem {
 }
 
 model SerializedAssetAllocation {
-  id                   String                          @id @default(cuid())
-  reservationItemId    String
-  inventoryItemId      String
-  allocatedOperationId String
-  releasedOperationId  String?
-  rangeStartUtc        DateTime                        @db.Timestamptz(3)
-  rangeEndExclusiveUtc DateTime                        @db.Timestamptz(3)
-  status               SerializedAssetAllocationStatus @default(ACTIVE)
-  allocatedAt          DateTime                        @default(now()) @db.Timestamptz(3)
-  releasedAt           DateTime?                       @db.Timestamptz(3)
-  allocatedByUserId    String
-  releasedByUserId     String?
-  reservationItem      InventoryReservationItem        @relation(fields: [reservationItemId], references: [id], onDelete: Restrict)
-  inventoryItem        InventoryItem                   @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
-  allocatedOperation   InventoryReservationOperation   @relation("SerializedAssetAllocationCreatedByOperation", fields: [allocatedOperationId], references: [id], onDelete: Restrict)
-  releasedOperation    InventoryReservationOperation?  @relation("SerializedAssetAllocationReleasedByOperation", fields: [releasedOperationId], references: [id], onDelete: Restrict)
-  allocatedBy          User                            @relation("SerializedAssetAllocationCreator", fields: [allocatedByUserId], references: [id], onDelete: Restrict)
-  releasedBy           User?                           @relation("SerializedAssetAllocationReleaser", fields: [releasedByUserId], references: [id], onDelete: Restrict)
+  id                            String                          @id @default(cuid())
+  reservationItemId             String
+  inventoryItemId               String
+  allocatedOperationId          String
+  releasedOperationId           String?
+  rangeStartUtc                 DateTime                        @db.Timestamptz(3)
+  rangeEndExclusiveUtc          DateTime                        @db.Timestamptz(3)
+  status                        SerializedAssetAllocationStatus @default(ACTIVE)
+  allocatedAt                   DateTime                        @default(now()) @db.Timestamptz(3)
+  releasedAt                    DateTime?                       @db.Timestamptz(3)
+  allocatedByUserId             String
+  releasedByUserId              String?
+  consumedFulfilmentOperationId String?
+  consumedAt                    DateTime?                       @db.Timestamptz(3)
+  reservationItem               InventoryReservationItem        @relation(fields: [reservationItemId], references: [id], onDelete: Restrict)
+  inventoryItem                 InventoryItem                   @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+  allocatedOperation            InventoryReservationOperation   @relation("SerializedAssetAllocationCreatedByOperation", fields: [allocatedOperationId], references: [id], onDelete: Restrict)
+  releasedOperation             InventoryReservationOperation?  @relation("SerializedAssetAllocationReleasedByOperation", fields: [releasedOperationId], references: [id], onDelete: Restrict)
+  allocatedBy                   User                            @relation("SerializedAssetAllocationCreator", fields: [allocatedByUserId], references: [id], onDelete: Restrict)
+  releasedBy                    User?                           @relation("SerializedAssetAllocationReleaser", fields: [releasedByUserId], references: [id], onDelete: Restrict)
+  consumedFulfilmentOperation   FulfilmentOperation?            @relation(fields: [consumedFulfilmentOperationId], references: [id], onDelete: Restrict)
+  activeRentalAsset             ActiveRentalSerializedAsset?
+  preparedAsset                 PreparedSerializedAsset?
+  fulfilmentOperationItems      FulfilmentOperationItem[]
 
   @@index([reservationItemId, status, id])
   @@index([inventoryItemId, status, rangeStartUtc, rangeEndExclusiveUtc, id])
   @@index([allocatedOperationId])
   @@index([releasedOperationId])
+  @@index([consumedFulfilmentOperationId])
 }
 
 model InventoryTransaction {
-  id              String                   @id @default(cuid())
-  inventoryId     String
-  inventoryItemId String?
-  kind            InventoryTransactionKind
-  quantity        Int
-  fromState       InventoryState?
-  toState         InventoryState?
-  operationId     String                   @unique
-  reason          String
-  actorUserId     String
-  createdAt       DateTime                 @default(now()) @db.Timestamptz(3)
-  inventory       Inventory                @relation(fields: [inventoryId], references: [id], onDelete: Restrict)
-  inventoryItem   InventoryItem?           @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
-  actor           User                     @relation("InventoryTransactionActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  id                    String                   @id @default(cuid())
+  inventoryId           String
+  inventoryItemId       String?
+  kind                  InventoryTransactionKind
+  quantity              Int
+  fromState             InventoryState?
+  toState               InventoryState?
+  operationId           String                   @unique
+  reason                String
+  actorUserId           String
+  fulfilmentOperationId String?
+  createdAt             DateTime                 @default(now()) @db.Timestamptz(3)
+  inventory             Inventory                @relation(fields: [inventoryId], references: [id], onDelete: Restrict)
+  inventoryItem         InventoryItem?           @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+  actor                 User                     @relation("InventoryTransactionActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  fulfilmentOperation   FulfilmentOperation?     @relation(fields: [fulfilmentOperationId], references: [id], onDelete: Restrict)
 
   @@index([inventoryId, createdAt, id])
   @@index([inventoryItemId, createdAt, id])
   @@index([actorUserId, createdAt, id])
   @@index([inventoryId, fromState])
   @@index([inventoryId, toState])
+  @@index([fulfilmentOperationId, createdAt, id])
+}
+
+model OrderFulfilment {
+  id                     String                         @id @default(cuid())
+  rentalOrderId          String                         @unique
+  inventoryReservationId String                         @unique
+  status                 OrderFulfilmentStatus          @default(PREPARING)
+  fulfilmentMethod       RentalRequestFulfillmentMethod
+  version                Int                            @default(0)
+  preparationStartedAt   DateTime                       @default(now()) @db.Timestamptz(3)
+  readyAt                DateTime?                      @db.Timestamptz(3)
+  firstCheckedOutAt      DateTime?                      @db.Timestamptz(3)
+  fullyCheckedOutAt      DateTime?                      @db.Timestamptz(3)
+  createdByUserId        String
+  updatedByUserId        String
+  createdAt              DateTime                       @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime                       @updatedAt @db.Timestamptz(3)
+  rentalOrder            RentalOrder                    @relation(fields: [rentalOrderId], references: [id], onDelete: Restrict)
+  inventoryReservation   InventoryReservation           @relation(fields: [inventoryReservationId], references: [id], onDelete: Restrict)
+  createdBy              User                           @relation("OrderFulfilmentCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy              User                           @relation("OrderFulfilmentUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  items                  OrderFulfilmentItem[]
+  operations             FulfilmentOperation[]
+  activeRental           ActiveRental?
+
+  @@index([status, updatedAt, id])
+}
+
+model OrderFulfilmentItem {
+  id                       String                    @id @default(cuid())
+  orderFulfilmentId        String
+  rentalOrderItemId        String                    @unique
+  reservationItemId        String                    @unique
+  orderedQuantitySnapshot  Int
+  preparedQuantity         Int                       @default(0)
+  checkedOutQuantity       Int                       @default(0)
+  createdAt                DateTime                  @default(now()) @db.Timestamptz(3)
+  updatedAt                DateTime                  @updatedAt @db.Timestamptz(3)
+  orderFulfilment          OrderFulfilment           @relation(fields: [orderFulfilmentId], references: [id], onDelete: Restrict)
+  rentalOrderItem          RentalOrderItem           @relation(fields: [rentalOrderItemId], references: [id], onDelete: Restrict)
+  reservationItem          InventoryReservationItem  @relation(fields: [reservationItemId], references: [id], onDelete: Restrict)
+  operationItems           FulfilmentOperationItem[]
+  preparedSerializedAssets PreparedSerializedAsset[]
+  activeRentalItem         ActiveRentalItem?
+
+  @@unique([orderFulfilmentId, rentalOrderItemId])
+  @@index([orderFulfilmentId, id])
+}
+
+model PreparedSerializedAsset {
+  id                     String                    @id @default(cuid())
+  orderFulfilmentItemId  String
+  serializedAllocationId String                    @unique
+  createdAt              DateTime                  @default(now()) @db.Timestamptz(3)
+  orderFulfilmentItem    OrderFulfilmentItem       @relation(fields: [orderFulfilmentItemId], references: [id], onDelete: Restrict)
+  serializedAllocation   SerializedAssetAllocation @relation(fields: [serializedAllocationId], references: [id], onDelete: Restrict)
+
+  @@unique([orderFulfilmentItemId, serializedAllocationId])
+  @@index([orderFulfilmentItemId, id])
+}
+
+model FulfilmentOperation {
+  id                    String                      @id @default(cuid())
+  orderFulfilmentId     String
+  type                  FulfilmentOperationType
+  operationId           String                      @unique @db.Uuid
+  payloadHash           String                      @db.Char(64)
+  actorUserId           String
+  internalReason        String?                     @db.Text
+  metadata              Json?
+  expectedVersion       Int
+  resultingVersion      Int
+  createdAt             DateTime                    @default(now()) @db.Timestamptz(3)
+  orderFulfilment       OrderFulfilment             @relation(fields: [orderFulfilmentId], references: [id], onDelete: Restrict)
+  actor                 User                        @relation("FulfilmentOperationActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  items                 FulfilmentOperationItem[]
+  inventoryTransactions InventoryTransaction[]
+  consumedAllocations   SerializedAssetAllocation[]
+  handoff               FulfilmentHandoff?
+
+  @@index([orderFulfilmentId, createdAt, id])
+  @@index([actorUserId, createdAt, id])
+}
+
+model FulfilmentOperationItem {
+  id                     String                     @id @default(cuid())
+  fulfilmentOperationId  String
+  orderFulfilmentItemId  String
+  preparedDelta          Int                        @default(0)
+  checkedOutDelta        Int                        @default(0)
+  serializedAllocationId String?
+  createdAt              DateTime                   @default(now()) @db.Timestamptz(3)
+  fulfilmentOperation    FulfilmentOperation        @relation(fields: [fulfilmentOperationId], references: [id], onDelete: Restrict)
+  orderFulfilmentItem    OrderFulfilmentItem        @relation(fields: [orderFulfilmentItemId], references: [id], onDelete: Restrict)
+  serializedAllocation   SerializedAssetAllocation? @relation(fields: [serializedAllocationId], references: [id], onDelete: Restrict)
+
+  @@unique([fulfilmentOperationId, orderFulfilmentItemId, serializedAllocationId])
+  @@index([orderFulfilmentItemId, createdAt, id])
+}
+
+model ActiveRental {
+  id                String              @id @default(cuid())
+  rentalOrderId     String              @unique
+  orderFulfilmentId String              @unique
+  status            ActiveRentalStatus
+  rentalStartAt     DateTime            @db.Timestamptz(3)
+  expectedReturnAt  DateTime            @db.Timestamptz(3)
+  checkedOutAt      DateTime            @default(now()) @db.Timestamptz(3)
+  activatedByUserId String
+  version           Int                 @default(0)
+  createdAt         DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime            @updatedAt @db.Timestamptz(3)
+  rentalOrder       RentalOrder         @relation(fields: [rentalOrderId], references: [id], onDelete: Restrict)
+  orderFulfilment   OrderFulfilment     @relation(fields: [orderFulfilmentId], references: [id], onDelete: Restrict)
+  activatedBy       User                @relation("ActiveRentalActivator", fields: [activatedByUserId], references: [id], onDelete: Restrict)
+  items             ActiveRentalItem[]
+  handoffs          FulfilmentHandoff[]
+
+  @@index([status, expectedReturnAt, id])
+}
+
+model ActiveRentalItem {
+  id                    String                        @id @default(cuid())
+  activeRentalId        String
+  rentalOrderItemId     String                        @unique
+  orderFulfilmentItemId String                        @unique
+  checkedOutQuantity    Int
+  createdAt             DateTime                      @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime                      @updatedAt @db.Timestamptz(3)
+  activeRental          ActiveRental                  @relation(fields: [activeRentalId], references: [id], onDelete: Restrict)
+  rentalOrderItem       RentalOrderItem               @relation(fields: [rentalOrderItemId], references: [id], onDelete: Restrict)
+  orderFulfilmentItem   OrderFulfilmentItem           @relation(fields: [orderFulfilmentItemId], references: [id], onDelete: Restrict)
+  serializedAssets      ActiveRentalSerializedAsset[]
+
+  @@unique([activeRentalId, rentalOrderItemId])
+  @@index([activeRentalId, id])
+}
+
+model ActiveRentalSerializedAsset {
+  id                     String                    @id @default(cuid())
+  activeRentalItemId     String
+  serializedAllocationId String                    @unique
+  inventoryItemId        String                    @unique
+  checkedOutAt           DateTime                  @default(now()) @db.Timestamptz(3)
+  createdAt              DateTime                  @default(now()) @db.Timestamptz(3)
+  activeRentalItem       ActiveRentalItem          @relation(fields: [activeRentalItemId], references: [id], onDelete: Restrict)
+  serializedAllocation   SerializedAssetAllocation @relation(fields: [serializedAllocationId], references: [id], onDelete: Restrict)
+  inventoryItem          InventoryItem             @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+
+  @@index([activeRentalItemId, id])
+}
+
+model FulfilmentHandoff {
+  id                       String                @id @default(cuid())
+  activeRentalId           String
+  fulfilmentOperationId    String                @unique
+  type                     FulfilmentHandoffType
+  recipientName            String?
+  destinationSnapshot      String?               @db.Text
+  acknowledgementReference String?
+  internalNotes            String?               @db.Text
+  actorUserId              String
+  handoffAt                DateTime              @db.Timestamptz(3)
+  createdAt                DateTime              @default(now()) @db.Timestamptz(3)
+  activeRental             ActiveRental          @relation(fields: [activeRentalId], references: [id], onDelete: Restrict)
+  fulfilmentOperation      FulfilmentOperation   @relation(fields: [fulfilmentOperationId], references: [id], onDelete: Restrict)
+  actor                    User                  @relation("FulfilmentHandoffActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([activeRentalId, handoffAt, id])
+  @@index([actorUserId, handoffAt, id])
 }
 
 model ProductImage {

@@ -14,6 +14,8 @@ import type {
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { QuoteService } from '../quote/quote.service';
+import { FulfilmentService } from '../fulfilment/fulfilment.service';
+import { InventoryService } from '../inventory/inventory.service';
 import { RentalRequestDecisionService } from '../rental-request/rental-request-decision.service';
 import { RentalChangeRequestService } from '../rental-request/rental-change-request.service';
 import { expectPublicDataSafe } from '../testing/public-confidentiality.test-utils';
@@ -37,6 +39,8 @@ describe('confirmed rental orders against PostgreSQL', () => {
   const quotes = new QuoteService(config);
   const orders = new RentalOrderService(config);
   const reservations = new InventoryReservationService();
+  const fulfilments = new FulfilmentService();
+  const inventory = new InventoryService();
   const changes = new RentalChangeRequestService(config);
   const decisions = new RentalRequestDecisionService();
   let actor: StaffUserResponse;
@@ -1316,6 +1320,482 @@ describe('confirmed rental orders against PostgreSQL', () => {
           otherItemId,
         ),
       ).resolves.toMatchObject({ items: [{ id: asset.id }] });
+    } finally {
+      productId = originalProductId;
+    }
+  }, 30_000);
+
+  it('consumes bulk reservations exactly once without changing physical totals or exposing internal data', async () => {
+    const originalProductId = productId;
+    const source = await prisma.product.findUniqueOrThrow({
+      where: { id: originalProductId },
+    });
+    const checkoutProduct = await prisma.product.create({
+      data: {
+        categoryId: source.categoryId,
+        name: `Bulk checkout ${suffix}`,
+        shortDescription: 'Bulk checkout fixture',
+        slug: `bulk-checkout-${suffix}`,
+      },
+    });
+    const checkoutInventory = await prisma.inventory.create({
+      data: {
+        creationOperationId: randomUUID(),
+        creationReason: 'Bulk checkout fixture',
+        initialState: 'RENTABLE',
+        productId: checkoutProduct.id,
+        trackingMode: 'BULK',
+      },
+    });
+    await prisma.inventoryTransaction.create({
+      data: {
+        actorUserId: actor.id,
+        inventoryId: checkoutInventory.id,
+        kind: 'INITIAL_STOCK',
+        operationId: randomUUID(),
+        quantity: 2,
+        reason: 'Bulk checkout fixture',
+        toState: 'RENTABLE',
+      },
+    });
+    productId = checkoutProduct.id;
+    try {
+      const accepted = await acceptedQuote('bulk-checkout');
+      const orderId = (
+        await orders.create(actor, accepted.quote.id, accepted.revision.id, {
+          operationId: randomUUID(),
+        })
+      ).order.id;
+      const order = await orders.detail(orderId);
+      const reservation = await reservations.create(actor.id, orderId, {
+        allowPartial: true,
+        operationId: randomUUID(),
+        overrideReason: 'Eight units remain commercially outstanding.',
+        serializedSelections: [],
+      });
+      const started = await fulfilments.start(actor.id, orderId, {
+        expectedReservationVersion: reservation.version,
+        operationId: randomUUID(),
+      });
+      const prepared = await fulfilments.prepare(actor.id, orderId, {
+        expectedVersion: started.version,
+        items: [
+          {
+            quantity: 2,
+            rentalOrderItemId: order.items[0]!.id,
+            serializedAllocationIds: [],
+          },
+        ],
+        operationId: randomUUID(),
+      });
+      const ready = await fulfilments.markReady(actor.id, orderId, {
+        expectedVersion: prepared.version,
+        operationId: randomUUID(),
+      });
+      const checkoutInput = {
+        allowPartial: true as const,
+        expectedReservationVersion: reservation.version,
+        expectedVersion: ready.version,
+        handoffAt: new Date().toISOString(),
+        internalReason: 'Two reserved units handed to the customer.',
+        items: [
+          {
+            quantity: 2,
+            rentalOrderItemId: order.items[0]!.id,
+            serializedAllocationIds: [],
+          },
+        ],
+        operationId: randomUUID(),
+        recipientName: 'Bulk Checkout Customer',
+      };
+      const before = await inventory.quantities(checkoutInventory.id);
+      await expect(
+        fulfilments.checkout(actor.id, orderId, {
+          ...checkoutInput,
+          operationId: randomUUID(),
+          recipientName: undefined,
+        }),
+      ).rejects.toThrow(/recipient name/i);
+      const checkoutRole = await prisma.role.create({
+        data: {
+          displayName: `Checkout verifier ${suffix}`,
+          name: `CHECKOUT_${suffix.slice(0, 12).toUpperCase()}`,
+        },
+      });
+      const checkoutPermissions = await prisma.permission.findMany({
+        where: { key: { in: ['fulfilment.checkout', 'fulfilment.handoff'] } },
+      });
+      await prisma.rolePermission.createMany({
+        data: checkoutPermissions.map((permission) => ({
+          permissionId: permission.id,
+          roleId: checkoutRole.id,
+        })),
+      });
+      const checkoutVerifier = await prisma.user.create({
+        data: {
+          email: `checkout-verifier-${suffix}@example.test`,
+          firstName: 'Checkout',
+          lastName: 'Verifier',
+          passwordHash: 'unused',
+          status: 'DISABLED',
+          roles: { create: { roleId: checkoutRole.id } },
+        },
+      });
+      await expect(
+        fulfilments.checkout(checkoutVerifier.id, orderId, {
+          ...checkoutInput,
+          operationId: randomUUID(),
+        }),
+      ).rejects.toThrow(/permission|disabled|inactive/i);
+      await prisma.user.update({
+        where: { id: checkoutVerifier.id },
+        data: { status: 'ACTIVE' },
+      });
+      const checkoutPermission = checkoutPermissions.find(
+        ({ key }) => key === 'fulfilment.checkout',
+      )!;
+      await prisma.rolePermission.delete({
+        where: {
+          roleId_permissionId: {
+            permissionId: checkoutPermission.id,
+            roleId: checkoutRole.id,
+          },
+        },
+      });
+      await expect(
+        fulfilments.checkout(checkoutVerifier.id, orderId, {
+          ...checkoutInput,
+          operationId: randomUUID(),
+        }),
+      ).rejects.toThrow(/permission/i);
+      const [checkedOut, replay] = await Promise.all([
+        fulfilments.checkout(actor.id, orderId, checkoutInput),
+        fulfilments.checkout(actor.id, orderId, checkoutInput),
+      ]);
+      expect(replay).toMatchObject({
+        id: checkedOut.id,
+        status: 'PARTIALLY_CHECKED_OUT',
+        version: checkedOut.version,
+      });
+      const after = await inventory.quantities(checkoutInventory.id);
+      expect(before).toMatchObject({
+        states: { RENTABLE: 2, RENTED: 0 },
+        totalQuantity: 2,
+      });
+      expect(after).toMatchObject({
+        states: { RENTABLE: 0, RENTED: 2 },
+        totalQuantity: 2,
+      });
+      expect(
+        await prisma.inventoryTransaction.count({
+          where: {
+            fulfilmentOperationId: { not: null },
+            inventoryId: checkoutInventory.id,
+          },
+        }),
+      ).toBe(1);
+      expect(
+        await prisma.inventoryReservationItem.findFirstOrThrow({
+          where: { inventoryReservationId: reservation.id },
+          select: { consumedQuantity: true, reservedQuantity: true },
+        }),
+      ).toEqual({ consumedQuantity: 2, reservedQuantity: 0 });
+      expect(
+        await prisma.activeRentalItem.findFirstOrThrow({
+          where: { activeRental: { rentalOrderId: orderId } },
+          select: { checkedOutQuantity: true },
+        }),
+      ).toEqual({ checkedOutQuantity: 2 });
+      expect(
+        await prisma.activeRental.findUniqueOrThrow({
+          where: { rentalOrderId: orderId },
+          select: { checkedOutAt: true },
+        }),
+      ).toEqual({ checkedOutAt: new Date(checkoutInput.handoffAt) });
+      expect(
+        await prisma.fulfilmentHandoff.count({
+          where: { activeRental: { rentalOrderId: orderId } },
+        }),
+      ).toBe(1);
+      const fulfilmentItem = await prisma.orderFulfilmentItem.findFirstOrThrow({
+        where: { orderFulfilment: { rentalOrderId: orderId } },
+      });
+      const mismatchedOrderItem = await prisma.rentalOrderItem.findFirstOrThrow(
+        {
+          where: { rentalOrderId: { not: orderId } },
+        },
+      );
+      await expect(
+        prisma.orderFulfilmentItem.update({
+          where: { id: fulfilmentItem.id },
+          data: { rentalOrderItemId: mismatchedOrderItem.id },
+        }),
+      ).rejects.toThrow(/match its order and reservation item/i);
+      const preparationOperation =
+        await prisma.fulfilmentOperation.findFirstOrThrow({
+          where: {
+            orderFulfilmentId: fulfilmentItem.orderFulfilmentId,
+            type: 'PREPARATION_STARTED',
+          },
+        });
+      const activeRental = await prisma.activeRental.findUniqueOrThrow({
+        where: { rentalOrderId: orderId },
+      });
+      await expect(
+        prisma.fulfilmentHandoff.create({
+          data: {
+            activeRentalId: activeRental.id,
+            actorUserId: actor.id,
+            fulfilmentOperationId: preparationOperation.id,
+            handoffAt: new Date(),
+            recipientName: 'Invalid cross-operation fixture',
+            type: 'PICKUP',
+          },
+        }),
+      ).rejects.toThrow(/handoff operation must be checkout/i);
+      const access = await orders.generateCustomerAccess(actor, orderId, {
+        operationId: randomUUID(),
+      });
+      const publicOrder = await orders.publicCurrent(
+        rawCapability(access.accessLink!),
+      );
+      expectPublicDataSafe(publicOrder);
+      expect(JSON.stringify(publicOrder)).not.toMatch(
+        /reservedQuantity|preparedQuantity|shortfallQuantity|assetNumber|serialNumber|actorUserId/,
+      );
+      await prisma.inventoryTransaction.create({
+        data: {
+          actorUserId: actor.id,
+          inventoryId: checkoutInventory.id,
+          kind: 'INITIAL_STOCK',
+          operationId: randomUUID(),
+          quantity: 8,
+          reason: 'Completion-checkout test stock',
+          toState: 'RENTABLE',
+        },
+      });
+      const currentReservation = await reservations.get(actor.id, orderId);
+      const completedReservation = await reservations.complete(
+        actor.id,
+        orderId,
+        reservation.id,
+        {
+          allowPartial: false,
+          expectedVersion: currentReservation.version,
+          operationId: randomUUID(),
+          serializedSelections: [],
+        },
+      );
+      expect(completedReservation).toMatchObject({
+        status: 'PARTIALLY_CONSUMED',
+        items: [
+          {
+            reservedQuantity: 8,
+            shortfallQuantity: 0,
+          },
+        ],
+      });
+      const completionPrepared = await fulfilments.prepare(actor.id, orderId, {
+        expectedVersion: checkedOut.version,
+        items: [
+          {
+            quantity: 8,
+            rentalOrderItemId: order.items[0]!.id,
+            serializedAllocationIds: [],
+          },
+        ],
+        operationId: randomUUID(),
+      });
+      const completionReady = await fulfilments.markReady(actor.id, orderId, {
+        expectedVersion: completionPrepared.version,
+        operationId: randomUUID(),
+      });
+      const completed = await fulfilments.checkout(actor.id, orderId, {
+        allowPartial: false,
+        expectedReservationVersion: completedReservation.version,
+        expectedVersion: completionReady.version,
+        handoffAt: new Date().toISOString(),
+        items: [
+          {
+            quantity: 8,
+            rentalOrderItemId: order.items[0]!.id,
+            serializedAllocationIds: [],
+          },
+        ],
+        operationId: randomUUID(),
+        recipientName: 'Bulk Checkout Customer',
+      });
+      expect(completed).toMatchObject({ status: 'CHECKED_OUT' });
+      expect(await inventory.quantities(checkoutInventory.id)).toMatchObject({
+        states: { RENTABLE: 0, RENTED: 10 },
+        totalQuantity: 10,
+      });
+      expect(
+        await prisma.inventoryReservationItem.findFirstOrThrow({
+          where: { inventoryReservationId: reservation.id },
+          select: { consumedQuantity: true, reservedQuantity: true },
+        }),
+      ).toEqual({ consumedQuantity: 10, reservedQuantity: 0 });
+      expect(
+        await prisma.activeRental.findUniqueOrThrow({
+          where: { rentalOrderId: orderId },
+          select: { status: true },
+        }),
+      ).toEqual({ status: 'ACTIVE' });
+      expect(
+        await prisma.fulfilmentHandoff.count({
+          where: { activeRental: { rentalOrderId: orderId } },
+        }),
+      ).toBe(2);
+    } finally {
+      productId = originalProductId;
+    }
+  }, 30_000);
+
+  it('checks out a serialized asset once and rejects a second checkout', async () => {
+    const originalProductId = productId;
+    const source = await prisma.product.findUniqueOrThrow({
+      where: { id: originalProductId },
+    });
+    const checkoutProduct = await prisma.product.create({
+      data: {
+        categoryId: source.categoryId,
+        name: `Serialized checkout ${suffix}`,
+        shortDescription: 'Serialized checkout fixture',
+        slug: `serialized-checkout-${suffix}`,
+      },
+    });
+    const checkoutInventory = await prisma.inventory.create({
+      data: {
+        creationOperationId: randomUUID(),
+        creationReason: 'Serialized checkout fixture',
+        initialState: 'RENTABLE',
+        productId: checkoutProduct.id,
+        trackingMode: 'SERIALIZED',
+      },
+    });
+    const asset = await prisma.inventoryItem.create({
+      data: {
+        assetNumber: `CHECKOUT-${suffix.slice(0, 12).toUpperCase()}`,
+        inventoryId: checkoutInventory.id,
+        serialNumber: `CHECKOUT-SERIAL-${suffix.slice(0, 12).toUpperCase()}`,
+        status: 'RENTABLE',
+      },
+    });
+    productId = checkoutProduct.id;
+    try {
+      const accepted = await acceptedQuote('serialized-checkout');
+      const orderId = (
+        await orders.create(actor, accepted.quote.id, accepted.revision.id, {
+          operationId: randomUUID(),
+        })
+      ).order.id;
+      const order = await orders.detail(orderId);
+      const reservation = await reservations.create(actor.id, orderId, {
+        allowPartial: true,
+        operationId: randomUUID(),
+        overrideReason: 'Nine serialized units remain outstanding.',
+        serializedSelections: [
+          {
+            rentalOrderItemId: order.items[0]!.id,
+            serializedAssetIds: [asset.id],
+          },
+        ],
+      });
+      const allocationId = reservation.items[0]!.allocations[0]!.allocationId;
+      const started = await fulfilments.start(actor.id, orderId, {
+        expectedReservationVersion: reservation.version,
+        operationId: randomUUID(),
+      });
+      const prepared = await fulfilments.prepare(actor.id, orderId, {
+        expectedVersion: started.version,
+        items: [
+          {
+            quantity: 1,
+            rentalOrderItemId: order.items[0]!.id,
+            serializedAllocationIds: [allocationId],
+          },
+        ],
+        operationId: randomUUID(),
+      });
+      const ready = await fulfilments.markReady(actor.id, orderId, {
+        expectedVersion: prepared.version,
+        operationId: randomUUID(),
+      });
+      const preparedAssets = await prisma.preparedSerializedAsset.findMany({
+        where: {
+          orderFulfilmentItem: { rentalOrderItemId: order.items[0]!.id },
+        },
+        select: { serializedAllocationId: true },
+      });
+      expect(preparedAssets).toEqual([
+        { serializedAllocationId: allocationId },
+      ]);
+      await expect(
+        prisma.preparedSerializedAsset.delete({
+          where: { serializedAllocationId: allocationId },
+        }),
+      ).rejects.toThrow(/count must match prepared quantity/i);
+      const checkoutInput = {
+        allowPartial: true as const,
+        expectedReservationVersion: reservation.version,
+        expectedVersion: ready.version,
+        handoffAt: new Date().toISOString(),
+        internalReason: 'One reserved serialized asset handed over.',
+        items: [
+          {
+            quantity: 1,
+            rentalOrderItemId: order.items[0]!.id,
+            serializedAllocationIds: [allocationId],
+          },
+        ],
+        operationId: randomUUID(),
+        recipientName: 'Serialized Checkout Customer',
+      };
+      const checkedOut = await fulfilments.checkout(
+        actor.id,
+        orderId,
+        checkoutInput,
+      );
+      await expect(
+        fulfilments.checkout(actor.id, orderId, checkoutInput),
+      ).resolves.toMatchObject({
+        id: checkedOut.id,
+        version: checkedOut.version,
+      });
+      await expect(
+        fulfilments.checkout(actor.id, orderId, {
+          ...checkoutInput,
+          expectedReservationVersion: reservation.version + 1,
+          expectedVersion: checkedOut.version,
+          operationId: randomUUID(),
+        }),
+      ).rejects.toThrow(/prepared|reserved|eligible|actively reserved/i);
+      expect(await inventory.quantities(checkoutInventory.id)).toMatchObject({
+        states: { RENTABLE: 0, RENTED: 1 },
+        totalQuantity: 1,
+      });
+      expect(
+        await prisma.serializedAssetAllocation.findUniqueOrThrow({
+          where: { id: allocationId },
+          select: { status: true },
+        }),
+      ).toEqual({ status: 'CONSUMED' });
+      expect(
+        await prisma.activeRentalSerializedAsset.count({
+          where: { serializedAllocationId: allocationId },
+        }),
+      ).toBe(1);
+      expect(
+        await prisma.preparedSerializedAsset.count({
+          where: { serializedAllocationId: allocationId },
+        }),
+      ).toBe(0);
+      expect(
+        await prisma.inventoryTransaction.count({
+          where: { inventoryItemId: asset.id, toState: 'RENTED' },
+        }),
+      ).toBe(1);
     } finally {
       productId = originalProductId;
     }

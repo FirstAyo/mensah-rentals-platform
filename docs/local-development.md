@@ -1,5 +1,35 @@
 # Local Development on Windows
 
+## Phase 15 first-time/update setup (Windows PowerShell)
+
+From the repository root, close any older development terminals, open Docker Desktop, and run:
+
+```powershell
+docker compose up -d postgres postgres-test
+pnpm install
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+pnpm dev
+```
+
+Successful migration output lists `20260730095900_phase15_fulfilment_enums` and `20260730100000_phase15_fulfilment_checkout`, or says no pending migrations. RBAC verification reports the seeded catalogue is valid.
+
+Open `http://localhost:3001/login`, sign in with the local bootstrap account whose values come from your uncommitted `.env`, and open a confirmed reserved order at `/orders/{orderId}`. Start preparation, set prepared quantities no higher than reserved quantities, save, and mark ready. Confirm pickup/delivery and checkout. For a partial checkout, select the explicit partial option and provide an internal reason. Visit `/active-rentals` afterward.
+
+The customer order link at `http://localhost:3000/order` may show only a coarse status, expected return date, and safe checked-out summary. It must not show reservation/preparation/shortfall counts or asset identifiers.
+
+Stop applications with `Ctrl+C`; stop containers with:
+
+```powershell
+docker compose down
+```
+
+Phase 15 deliberately has no return, damage, missing, maintenance-resolution, payment, or reconciliation controls.
+
 ## Phase 14 reservations on Windows
 
 Stop running application processes, open Docker Desktop, then run from the
