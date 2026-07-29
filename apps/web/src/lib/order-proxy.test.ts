@@ -52,6 +52,7 @@ const publicOrder = {
   projectType: 'Event',
   rentalEndDate: '2027-01-03',
   rentalStartDate: '2027-01-02',
+  returnSummary: null,
   status: 'CONFIRMED',
   subtotalCents: 12_000,
   tax: {
@@ -221,6 +222,29 @@ describe('customer rental order BFF', () => {
     );
     expect(safe.status).toBe(200);
     await expect(safe.json()).resolves.toEqual(publicOrder);
+
+    const completedReturn = {
+      ...publicOrder,
+      customerFulfilmentStatus: {
+        key: 'COMPLETED',
+        label: 'Rental completed',
+      },
+      returnSummary: {
+        customerSafeMessage: 'Returned equipment has been reviewed.',
+        outstandingQuantity: 0,
+        returnedQuantity: 10,
+        status: 'COMPLETED',
+      },
+    } as const;
+    const completed = await proxyOrder(
+      new Request('http://localhost:3000/api/order', {
+        headers: { cookie: `mensah_order_access=${capability}` },
+      }),
+      [],
+      vi.fn<typeof fetch>().mockResolvedValue(Response.json(completedReturn)),
+    );
+    expect(completed.status).toBe(200);
+    await expect(completed.json()).resolves.toEqual(completedReturn);
 
     const unsafeNested = {
       ...publicOrder,

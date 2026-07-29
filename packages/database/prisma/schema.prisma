@@ -22,8 +22,25 @@ enum InventoryState {
   RENTED
   MAINTENANCE
   DAMAGED
+  MISSING
   LOST
   RETIRED
+}
+
+enum InventoryTransactionAction {
+  INITIAL_STOCK
+  MANUAL_ADJUSTMENT
+  ASSET_CREATED
+  CHECKOUT
+  RETURN_TO_RENTABLE
+  RETURN_TO_DAMAGED
+  RETURN_TO_MAINTENANCE
+  MARK_MISSING
+  RECOVER_MISSING_TO_RENTABLE
+  RECOVER_MISSING_TO_DAMAGED
+  RECOVER_MISSING_TO_MAINTENANCE
+  REPAIR_COMPLETE
+  WRITE_OFF
 }
 
 enum InventoryTransactionKind {
@@ -202,6 +219,64 @@ enum FulfilmentOperationType {
 enum ActiveRentalStatus {
   PARTIALLY_ACTIVE
   ACTIVE
+  PARTIALLY_RETURNED
+  AWAITING_RECONCILIATION
+  COMPLETED
+}
+
+enum RentalReturnStatus {
+  PARTIALLY_RETURNED
+  RECONCILIATION_REQUIRED
+  READY_TO_COMPLETE
+  COMPLETED
+}
+
+enum RentalReturnDisposition {
+  RENTABLE
+  DAMAGED
+  MAINTENANCE
+  MISSING
+}
+
+enum RentalIssueType {
+  MISSING
+  DAMAGED
+  MAINTENANCE_REQUIRED
+  LATE_RETURN
+  WRONG_ITEM_RETURNED
+  UNRESOLVED_QUANTITY
+}
+
+enum RentalIssueStatus {
+  OPEN
+  UNDER_REVIEW
+  CUSTOMER_CONTACTED
+  AWAITING_ITEM_RETURN
+  AWAITING_INSPECTION
+  AWAITING_REPAIR
+  AWAITING_PAYMENT
+  RESOLVED
+}
+
+enum RentalIssueResolutionOutcome {
+  ITEM_RETURNED
+  REPAIRED
+  PAID
+  WAIVED
+  WRITTEN_OFF
+  REPLACED
+  OTHER
+}
+
+enum ReturnActivityType {
+  RETURN_RECORDED
+  RECONCILIATION_REQUESTED
+  RECONCILED
+  COMPLETED
+  ISSUE_CREATED
+  ISSUE_UPDATED
+  ISSUE_RESOLVED
+  ITEM_RECOVERED
 }
 
 enum FulfilmentHandoffType {
@@ -257,6 +332,13 @@ model User {
   fulfilmentOperations             FulfilmentOperation[]           @relation("FulfilmentOperationActor")
   activeRentalsActivated           ActiveRental[]                  @relation("ActiveRentalActivator")
   fulfilmentHandoffs               FulfilmentHandoff[]             @relation("FulfilmentHandoffActor")
+  rentalReturnsCreated             RentalReturn[]                  @relation("RentalReturnCreator")
+  rentalReturnsUpdated             RentalReturn[]                  @relation("RentalReturnUpdater")
+  rentalReturnsCompleted           RentalReturn[]                  @relation("RentalReturnCompleter")
+  rentalReturnOperations           RentalReturnOperation[]         @relation("RentalReturnOperationActor")
+  rentalIssuesCreated              RentalIssue[]                   @relation("RentalIssueCreator")
+  rentalIssueResolutions           RentalIssueResolution[]         @relation("RentalIssueResolutionActor")
+  returnActivities                 ReturnActivity[]                @relation("ReturnActivityActor")
 }
 
 model StaffSession {
@@ -1098,6 +1180,8 @@ model InventoryItem {
   reservationOperationItems InventoryReservationOperationItem[]
   serializedAllocations     SerializedAssetAllocation[]
   activeRentalAssets        ActiveRentalSerializedAsset[]
+  returnedAssets            ReturnedSerializedAsset[]
+  rentalIssues              RentalIssue[]
 
   @@index([inventoryId, status, id])
   @@index([serialNumber])
@@ -1229,6 +1313,7 @@ model InventoryTransaction {
   inventoryId           String
   inventoryItemId       String?
   kind                  InventoryTransactionKind
+  action                InventoryTransactionAction @default(MANUAL_ADJUSTMENT)
   quantity              Int
   fromState             InventoryState?
   toState               InventoryState?
@@ -1236,11 +1321,15 @@ model InventoryTransaction {
   reason                String
   actorUserId           String
   fulfilmentOperationId String?
+  returnOperationItemId String?
+  issueResolutionId     String?
   createdAt             DateTime                 @default(now()) @db.Timestamptz(3)
   inventory             Inventory                @relation(fields: [inventoryId], references: [id], onDelete: Restrict)
   inventoryItem         InventoryItem?           @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
   actor                 User                     @relation("InventoryTransactionActor", fields: [actorUserId], references: [id], onDelete: Restrict)
   fulfilmentOperation   FulfilmentOperation?     @relation(fields: [fulfilmentOperationId], references: [id], onDelete: Restrict)
+  returnOperationItem   RentalReturnOperationItem? @relation(fields: [returnOperationItemId], references: [id], onDelete: Restrict)
+  issueResolution       RentalIssueResolution?   @relation(fields: [issueResolutionId], references: [id], onDelete: Restrict)
 
   @@index([inventoryId, createdAt, id])
   @@index([inventoryItemId, createdAt, id])
@@ -1248,6 +1337,8 @@ model InventoryTransaction {
   @@index([inventoryId, fromState])
   @@index([inventoryId, toState])
   @@index([fulfilmentOperationId, createdAt, id])
+  @@index([returnOperationItemId, createdAt, id])
+  @@index([issueResolutionId, createdAt, id])
 }
 
 model OrderFulfilment {
@@ -1365,6 +1456,7 @@ model ActiveRental {
   activatedBy       User                @relation("ActiveRentalActivator", fields: [activatedByUserId], references: [id], onDelete: Restrict)
   items             ActiveRentalItem[]
   handoffs          FulfilmentHandoff[]
+  rentalReturn      RentalReturn?
 
   @@index([status, expectedReturnAt, id])
 }
@@ -1381,6 +1473,7 @@ model ActiveRentalItem {
   rentalOrderItem       RentalOrderItem               @relation(fields: [rentalOrderItemId], references: [id], onDelete: Restrict)
   orderFulfilmentItem   OrderFulfilmentItem           @relation(fields: [orderFulfilmentItemId], references: [id], onDelete: Restrict)
   serializedAssets      ActiveRentalSerializedAsset[]
+  rentalReturnItem      RentalReturnItem?
 
   @@unique([activeRentalId, rentalOrderItemId])
   @@index([activeRentalId, id])
@@ -1390,14 +1483,198 @@ model ActiveRentalSerializedAsset {
   id                     String                    @id @default(cuid())
   activeRentalItemId     String
   serializedAllocationId String                    @unique
-  inventoryItemId        String                    @unique
+  inventoryItemId        String
   checkedOutAt           DateTime                  @default(now()) @db.Timestamptz(3)
   createdAt              DateTime                  @default(now()) @db.Timestamptz(3)
   activeRentalItem       ActiveRentalItem          @relation(fields: [activeRentalItemId], references: [id], onDelete: Restrict)
   serializedAllocation   SerializedAssetAllocation @relation(fields: [serializedAllocationId], references: [id], onDelete: Restrict)
   inventoryItem          InventoryItem             @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+  returnedAsset          ReturnedSerializedAsset?
 
+  @@unique([activeRentalItemId, inventoryItemId])
   @@index([activeRentalItemId, id])
+  @@index([inventoryItemId, checkedOutAt, id])
+}
+
+model RentalReturn {
+  id                 String             @id @default(cuid())
+  activeRentalId     String             @unique
+  returnNumber       String             @unique
+  status             RentalReturnStatus
+  version            Int                @default(0)
+  firstReturnAt      DateTime            @db.Timestamptz(3)
+  fullyAccountedAt   DateTime?           @db.Timestamptz(3)
+  reconciledAt       DateTime?           @db.Timestamptz(3)
+  completedAt        DateTime?           @db.Timestamptz(3)
+  createdByUserId    String
+  updatedByUserId    String
+  completedByUserId  String?
+  createdAt          DateTime            @default(now()) @db.Timestamptz(3)
+  updatedAt          DateTime            @updatedAt @db.Timestamptz(3)
+  activeRental       ActiveRental        @relation(fields: [activeRentalId], references: [id], onDelete: Restrict)
+  createdBy          User                @relation("RentalReturnCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  updatedBy          User                @relation("RentalReturnUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+  completedBy        User?               @relation("RentalReturnCompleter", fields: [completedByUserId], references: [id], onDelete: Restrict)
+  items              RentalReturnItem[]
+  operations         RentalReturnOperation[]
+  issues             RentalIssue[]
+  activities         ReturnActivity[]
+
+  @@index([status, updatedAt, id])
+  @@index([completedAt, id])
+}
+
+model RentalReturnItem {
+  id                         String   @id @default(cuid())
+  rentalReturnId             String
+  activeRentalItemId         String   @unique
+  expectedCheckedOutQuantity Int
+  receivedQuantity           Int      @default(0)
+  rentableQuantity           Int      @default(0)
+  damagedQuantity            Int      @default(0)
+  maintenanceQuantity        Int      @default(0)
+  missingQuantity            Int      @default(0)
+  outstandingQuantity        Int
+  createdAt                  DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt                  DateTime @updatedAt @db.Timestamptz(3)
+  rentalReturn               RentalReturn @relation(fields: [rentalReturnId], references: [id], onDelete: Restrict)
+  activeRentalItem           ActiveRentalItem @relation(fields: [activeRentalItemId], references: [id], onDelete: Restrict)
+  operationItems             RentalReturnOperationItem[]
+  issues                     RentalIssue[]
+
+  @@unique([rentalReturnId, activeRentalItemId])
+  @@index([rentalReturnId, id])
+}
+
+model RentalReturnOperation {
+  id                String   @id @default(cuid())
+  rentalReturnId    String
+  operationId       String   @unique @db.Uuid
+  payloadHash       String   @db.Char(64)
+  actorUserId       String
+  expectedVersion   Int
+  resultingVersion  Int
+  receivedAt        DateTime @db.Timestamptz(3)
+  internalNotes     String?  @db.Text
+  customerSafeNotes String?  @db.Text
+  createdAt         DateTime @default(now()) @db.Timestamptz(3)
+  rentalReturn      RentalReturn @relation(fields: [rentalReturnId], references: [id], onDelete: Restrict)
+  actor             User @relation("RentalReturnOperationActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  items             RentalReturnOperationItem[]
+
+  @@index([rentalReturnId, createdAt, id])
+  @@index([actorUserId, createdAt, id])
+}
+
+model RentalReturnOperationItem {
+  id                  String   @id @default(cuid())
+  returnOperationId   String
+  rentalReturnItemId  String
+  quantityReceived    Int      @default(0)
+  quantityRentable    Int      @default(0)
+  quantityDamaged     Int      @default(0)
+  quantityMaintenance Int      @default(0)
+  quantityMissing     Int      @default(0)
+  createdAt           DateTime @default(now()) @db.Timestamptz(3)
+  returnOperation     RentalReturnOperation @relation(fields: [returnOperationId], references: [id], onDelete: Restrict)
+  rentalReturnItem    RentalReturnItem @relation(fields: [rentalReturnItemId], references: [id], onDelete: Restrict)
+  serializedAssets    ReturnedSerializedAsset[]
+  inventoryTransactions InventoryTransaction[]
+  issues              RentalIssue[]
+
+  @@unique([returnOperationId, rentalReturnItemId])
+  @@index([rentalReturnItemId, createdAt, id])
+}
+
+model ReturnedSerializedAsset {
+  id                            String   @id @default(cuid())
+  returnOperationItemId         String
+  activeRentalSerializedAssetId String   @unique
+  inventoryItemId               String
+  disposition                   RentalReturnDisposition
+  inspectionNotes               String?  @db.Text
+  receivedAt                    DateTime? @db.Timestamptz(3)
+  createdAt                     DateTime @default(now()) @db.Timestamptz(3)
+  returnOperationItem           RentalReturnOperationItem @relation(fields: [returnOperationItemId], references: [id], onDelete: Restrict)
+  activeRentalSerializedAsset   ActiveRentalSerializedAsset @relation(fields: [activeRentalSerializedAssetId], references: [id], onDelete: Restrict)
+  inventoryItem                 InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+  issues                        RentalIssue[]
+
+  @@index([returnOperationItemId, id])
+  @@index([inventoryItemId, receivedAt, id])
+}
+
+model RentalIssue {
+  id                          String   @id @default(cuid())
+  rentalReturnId              String
+  rentalReturnItemId          String?
+  sourceReturnOperationItemId String?
+  returnedSerializedAssetId   String?
+  inventoryItemId             String?
+  type                        RentalIssueType
+  status                      RentalIssueStatus @default(OPEN)
+  version                     Int @default(0)
+  quantity                    Int
+  openQuantity                Int
+  blocksCompletion            Boolean @default(true)
+  internalDescription         String @db.Text
+  customerSafeDescription     String? @db.Text
+  amountAssessedCents         BigInt @default(0)
+  amountPaidCents             BigInt @default(0)
+  createdByUserId             String
+  createdAt                   DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt                   DateTime @updatedAt @db.Timestamptz(3)
+  rentalReturn                RentalReturn @relation(fields: [rentalReturnId], references: [id], onDelete: Restrict)
+  rentalReturnItem            RentalReturnItem? @relation(fields: [rentalReturnItemId], references: [id], onDelete: Restrict)
+  sourceReturnOperationItem   RentalReturnOperationItem? @relation(fields: [sourceReturnOperationItemId], references: [id], onDelete: Restrict)
+  returnedSerializedAsset     ReturnedSerializedAsset? @relation(fields: [returnedSerializedAssetId], references: [id], onDelete: Restrict)
+  inventoryItem               InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict)
+  createdBy                   User @relation("RentalIssueCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  resolutions                RentalIssueResolution[]
+
+  @@index([rentalReturnId, status, type, id])
+  @@index([rentalReturnItemId, status, id])
+  @@index([inventoryItemId, status, id])
+  @@index([type, status, createdAt, id])
+}
+
+model RentalIssueResolution {
+  id                      String   @id @default(cuid())
+  rentalIssueId           String
+  operationId             String   @unique @db.Uuid
+  payloadHash             String   @db.Char(64)
+  expectedVersion         Int
+  resultingVersion        Int
+  actorUserId             String
+  quantity                Int
+  outcome                 RentalIssueResolutionOutcome
+  resultingInventoryState InventoryState?
+  assessedCentsDelta      BigInt   @default(0)
+  paidCentsDelta          BigInt   @default(0)
+  internalReason          String   @db.Text
+  customerSafeNote        String?  @db.Text
+  createdAt               DateTime @default(now()) @db.Timestamptz(3)
+  rentalIssue             RentalIssue @relation(fields: [rentalIssueId], references: [id], onDelete: Restrict)
+  actor                   User @relation("RentalIssueResolutionActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  inventoryTransactions   InventoryTransaction[]
+
+  @@index([rentalIssueId, createdAt, id])
+  @@index([actorUserId, createdAt, id])
+}
+
+model ReturnActivity {
+  id             String   @id @default(cuid())
+  rentalReturnId String
+  type           ReturnActivityType
+  actorUserId    String
+  summary        String   @db.Text
+  metadata       Json?
+  createdAt      DateTime @default(now()) @db.Timestamptz(3)
+  rentalReturn   RentalReturn @relation(fields: [rentalReturnId], references: [id], onDelete: Restrict)
+  actor          User @relation("ReturnActivityActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([rentalReturnId, createdAt, id])
+  @@index([actorUserId, createdAt, id])
 }
 
 model FulfilmentHandoff {

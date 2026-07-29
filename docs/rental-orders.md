@@ -160,3 +160,5 @@ A later reservation phase may create a separate `InventoryReservation` from an
 eligible confirmed order using half-open UTC ranges and concurrency-safe bulk
 and serialized allocation. It must not expose internal quantities to customers.
 Phase 12 provides no reservation transition or inventory service dependency.
+
+Phase 16 does not edit a confirmed order. Return intake is linked through the separate active rental and preserves the order snapshot. The private customer order view may show only coarse return progress and safe accounted/outstanding contract quantities; it never exposes condition buckets, issues, staff, inventory states/balances, or serialized assets. Rental completion is explicit and occurs only after return reconciliation.

@@ -195,3 +195,7 @@ payload identity, creator, expiry, and hash-only capability storage. Revocation
 does not delete history. `RentalOrder` copies every accepted discount snapshot
 field exactly. None of these models relates to inventory or creates a
 reservation.
+
+## Phase 16 return models
+
+`RentalReturn` is the one-per-active-rental aggregate. `RentalReturnItem` freezes each checked-out item quantity and projects received/condition/missing/outstanding totals. `RentalReturnOperation`, `RentalReturnOperationItem`, and `ReturnedSerializedAsset` are immutable intake evidence. `RentalIssue` is a versioned current projection; `RentalIssueResolution` and `ReturnActivity` are append-only history. Inventory transactions link directly to the immutable operation item or issue resolution. `MISSING` is a recoverable inventory state and is not `LOST`. These concepts never overwrite quote, order, reservation, fulfilment, checkout, or handoff history.

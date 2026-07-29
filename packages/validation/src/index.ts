@@ -3,6 +3,7 @@ import { z } from 'zod';
 export * from './quote';
 export * from './order';
 export * from './fulfilment';
+export * from './returns';
 
 const environmentBoolean = z
   .enum(['true', 'false'])

@@ -8,7 +8,9 @@ const {
   rentalOrderCount,
   rentalRequestCount,
   rentalRequestFindMany,
+  activeRentalCount,
 } = vi.hoisted(() => ({
+  activeRentalCount: vi.fn(),
   quoteCount: vi.fn(),
   inventoryReservationCount: vi.fn(),
   inventoryReservationItemAggregate: vi.fn(),
@@ -19,6 +21,7 @@ const {
 
 vi.mock('@mensah-rentals/database', () => ({
   prisma: {
+    activeRental: { count: activeRentalCount },
     quote: { count: quoteCount },
     inventoryReservation: { count: inventoryReservationCount },
     inventoryReservationItem: { aggregate: inventoryReservationItemAggregate },
@@ -130,5 +133,25 @@ describe('WorkSummaryService', () => {
     expect(quoteCount).not.toHaveBeenCalled();
     expect(rentalOrderCount).not.toHaveBeenCalled();
     expect(inventoryReservationCount).not.toHaveBeenCalled();
+  });
+
+  it('counts due and overdue work only while a rental remains active', async () => {
+    activeRentalCount
+      .mockResolvedValueOnce(4)
+      .mockResolvedValueOnce(2)
+      .mockResolvedValueOnce(1);
+    const result = await new WorkSummaryService().get(
+      actor(['active_rental.view']),
+    );
+    expect(result.activeRentals).toEqual({
+      active: 4,
+      expectedReturnsToday: 2,
+      overdue: 1,
+    });
+    for (const call of activeRentalCount.mock.calls) {
+      expect(call[0].where.status).toEqual({
+        in: ['PARTIALLY_ACTIVE', 'ACTIVE'],
+      });
+    }
   });
 });

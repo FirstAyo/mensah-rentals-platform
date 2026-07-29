@@ -211,6 +211,96 @@ async function createOrder(
   return { ...fixture, customerLink, orderId: orderId!, orderNumber };
 }
 
+async function createActiveBulkRental(
+  page: Page,
+  quantity = 2,
+  productName = process.env.PHASE15_DELIVERY_PRODUCT_NAME,
+) {
+  expect(productName).toBeTruthy();
+  const created = await createOrder(page, 0, quantity, 'DELIVERY', productName);
+  await page.getByRole('button', { name: 'Reserve in full' }).click();
+  await page
+    .getByRole('alertdialog')
+    .getByRole('button', { name: 'Confirm action' })
+    .click();
+  await expect(page.getByText('RESERVED', { exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.reload();
+  await page.getByRole('button', { name: 'Start preparation' }).click();
+  await page.getByLabel('Prepared total').fill(String(quantity));
+  await page.getByRole('button', { name: 'Save preparation' }).click();
+  await page.getByRole('button', { name: 'Mark ready' }).click();
+  await page.getByLabel('Checkout now').fill(String(quantity));
+  await page.getByLabel('Recipient name').fill('Phase 16 Return Customer');
+  await page
+    .getByRole('button', { name: 'Confirm delivery and check out' })
+    .click();
+  await expect(page.getByText('CHECKED OUT', { exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.goto('http://localhost:3001/active-rentals');
+  await page.getByText(created.orderNumber, { exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Return intake' }),
+  ).toBeVisible();
+  const activeRentalId = new URL(page.url()).pathname
+    .split('/')
+    .filter(Boolean)
+    .at(-1);
+  expect(activeRentalId).toBeTruthy();
+  return { ...created, activeRentalId: activeRentalId! };
+}
+
+async function createActiveSerializedRental(page: Page) {
+  const productName = process.env.PHASE15_SERIALIZED_PRODUCT_NAME;
+  const assetNumber = process.env.PHASE15_SERIALIZED_ASSET_NUMBER;
+  expect(productName).toBeTruthy();
+  expect(assetNumber).toBeTruthy();
+  const created = await createOrder(page, 0, 1, 'PICKUP', productName);
+  await page.getByRole('button', { name: 'Load eligible assets' }).click();
+  await page.getByLabel(new RegExp(assetNumber!)).first().check();
+  await page.getByRole('button', { name: 'Reserve in full' }).click();
+  await page
+    .getByRole('alertdialog')
+    .getByRole('button', { name: 'Confirm action' })
+    .click();
+  await expect(page.getByText('RESERVED', { exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.reload();
+  await page.getByRole('button', { name: 'Start preparation' }).click();
+  const fulfilment = page.locator(
+    'section[aria-labelledby="fulfilment-heading"]',
+  );
+  await fulfilment.getByLabel(new RegExp(assetNumber!)).check();
+  await page.getByRole('button', { name: 'Save preparation' }).click();
+  await page.getByRole('button', { name: 'Mark ready' }).click();
+  await page.getByLabel('Checkout now').fill('1');
+  await page.getByLabel('Recipient name').fill('Serialized Return Customer');
+  await page
+    .getByRole('button', { name: 'Confirm pickup and check out' })
+    .click();
+  await expect(page.getByText('CHECKED OUT', { exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.goto('http://localhost:3001/active-rentals');
+  await page.getByText(created.orderNumber, { exact: true }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Return intake' }),
+  ).toBeVisible();
+  const activeRentalId = new URL(page.url()).pathname
+    .split('/')
+    .filter(Boolean)
+    .at(-1);
+  expect(activeRentalId).toBeTruthy();
+  return {
+    ...created,
+    activeRentalId: activeRentalId!,
+    assetNumber: assetNumber!,
+  };
+}
+
 test('@phase12-1 @orders @admin-orders creates one confirmed order and exposes read-only administration', async ({
   browser,
   page,
@@ -697,4 +787,283 @@ test('@fulfilment @fulfilment-concurrency duplicate checkout is idempotent and c
   expect(winner.version).toBe(replayed.version);
   expect(winner.items[0].consumedQuantity).toBe(item.reservedQuantity);
   expect(winner.items[0].reservedQuantity).toBe(0);
+});
+
+test('@returns @admin-returns records a complete bulk return at 320px and exposes only customer-safe progress', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'mobile-320');
+  const { customerLink, orderNumber } = await createActiveBulkRental(
+    page,
+    2,
+    process.env.PHASE16_ADMIN_RETURN_PRODUCT_NAME,
+  );
+  const activeRentalUrl = page.url();
+  await page.getByLabel('rentable', { exact: false }).fill('1');
+  await page.getByRole('button', { name: 'Record return intake' }).click();
+  await expect(
+    page.getByText(
+      /inventory and reconciliation state were updated atomically/i,
+    ),
+  ).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/PARTIALLY RETURNED/i)).toBeVisible();
+  const partialSummary = await (
+    await page.request.get('http://localhost:3001/api/work-summary')
+  ).json();
+  expect(partialSummary.returns.partiallyReturned).toBe(1);
+  await page.goto(customerLink);
+  await expect(
+    page.getByText('PARTIALLY RECEIVED', { exact: true }),
+  ).toBeVisible();
+  expect(await page.locator('body').innerText()).not.toMatch(
+    /asset number|serial number|rentable quantity|damaged quantity|maintenance quantity|inventory state|staff|operation id|payload hash/i,
+  );
+  await page.goto(activeRentalUrl);
+  await page.getByLabel('rentable', { exact: false }).fill('1');
+  await page.getByRole('button', { name: 'Record return intake' }).click();
+  await expect(
+    page.getByText(
+      /inventory and reconciliation state were updated atomically/i,
+    ),
+  ).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText(/READY TO COMPLETE/i)).toBeVisible();
+  await page.getByRole('link', { name: 'Open reconciliation' }).click();
+  await expect(page.getByRole('heading', { name: /^RET-/ })).toBeVisible();
+  for (const name of ['receipt PDF', 'reconciliation PDF']) {
+    const download = page.waitForEvent('download');
+    await page.getByRole('link', { name }).click();
+    expect((await download).suggestedFilename()).toMatch(/\.pdf$/);
+  }
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'Reconcile return' }).click();
+  await expect(page.getByText('Reconciliation evaluated.')).toBeVisible();
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'Complete rental' }).click();
+  await expect(page.getByText('Rental completed.')).toBeVisible();
+  await page.getByRole('button', { name: /switch to dark theme/i }).click();
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  await page.reload();
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  await axe(page);
+  await page.goto(customerLink);
+  await expect(page.getByText('COMPLETED', { exact: true })).toBeVisible();
+  const text = await page.locator('body').innerText();
+  expect(text).toContain(orderNumber);
+  expect(text).not.toMatch(
+    /asset number|serial number|rentable quantity|damaged quantity|maintenance quantity|inventory state|staff|operation id|payload hash/i,
+  );
+});
+
+test('@returns @return-issues classifies damage and missing without changing total physical quantity', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'desktop-1024');
+  const { orderNumber } = await createActiveBulkRental(
+    page,
+    3,
+    process.env.PHASE16_ISSUE_RETURN_PRODUCT_NAME,
+  );
+  await page.getByLabel('damaged', { exact: false }).fill('1');
+  await page.getByLabel('missing', { exact: false }).fill('2');
+  await page.getByRole('button', { name: 'Record return intake' }).click();
+  await expect(page.getByText(/RECONCILIATION REQUIRED/i)).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.goto('http://localhost:3001/issues');
+  await expect(
+    page.getByText(orderNumber, { exact: false }).first(),
+  ).toBeVisible();
+  await expect(page.locator('a[href^="/issues/"]')).toHaveCount(2);
+  await axe(page);
+  const missingLink = page.getByRole('link', {
+    name: new RegExp(`MISSING.*${orderNumber}`, 'i'),
+  });
+  const missingHref = await missingLink.getAttribute('href');
+  expect(missingHref).toBeTruthy();
+  const missingId = missingHref!.split('/').at(-1)!;
+  const missing = await (
+    await page.request.get(`http://localhost:3001/api/issues/${missingId}`)
+  ).json();
+  const currentReturn = await (
+    await page.request.get(
+      `http://localhost:3001/api/returns/${missing.returnId}`,
+    )
+  ).json();
+  const recovered = await page.request.post(
+    `http://localhost:3001/api/issues/${missingId}/resolutions`,
+    {
+      data: {
+        assessedCentsDelta: 0,
+        expectedIssueVersion: missing.version,
+        expectedReturnVersion: currentReturn.version,
+        internalReason: 'One missing browser fixture unit was recovered.',
+        operationId: crypto.randomUUID(),
+        outcome: 'ITEM_RETURNED',
+        paidCentsDelta: 0,
+        quantity: 1,
+        resultingInventoryState: 'RENTABLE',
+      },
+      headers: { Origin: 'http://localhost:3001' },
+    },
+  );
+  expect(recovered.status()).toBe(201);
+  await page.goto(`http://localhost:3001${missingHref}`);
+  await expect(page.getByText('1 of 2')).toBeVisible();
+  await page
+    .getByLabel('Internal resolution reason')
+    .fill('Approved customer-safe waiver browser verification.');
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'WAIVED' }).click();
+  await expect(page.getByText('Issue resolution recorded.')).toBeVisible();
+  await expect(page.getByText('0 of 2')).toBeVisible();
+  await page.goto('http://localhost:3001/issues');
+  await page
+    .getByRole('link', { name: new RegExp(`DAMAGED.*${orderNumber}`, 'i') })
+    .click();
+  await page
+    .getByLabel('Internal resolution reason')
+    .fill('Repair completed and browser fixture passed inspection.');
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'REPAIRED' }).click();
+  await expect(page.getByText('Issue resolution recorded.')).toBeVisible();
+  await page.goto(`http://localhost:3001/returns/${missing.returnId}`);
+  for (const name of ['missing PDF', 'damage PDF']) {
+    const download = page.waitForEvent('download');
+    await page.getByRole('link', { name }).click();
+    expect((await download).suggestedFilename()).toMatch(/\.pdf$/);
+  }
+  await axe(page);
+});
+
+test('@returns @return-issues returns one exact serialized asset once and repairs it auditably', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'desktop-1024');
+  const { activeRentalId, assetNumber, customerLink, orderNumber } =
+    await createActiveSerializedRental(page);
+  const draft = await (
+    await page.request.get(
+      `http://localhost:3001/api/returns/active/${activeRentalId}`,
+    )
+  ).json();
+  const serialized = draft.items[0].serializedAssets[0];
+  await page.getByLabel(`Condition for ${assetNumber}`).selectOption('DAMAGED');
+  await page.getByRole('button', { name: 'Record return intake' }).click();
+  await expect(page.getByText(/RECONCILIATION REQUIRED/i)).toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(page.getByLabel(`Condition for ${assetNumber}`)).toHaveCount(0);
+  const current = await (
+    await page.request.get(
+      `http://localhost:3001/api/returns/active/${activeRentalId}`,
+    )
+  ).json();
+  const duplicate = await page.request.post(
+    `http://localhost:3001/api/returns/active/${activeRentalId}`,
+    {
+      data: {
+        expectedVersion: current.version,
+        items: [
+          {
+            activeRentalItemId: draft.items[0].activeRentalItemId,
+            quantityDamaged: 0,
+            quantityMaintenance: 0,
+            quantityMissing: 0,
+            quantityRentable: 1,
+            serializedAssets: [
+              {
+                activeRentalSerializedAssetId:
+                  serialized.activeRentalSerializedAssetId,
+                disposition: 'RENTABLE',
+              },
+            ],
+          },
+        ],
+        operationId: crypto.randomUUID(),
+        receivedAt: new Date().toISOString(),
+      },
+      headers: { Origin: 'http://localhost:3001' },
+    },
+  );
+  expect(duplicate.status()).toBe(422);
+  await page.goto('http://localhost:3001/issues');
+  await page
+    .getByRole('link', { name: new RegExp(`DAMAGED.*${orderNumber}`, 'i') })
+    .click();
+  await page
+    .getByLabel('Internal resolution reason')
+    .fill('Serialized asset repair passed inspection.');
+  page.once('dialog', (dialog) => dialog.accept());
+  await page.getByRole('button', { name: 'REPAIRED' }).click();
+  await expect(page.getByText('Issue resolution recorded.')).toBeVisible();
+  await page.goto(customerLink);
+  expect(await page.locator('body').innerText()).not.toMatch(
+    new RegExp(`${assetNumber}|serial number|inventory state|staff`, 'i'),
+  );
+  await axe(page);
+});
+
+test('@returns @return-concurrency concurrent return commands produce one authoritative accounting result', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'desktop-1024');
+  const { activeRentalId } = await createActiveBulkRental(
+    page,
+    2,
+    process.env.PHASE16_CONCURRENCY_RETURN_PRODUCT_NAME,
+  );
+  const draftResponse = await page.request.get(
+    `http://localhost:3001/api/returns/active/${activeRentalId}`,
+  );
+  expect(draftResponse.ok()).toBe(true);
+  const draft = (await draftResponse.json()) as {
+    version: number;
+    items: Array<{ activeRentalItemId: string }>;
+  };
+  const command = (operationId: string) => ({
+    operationId,
+    expectedVersion: draft.version,
+    receivedAt: new Date().toISOString(),
+    items: [
+      {
+        activeRentalItemId: draft.items[0]!.activeRentalItemId,
+        quantityRentable: 2,
+        quantityDamaged: 0,
+        quantityMaintenance: 0,
+        quantityMissing: 0,
+        serializedAssets: [],
+      },
+    ],
+  });
+  const responses = await Promise.all([
+    page.request.post(
+      `http://localhost:3001/api/returns/active/${activeRentalId}`,
+      {
+        data: command(crypto.randomUUID()),
+        headers: { Origin: 'http://localhost:3001' },
+      },
+    ),
+    page.request.post(
+      `http://localhost:3001/api/returns/active/${activeRentalId}`,
+      {
+        data: command(crypto.randomUUID()),
+        headers: { Origin: 'http://localhost:3001' },
+      },
+    ),
+  ]);
+  expect(responses.map((response) => response.status()).sort()).toEqual([
+    201, 409,
+  ]);
+  const current = await page.request.get(
+    `http://localhost:3001/api/returns/active/${activeRentalId}`,
+  );
+  const result = (await current.json()) as {
+    version: number;
+    items: Array<{ receivedQuantity: number; outstandingQuantity: number }>;
+  };
+  expect(result.version).toBe(1);
+  expect(result.items[0]).toMatchObject({
+    receivedQuantity: 2,
+    outstandingQuantity: 0,
+  });
 });

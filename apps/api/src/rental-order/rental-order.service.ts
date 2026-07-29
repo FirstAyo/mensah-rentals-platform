@@ -63,7 +63,25 @@ const orderInclude = {
   customerAccess: { orderBy: { createdAt: 'desc' as const } },
   fulfilment: {
     include: {
-      activeRental: true,
+      activeRental: {
+        include: {
+          rentalReturn: {
+            include: {
+              items: {
+                select: {
+                  receivedQuantity: true,
+                  missingQuantity: true,
+                  outstandingQuantity: true,
+                },
+              },
+              issues: {
+                where: { blocksCompletion: true, status: { not: 'RESOLVED' } },
+                select: { id: true },
+              },
+            },
+          },
+        },
+      },
       items: {
         include: {
           rentalOrderItem: {
@@ -879,7 +897,25 @@ export class RentalOrderService {
       if (!order.fulfilment)
         return { key: 'CONFIRMED' as const, label: 'Order confirmed' };
       if (order.fulfilment.activeRental)
-        return { key: 'RENTAL_ACTIVE' as const, label: 'Rental active' };
+        if (order.fulfilment.activeRental.rentalReturn) {
+          const rentalReturn = order.fulfilment.activeRental.rentalReturn;
+          if (rentalReturn.status === 'COMPLETED')
+            return { key: 'COMPLETED' as const, label: 'Rental completed' };
+          if (rentalReturn.issues.length)
+            return {
+              key: 'ISSUE_UNDER_REVIEW' as const,
+              label: 'Return issue under review',
+            };
+          if (rentalReturn.status === 'PARTIALLY_RETURNED')
+            return {
+              key: 'PARTIALLY_RECEIVED' as const,
+              label: 'Partial return received',
+            };
+          return {
+            key: 'RECEIVED_REVIEWING' as const,
+            label: 'Return received and under review',
+          };
+        } else return { key: 'RENTAL_ACTIVE' as const, label: 'Rental active' };
       if (order.fulfilment.status === 'READY')
         return order.fulfillmentMethodSnapshot === 'PICKUP'
           ? { key: 'READY_FOR_PICKUP' as const, label: 'Ready for pickup' }
@@ -954,6 +990,28 @@ export class RentalOrderService {
             quantity: item.checkedOutQuantity,
             rentalUnit: item.rentalOrderItem.rentalUnitSnapshot,
           })) ?? [],
+      returnSummary: order.fulfilment?.activeRental?.rentalReturn
+        ? {
+            customerSafeMessage:
+              'Our team is reviewing the returned equipment. We will contact you if any follow-up is needed.',
+            outstandingQuantity:
+              order.fulfilment.activeRental.rentalReturn.items.reduce(
+                (sum, item) => sum + item.outstandingQuantity,
+                0,
+              ),
+            returnedQuantity:
+              order.fulfilment.activeRental.rentalReturn.items.reduce(
+                (sum, item) =>
+                  sum + item.receivedQuantity + item.missingQuantity,
+                0,
+              ),
+            status: customerFulfilmentStatus.key as
+              | 'PARTIALLY_RECEIVED'
+              | 'RECEIVED_REVIEWING'
+              | 'ISSUE_UNDER_REVIEW'
+              | 'COMPLETED',
+          }
+        : null,
     };
   }
 
@@ -978,6 +1036,14 @@ export class RentalOrderService {
       `Project location: ${detail.projectLocation}`,
       `Rental dates: ${detail.rentalStartDate} to ${detail.rentalEndDate}`,
       `Fulfillment: ${detail.fulfillmentMethod}`,
+      ...(detail.returnSummary
+        ? [
+            `Return status: ${detail.returnSummary.status}`,
+            `Return accounted quantity: ${detail.returnSummary.returnedQuantity}`,
+            `Return outstanding quantity: ${detail.returnSummary.outstandingQuantity}`,
+            detail.returnSummary.customerSafeMessage,
+          ]
+        : []),
       ...(detail.deliveryAddress
         ? [`Delivery address: ${detail.deliveryAddress}`]
         : []),

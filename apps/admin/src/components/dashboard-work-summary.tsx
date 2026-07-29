@@ -162,6 +162,28 @@ const cards = [
     icon: AlertTriangle,
     value: (data: AdminWorkSummaryResponse) => data.activeRentals?.overdue,
   },
+  {
+    key: 'partial-returns',
+    label: 'Partial returns',
+    permissions: ['return.view'],
+    icon: PackageOpen,
+    value: (data: AdminWorkSummaryResponse) => data.returns?.partiallyReturned,
+  },
+  {
+    key: 'return-reconciliation',
+    label: 'Awaiting reconciliation',
+    permissions: ['return.view'],
+    icon: PackageCheck,
+    value: (data: AdminWorkSummaryResponse) =>
+      data.returns?.awaitingReconciliation,
+  },
+  {
+    key: 'return-issues',
+    label: 'Unresolved return issues',
+    permissions: ['rental_issue.view'],
+    icon: AlertTriangle,
+    value: (data: AdminWorkSummaryResponse) => data.returnIssues?.unresolved,
+  },
 ] as const;
 
 export function DashboardWorkSummary({

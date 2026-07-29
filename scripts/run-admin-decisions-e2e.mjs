@@ -26,6 +26,10 @@ const modes = new Set([
   'fulfilment-active-rentals',
   'fulfilment-concurrency',
   'fulfilment-all',
+  'returns-admin',
+  'returns-issues',
+  'returns-concurrency',
+  'returns-all',
 ]);
 if (!modes.has(mode)) throw new Error(`Unknown decision browser mode: ${mode}`);
 
@@ -165,7 +169,11 @@ if (
   ))
 )
   throw new Error('The isolated browser staff fixture failed verification.');
-if (mode.startsWith('reservations-') || mode.startsWith('fulfilment-')) {
+if (
+  mode.startsWith('reservations-') ||
+  mode.startsWith('fulfilment-') ||
+  mode.startsWith('returns-')
+) {
   const products = await prisma.product.findMany({
     where: { isActive: true },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
@@ -196,7 +204,7 @@ if (mode.startsWith('reservations-') || mode.startsWith('fulfilment-')) {
       },
     });
   }
-  if (mode.startsWith('fulfilment-')) {
+  if (mode.startsWith('fulfilment-') || mode.startsWith('returns-')) {
     const source = products[0];
     if (!source)
       throw new Error('A catalogue product is required for fulfilment tests.');
@@ -230,6 +238,47 @@ if (mode.startsWith('reservations-') || mode.startsWith('fulfilment-')) {
       },
     });
     browserEnvironment.PHASE15_DELIVERY_PRODUCT_NAME = deliveryProductName;
+    if (mode.startsWith('returns-')) {
+      for (const [environmentKey, productName] of [
+        ['PHASE16_ADMIN_RETURN_PRODUCT_NAME', 'Phase 16 Admin Return Package'],
+        ['PHASE16_ISSUE_RETURN_PRODUCT_NAME', 'Phase 16 Issue Return Package'],
+        [
+          'PHASE16_CONCURRENCY_RETURN_PRODUCT_NAME',
+          'Phase 16 Concurrency Return Package',
+        ],
+      ]) {
+        const returnProduct = await prisma.product.create({
+          data: {
+            categoryId: source.categoryId,
+            name: productName,
+            shortDescription: 'Isolated Phase 16 return browser fixture',
+            slug: `phase-16-return-${randomUUID()}`,
+          },
+        });
+        const returnInventory = await prisma.inventory.create({
+          data: {
+            creationOperationId: randomUUID(),
+            creationReason: 'Isolated Phase 16 return browser fixture',
+            initialState: 'RENTABLE',
+            productId: returnProduct.id,
+            trackingMode: 'BULK',
+          },
+        });
+        await prisma.inventoryTransaction.create({
+          data: {
+            actorUserId: fixture.id,
+            inventoryId: returnInventory.id,
+            kind: 'INITIAL_STOCK',
+            operationId: randomUUID(),
+            quantity:
+              environmentKey === 'PHASE16_ISSUE_RETURN_PRODUCT_NAME' ? 3 : 2,
+            reason: 'Isolated Phase 16 return browser fixture',
+            toState: 'RENTABLE',
+          },
+        });
+        browserEnvironment[environmentKey] = productName;
+      }
+    }
     const serializedProductName = 'Phase 15 Serialized Camera';
     const serializedProduct = await prisma.product.create({
       data: {
@@ -395,7 +444,8 @@ await prisma.$disconnect();
 const phase121Mode = mode.startsWith('phase12-1-');
 const reservationMode = mode.startsWith('reservations-');
 const fulfilmentMode = mode.startsWith('fulfilment-');
-if (phase121Mode || reservationMode || fulfilmentMode)
+const returnMode = mode.startsWith('returns-');
+if (phase121Mode || reservationMode || fulfilmentMode || returnMode)
   run(
     pnpm,
     [
@@ -420,7 +470,8 @@ const servers = [
     [
       '--filter',
       workspace,
-      phase121Mode || (fulfilmentMode && workspace !== '@mensah-rentals/web')
+      phase121Mode ||
+      ((fulfilmentMode || returnMode) && workspace !== '@mensah-rentals/web')
         ? 'start'
         : 'dev',
     ],
@@ -438,17 +489,17 @@ try {
     waitFor(
       'http://localhost:3000/rentals',
       'Customer website',
-      fulfilmentMode ? 180_000 : 90_000,
+      fulfilmentMode || returnMode ? 180_000 : 90_000,
     ),
     waitFor(
       'http://localhost:3001/login',
       'Admin application',
-      fulfilmentMode ? 180_000 : 90_000,
+      fulfilmentMode || returnMode ? 180_000 : 90_000,
     ),
     waitFor(
       'http://localhost:4000/health/database',
       'API database health',
-      fulfilmentMode ? 180_000 : 90_000,
+      fulfilmentMode || returnMode ? 180_000 : 90_000,
     ),
   ]);
   const isPhase121 = phase121Mode;
@@ -456,37 +507,45 @@ try {
   const isPhase121Quote = mode === 'phase12-1-quote';
   const isQuoteMode = mode.startsWith('quotes-');
   const isOrderMode = mode.startsWith('orders-');
-  const grep = fulfilmentMode
-    ? mode === 'fulfilment-all'
-      ? '@fulfilment'
-      : mode === 'fulfilment-concurrency'
-        ? '@fulfilment-concurrency'
-        : mode === 'fulfilment-active-rentals'
-          ? '@active-rentals'
-          : '@admin-fulfilment'
-    : reservationMode
-      ? mode === 'reservations-all'
-        ? '@reservations'
-        : mode === 'reservations-concurrency'
-          ? '@reservation-concurrency'
-          : '@admin-reservations'
-      : isPhase121
-        ? '@phase12-1'
-        : isOrderMode
-          ? mode === 'orders-all'
-            ? '@orders'
-            : mode === 'orders-admin'
-              ? '@admin-orders'
-              : '@customer-orders'
-          : isQuoteMode
-            ? mode === 'quotes-all'
-              ? '@quotes'
-              : mode === 'quotes-admin'
-                ? '@admin-quotes'
-                : '@customer-quotes'
-            : mode === 'all'
-              ? '@admin-decisions'
-              : `@admin-decisions-${mode}`;
+  const grep = returnMode
+    ? mode === 'returns-all'
+      ? '@returns'
+      : mode === 'returns-concurrency'
+        ? '@return-concurrency'
+        : mode === 'returns-issues'
+          ? '@return-issues'
+          : '@admin-returns'
+    : fulfilmentMode
+      ? mode === 'fulfilment-all'
+        ? '@fulfilment'
+        : mode === 'fulfilment-concurrency'
+          ? '@fulfilment-concurrency'
+          : mode === 'fulfilment-active-rentals'
+            ? '@active-rentals'
+            : '@admin-fulfilment'
+      : reservationMode
+        ? mode === 'reservations-all'
+          ? '@reservations'
+          : mode === 'reservations-concurrency'
+            ? '@reservation-concurrency'
+            : '@admin-reservations'
+        : isPhase121
+          ? '@phase12-1'
+          : isOrderMode
+            ? mode === 'orders-all'
+              ? '@orders'
+              : mode === 'orders-admin'
+                ? '@admin-orders'
+                : '@customer-orders'
+            : isQuoteMode
+              ? mode === 'quotes-all'
+                ? '@quotes'
+                : mode === 'quotes-admin'
+                  ? '@admin-quotes'
+                  : '@customer-quotes'
+              : mode === 'all'
+                ? '@admin-decisions'
+                : `@admin-decisions-${mode}`;
   const grepArgument =
     process.platform === 'win32' && grep.includes('|') ? `"${grep}"` : grep;
   run(
@@ -497,7 +556,7 @@ try {
       'exec',
       'playwright',
       'test',
-      ...(reservationMode || fulfilmentMode
+      ...(reservationMode || fulfilmentMode || returnMode
         ? ['e2e/orders.spec.ts']
         : isPhase121
           ? [

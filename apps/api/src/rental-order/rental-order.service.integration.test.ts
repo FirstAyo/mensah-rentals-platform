@@ -18,6 +18,7 @@ import { FulfilmentService } from '../fulfilment/fulfilment.service';
 import { InventoryService } from '../inventory/inventory.service';
 import { RentalRequestDecisionService } from '../rental-request/rental-request-decision.service';
 import { RentalChangeRequestService } from '../rental-request/rental-change-request.service';
+import { ReturnService } from '../returns/return.service';
 import { expectPublicDataSafe } from '../testing/public-confidentiality.test-utils';
 import { InventoryReservationService } from './inventory-reservation.service';
 import { RentalOrderService } from './rental-order.service';
@@ -43,6 +44,7 @@ describe('confirmed rental orders against PostgreSQL', () => {
   const inventory = new InventoryService();
   const changes = new RentalChangeRequestService(config);
   const decisions = new RentalRequestDecisionService();
+  const returns = new ReturnService();
   let actor: StaffUserResponse;
   let productId: string;
   let inventoryId: string;
@@ -1530,7 +1532,9 @@ describe('confirmed rental orders against PostgreSQL', () => {
           where: { id: fulfilmentItem.id },
           data: { rentalOrderItemId: mismatchedOrderItem.id },
         }),
-      ).rejects.toThrow(/match its order and reservation item/i);
+      ).rejects.toThrow(
+        /match its order and reservation item|unique constraint/i,
+      );
       const preparationOperation =
         await prisma.fulfilmentOperation.findFirstOrThrow({
           where: {
@@ -1647,10 +1651,348 @@ describe('confirmed rental orders against PostgreSQL', () => {
           where: { activeRental: { rentalOrderId: orderId } },
         }),
       ).toBe(2);
+
+      const returnActiveRental = await prisma.activeRental.findUniqueOrThrow({
+        where: { rentalOrderId: orderId },
+        include: { items: true },
+      });
+      const returnItem = returnActiveRental.items[0]!;
+      const firstReturnInput = {
+        expectedVersion: 0,
+        items: [
+          {
+            activeRentalItemId: returnItem.id,
+            quantityDamaged: 0,
+            quantityMaintenance: 0,
+            quantityMissing: 0,
+            quantityRentable: 4,
+            serializedAssets: [],
+          },
+        ],
+        operationId: randomUUID(),
+        receivedAt: new Date().toISOString(),
+      };
+      await prisma.user.update({
+        where: { id: actor.id },
+        data: { status: 'DISABLED' },
+      });
+      await expect(
+        returns.record(actor.id, returnActiveRental.id, firstReturnInput),
+      ).rejects.toThrow(/disabled|inactive|permission/i);
+      await prisma.user.update({
+        where: { id: actor.id },
+        data: { status: 'ACTIVE' },
+      });
+      const returnVerifierRole = await prisma.role.create({
+        data: {
+          displayName: `Return verifier ${suffix}`,
+          name: `RETURN_${suffix.slice(0, 12).toUpperCase()}`,
+        },
+      });
+      const returnPermissions = await prisma.permission.findMany({
+        where: {
+          key: { in: ['return.create', 'return.inspect', 'return.partial'] },
+        },
+      });
+      await prisma.rolePermission.createMany({
+        data: returnPermissions.map((permission) => ({
+          permissionId: permission.id,
+          roleId: returnVerifierRole.id,
+        })),
+      });
+      const returnVerifier = await prisma.user.create({
+        data: {
+          email: `return-verifier-${suffix}@example.test`,
+          firstName: 'Return',
+          lastName: 'Verifier',
+          passwordHash: 'unused',
+          roles: { create: { roleId: returnVerifierRole.id } },
+        },
+      });
+      const inspectPermission = returnPermissions.find(
+        ({ key }) => key === 'return.inspect',
+      )!;
+      await prisma.rolePermission.delete({
+        where: {
+          roleId_permissionId: {
+            permissionId: inspectPermission.id,
+            roleId: returnVerifierRole.id,
+          },
+        },
+      });
+      await expect(
+        returns.record(returnVerifier.id, returnActiveRental.id, {
+          ...firstReturnInput,
+          operationId: randomUUID(),
+        }),
+      ).rejects.toThrow(/permission/i);
+      const [firstReturn, firstReturnReplay] = await Promise.all([
+        returns.record(actor.id, returnActiveRental.id, firstReturnInput),
+        returns.record(actor.id, returnActiveRental.id, firstReturnInput),
+      ]);
+      expect(firstReturnReplay).toMatchObject({
+        id: firstReturn.id,
+        status: 'PARTIALLY_RETURNED',
+        version: firstReturn.version,
+      });
+      await expect(
+        returns.record(actor.id, returnActiveRental.id, {
+          ...firstReturnInput,
+          items: [
+            {
+              ...firstReturnInput.items[0]!,
+              quantityRentable: 3,
+            },
+          ],
+        }),
+      ).rejects.toThrow(/operation id.*different/i);
+      expect(await inventory.quantities(checkoutInventory.id)).toMatchObject({
+        states: { RENTABLE: 4, RENTED: 6 },
+        totalQuantity: 10,
+      });
+      await expect(
+        returns.record(actor.id, returnActiveRental.id, {
+          ...firstReturnInput,
+          expectedVersion: firstReturn.version,
+          items: [
+            {
+              ...firstReturnInput.items[0]!,
+              quantityRentable: 7,
+            },
+          ],
+          operationId: randomUUID(),
+        }),
+      ).rejects.toThrow(/exceeds.*outstanding/i);
+      await expect(
+        returns.record(actor.id, returnActiveRental.id, {
+          ...firstReturnInput,
+          expectedVersion: firstReturn.version,
+          items: [
+            {
+              ...firstReturnInput.items[0]!,
+              activeRentalItemId: `foreign-active-rental-item-${suffix}`,
+              quantityRentable: 1,
+            },
+          ],
+          operationId: randomUUID(),
+        }),
+      ).rejects.toThrow(/does not belong/i);
+
+      const secondReturn = await returns.record(
+        actor.id,
+        returnActiveRental.id,
+        {
+          expectedVersion: firstReturn.version,
+          items: [
+            {
+              activeRentalItemId: returnItem.id,
+              quantityDamaged: 1,
+              quantityMaintenance: 1,
+              quantityMissing: 3,
+              quantityRentable: 1,
+              serializedAssets: [],
+            },
+          ],
+          operationId: randomUUID(),
+          receivedAt: new Date().toISOString(),
+        },
+      );
+      expect(secondReturn).toMatchObject({
+        status: 'RECONCILIATION_REQUIRED',
+      });
+      expect(await inventory.quantities(checkoutInventory.id)).toMatchObject({
+        states: {
+          DAMAGED: 1,
+          MAINTENANCE: 1,
+          MISSING: 3,
+          RENTABLE: 5,
+          RENTED: 0,
+        },
+        totalQuantity: 10,
+      });
+      await expect(
+        returns.complete(actor.id, secondReturn.id, {
+          expectedVersion: secondReturn.version,
+          operationId: randomUUID(),
+        }),
+      ).rejects.toThrow(/issue|reconcil|complete/i);
+
+      const missingIssue = await prisma.rentalIssue.findFirstOrThrow({
+        where: { rentalReturnId: secondReturn.id, type: 'MISSING' },
+      });
+      await expect(
+        returns.resolveIssue(actor.id, missingIssue.id, {
+          assessedCentsDelta: 0,
+          expectedIssueVersion: missingIssue.version,
+          expectedReturnVersion: secondReturn.version,
+          internalReason: 'Invalid over-resolution must be rejected.',
+          operationId: randomUUID(),
+          outcome: 'WAIVED',
+          paidCentsDelta: 0,
+          quantity: 4,
+        }),
+      ).rejects.toThrow(/exceeds.*unresolved/i);
+      await returns.resolveIssue(actor.id, missingIssue.id, {
+        assessedCentsDelta: 0,
+        expectedIssueVersion: missingIssue.version,
+        expectedReturnVersion: secondReturn.version,
+        internalReason: 'Business approved a waiver for the missing unit.',
+        operationId: randomUUID(),
+        outcome: 'WAIVED',
+        paidCentsDelta: 0,
+        quantity: 1,
+      });
+      expect(
+        await prisma.rentalIssue.findUniqueOrThrow({
+          where: { id: missingIssue.id },
+          select: { openQuantity: true, status: true },
+        }),
+      ).toEqual({ openQuantity: 2, status: 'OPEN' });
+      const partiallyResolvedIssue = await prisma.rentalIssue.findUniqueOrThrow(
+        {
+          where: { id: missingIssue.id },
+        },
+      );
+      const partiallyResolvedReturn = await returns.detail(
+        actor.id,
+        secondReturn.id,
+      );
+      await returns.resolveIssue(actor.id, missingIssue.id, {
+        assessedCentsDelta: 2_500,
+        expectedIssueVersion: partiallyResolvedIssue.version,
+        expectedReturnVersion: partiallyResolvedReturn.version,
+        internalReason: 'Recorded an external payment without moving stock.',
+        operationId: randomUUID(),
+        outcome: 'PAID',
+        paidCentsDelta: 2_500,
+        quantity: 1,
+      });
+      const paidIssue = await prisma.rentalIssue.findUniqueOrThrow({
+        where: { id: missingIssue.id },
+      });
+      const paidReturn = await returns.detail(actor.id, secondReturn.id);
+      await returns.resolveIssue(actor.id, missingIssue.id, {
+        assessedCentsDelta: 0,
+        expectedIssueVersion: paidIssue.version,
+        expectedReturnVersion: paidReturn.version,
+        internalReason: 'Recovered remaining missing equipment.',
+        operationId: randomUUID(),
+        outcome: 'ITEM_RETURNED',
+        paidCentsDelta: 0,
+        quantity: 1,
+        resultingInventoryState: 'RENTABLE',
+      });
+      expect(
+        await prisma.rentalIssue.findUniqueOrThrow({
+          where: { id: missingIssue.id },
+          select: { openQuantity: true, status: true },
+        }),
+      ).toEqual({ openQuantity: 0, status: 'RESOLVED' });
+      const damagedIssue = await prisma.rentalIssue.findFirstOrThrow({
+        where: { rentalReturnId: secondReturn.id, type: 'DAMAGED' },
+      });
+      const damageReturn = await returns.detail(actor.id, secondReturn.id);
+      await returns.resolveIssue(actor.id, damagedIssue.id, {
+        assessedCentsDelta: 0,
+        expectedIssueVersion: damagedIssue.version,
+        expectedReturnVersion: damageReturn.version,
+        internalReason: 'Repair completed and the unit passed inspection.',
+        operationId: randomUUID(),
+        outcome: 'REPAIRED',
+        paidCentsDelta: 0,
+        quantity: 1,
+        resultingInventoryState: 'RENTABLE',
+      });
+      const maintenanceIssue = await prisma.rentalIssue.findFirstOrThrow({
+        where: {
+          rentalReturnId: secondReturn.id,
+          type: 'MAINTENANCE_REQUIRED',
+        },
+      });
+      const maintenanceReturn = await returns.detail(actor.id, secondReturn.id);
+      await returns.resolveIssue(actor.id, maintenanceIssue.id, {
+        assessedCentsDelta: 0,
+        expectedIssueVersion: maintenanceIssue.version,
+        expectedReturnVersion: maintenanceReturn.version,
+        internalReason: 'Unit was formally retired after inspection.',
+        operationId: randomUUID(),
+        outcome: 'WRITTEN_OFF',
+        paidCentsDelta: 0,
+        quantity: 1,
+        resultingInventoryState: 'RETIRED',
+      });
+      expect(
+        await prisma.inventoryTransaction.count({
+          where: {
+            inventoryId: checkoutInventory.id,
+            issueResolutionId: { not: null },
+          },
+        }),
+      ).toBe(3);
+      expect(await inventory.quantities(checkoutInventory.id)).toMatchObject({
+        states: {
+          DAMAGED: 0,
+          MAINTENANCE: 0,
+          MISSING: 2,
+          RENTABLE: 7,
+          RENTED: 0,
+          RETIRED: 1,
+        },
+        totalQuantity: 10,
+      });
+
+      const afterResolution = await returns.detail(actor.id, secondReturn.id);
+      const reconciled = await returns.reconcile(actor.id, secondReturn.id, {
+        expectedVersion: afterResolution.version,
+        operationId: randomUUID(),
+      });
+      const completedReturn = await returns.complete(
+        actor.id,
+        secondReturn.id,
+        {
+          expectedVersion: reconciled.version,
+          operationId: randomUUID(),
+        },
+      );
+      expect(completedReturn).toMatchObject({ status: 'COMPLETED' });
+      expect(
+        await prisma.activeRental.findUniqueOrThrow({
+          where: { id: returnActiveRental.id },
+          select: { status: true },
+        }),
+      ).toEqual({ status: 'COMPLETED' });
+      await expect(
+        returns.record(actor.id, returnActiveRental.id, {
+          ...firstReturnInput,
+          expectedVersion: completedReturn.version,
+          operationId: randomUUID(),
+        }),
+      ).rejects.toThrow(/cannot accept another return/i);
+      const operation = await prisma.rentalReturnOperation.findFirstOrThrow({
+        where: { rentalReturnId: completedReturn.id },
+      });
+      await expect(
+        prisma.rentalReturnOperation.update({
+          where: { id: operation.id },
+          data: { internalNotes: 'Forbidden history edit' },
+        }),
+      ).rejects.toThrow(/append-only/i);
+      for (const kind of [
+        'receipt',
+        'inspection',
+        'missing',
+        'damage',
+        'reconciliation',
+      ] as const) {
+        const pdf = await returns.pdf(actor.id, completedReturn.id, kind);
+        expect(pdf.filename).toMatch(/\.pdf$/);
+        expect(pdf.buffer.subarray(0, 4).toString()).toBe('%PDF');
+        expect(pdf.buffer.length).toBeGreaterThan(500);
+      }
     } finally {
       productId = originalProductId;
     }
-  }, 30_000);
+  }, 60_000);
 
   it('checks out a serialized asset once and rejects a second checkout', async () => {
     const originalProductId = productId;
@@ -1682,6 +2024,30 @@ describe('confirmed rental orders against PostgreSQL', () => {
         status: 'RENTABLE',
       },
     });
+    const secondAsset = await prisma.inventoryItem.create({
+      data: {
+        assetNumber: `CHECKOUT-2-${suffix.slice(0, 12).toUpperCase()}`,
+        inventoryId: checkoutInventory.id,
+        serialNumber: `CHECKOUT-SERIAL-2-${suffix.slice(0, 12).toUpperCase()}`,
+        status: 'RENTABLE',
+      },
+    });
+    const thirdAsset = await prisma.inventoryItem.create({
+      data: {
+        assetNumber: `CHECKOUT-3-${suffix.slice(0, 12).toUpperCase()}`,
+        inventoryId: checkoutInventory.id,
+        serialNumber: `CHECKOUT-SERIAL-3-${suffix.slice(0, 12).toUpperCase()}`,
+        status: 'RENTABLE',
+      },
+    });
+    const fourthAsset = await prisma.inventoryItem.create({
+      data: {
+        assetNumber: `CHECKOUT-4-${suffix.slice(0, 12).toUpperCase()}`,
+        inventoryId: checkoutInventory.id,
+        serialNumber: `CHECKOUT-SERIAL-4-${suffix.slice(0, 12).toUpperCase()}`,
+        status: 'RENTABLE',
+      },
+    });
     productId = checkoutProduct.id;
     try {
       const accepted = await acceptedQuote('serialized-checkout');
@@ -1694,15 +2060,23 @@ describe('confirmed rental orders against PostgreSQL', () => {
       const reservation = await reservations.create(actor.id, orderId, {
         allowPartial: true,
         operationId: randomUUID(),
-        overrideReason: 'Nine serialized units remain outstanding.',
+        overrideReason: 'Six serialized units remain outstanding.',
         serializedSelections: [
           {
             rentalOrderItemId: order.items[0]!.id,
-            serializedAssetIds: [asset.id],
+            serializedAssetIds: [
+              asset.id,
+              secondAsset.id,
+              thirdAsset.id,
+              fourthAsset.id,
+            ],
           },
         ],
       });
-      const allocationId = reservation.items[0]!.allocations[0]!.allocationId;
+      const allocationIds = reservation.items[0]!.allocations.map(
+        ({ allocationId }) => allocationId,
+      );
+      expect(allocationIds).toHaveLength(4);
       const started = await fulfilments.start(actor.id, orderId, {
         expectedReservationVersion: reservation.version,
         operationId: randomUUID(),
@@ -1711,9 +2085,9 @@ describe('confirmed rental orders against PostgreSQL', () => {
         expectedVersion: started.version,
         items: [
           {
-            quantity: 1,
+            quantity: 4,
             rentalOrderItemId: order.items[0]!.id,
-            serializedAllocationIds: [allocationId],
+            serializedAllocationIds: allocationIds,
           },
         ],
         operationId: randomUUID(),
@@ -1728,12 +2102,14 @@ describe('confirmed rental orders against PostgreSQL', () => {
         },
         select: { serializedAllocationId: true },
       });
-      expect(preparedAssets).toEqual([
-        { serializedAllocationId: allocationId },
-      ]);
+      expect(
+        preparedAssets.map(
+          ({ serializedAllocationId }) => serializedAllocationId,
+        ),
+      ).toEqual(expect.arrayContaining(allocationIds));
       await expect(
         prisma.preparedSerializedAsset.delete({
-          where: { serializedAllocationId: allocationId },
+          where: { serializedAllocationId: allocationIds[0]! },
         }),
       ).rejects.toThrow(/count must match prepared quantity/i);
       const checkoutInput = {
@@ -1741,12 +2117,12 @@ describe('confirmed rental orders against PostgreSQL', () => {
         expectedReservationVersion: reservation.version,
         expectedVersion: ready.version,
         handoffAt: new Date().toISOString(),
-        internalReason: 'One reserved serialized asset handed over.',
+        internalReason: 'Four reserved serialized assets handed over.',
         items: [
           {
-            quantity: 1,
+            quantity: 4,
             rentalOrderItemId: order.items[0]!.id,
-            serializedAllocationIds: [allocationId],
+            serializedAllocationIds: allocationIds,
           },
         ],
         operationId: randomUUID(),
@@ -1772,32 +2148,132 @@ describe('confirmed rental orders against PostgreSQL', () => {
         }),
       ).rejects.toThrow(/prepared|reserved|eligible|actively reserved/i);
       expect(await inventory.quantities(checkoutInventory.id)).toMatchObject({
-        states: { RENTABLE: 0, RENTED: 1 },
-        totalQuantity: 1,
+        states: { RENTABLE: 0, RENTED: 4 },
+        totalQuantity: 4,
       });
       expect(
-        await prisma.serializedAssetAllocation.findUniqueOrThrow({
-          where: { id: allocationId },
-          select: { status: true },
+        await prisma.serializedAssetAllocation.count({
+          where: { id: { in: allocationIds }, status: 'CONSUMED' },
         }),
-      ).toEqual({ status: 'CONSUMED' });
+      ).toBe(4);
       expect(
         await prisma.activeRentalSerializedAsset.count({
-          where: { serializedAllocationId: allocationId },
+          where: { serializedAllocationId: { in: allocationIds } },
         }),
-      ).toBe(1);
+      ).toBe(4);
       expect(
         await prisma.preparedSerializedAsset.count({
-          where: { serializedAllocationId: allocationId },
+          where: { serializedAllocationId: { in: allocationIds } },
         }),
       ).toBe(0);
       expect(
         await prisma.inventoryTransaction.count({
-          where: { inventoryItemId: asset.id, toState: 'RENTED' },
+          where: {
+            inventoryItemId: {
+              in: [asset.id, secondAsset.id, thirdAsset.id, fourthAsset.id],
+            },
+            toState: 'RENTED',
+          },
         }),
-      ).toBe(1);
+      ).toBe(4);
+
+      const activeRental = await prisma.activeRental.findUniqueOrThrow({
+        where: { rentalOrderId: orderId },
+        include: { items: { include: { serializedAssets: true } } },
+      });
+      const activeItem = activeRental.items[0]!;
+      expect(activeItem.serializedAssets).toHaveLength(4);
+      const dispositions = [
+        'RENTABLE',
+        'RENTABLE',
+        'DAMAGED',
+        'MISSING',
+      ] as const;
+      const returned = await returns.record(actor.id, activeRental.id, {
+        expectedVersion: 0,
+        items: [
+          {
+            activeRentalItemId: activeItem.id,
+            quantityDamaged: 1,
+            quantityMaintenance: 0,
+            quantityMissing: 1,
+            quantityRentable: 2,
+            serializedAssets: activeItem.serializedAssets.map(
+              (occurrence, index) => ({
+                activeRentalSerializedAssetId: occurrence.id,
+                disposition: dispositions[index]!,
+              }),
+            ),
+          },
+        ],
+        operationId: randomUUID(),
+        receivedAt: new Date().toISOString(),
+      });
+      expect(returned).toMatchObject({ status: 'RECONCILIATION_REQUIRED' });
+      expect(await inventory.quantities(checkoutInventory.id)).toMatchObject({
+        states: { DAMAGED: 1, MISSING: 1, RENTABLE: 2, RENTED: 0 },
+        totalQuantity: 4,
+      });
+      expect(
+        await prisma.inventoryTransaction.count({
+          where: {
+            inventoryItemId: {
+              in: [asset.id, secondAsset.id, thirdAsset.id, fourthAsset.id],
+            },
+            returnOperationItemId: { not: null },
+          },
+        }),
+      ).toBe(4);
+      await expect(
+        returns.record(actor.id, activeRental.id, {
+          expectedVersion: returned.version,
+          items: [
+            {
+              activeRentalItemId: activeItem.id,
+              quantityDamaged: 0,
+              quantityMaintenance: 0,
+              quantityMissing: 0,
+              quantityRentable: 1,
+              serializedAssets: [
+                {
+                  activeRentalSerializedAssetId:
+                    activeItem.serializedAssets[0]!.id,
+                  disposition: 'RENTABLE',
+                },
+              ],
+            },
+          ],
+          operationId: randomUUID(),
+          receivedAt: new Date().toISOString(),
+        }),
+      ).rejects.toThrow(/outstanding|eligible|returned/i);
+
+      for (const [type, outcome] of [
+        ['MISSING', 'ITEM_RETURNED'],
+        ['DAMAGED', 'REPAIRED'],
+      ] as const) {
+        const issue = await prisma.rentalIssue.findFirstOrThrow({
+          where: { rentalReturnId: returned.id, type },
+        });
+        const currentReturn = await returns.detail(actor.id, returned.id);
+        await returns.resolveIssue(actor.id, issue.id, {
+          assessedCentsDelta: 0,
+          expectedIssueVersion: issue.version,
+          expectedReturnVersion: currentReturn.version,
+          internalReason: `${type} serialized asset resolved in integration test.`,
+          operationId: randomUUID(),
+          outcome,
+          paidCentsDelta: 0,
+          quantity: 1,
+          resultingInventoryState: 'RENTABLE',
+        });
+      }
+      expect(await inventory.quantities(checkoutInventory.id)).toMatchObject({
+        states: { DAMAGED: 0, MISSING: 0, RENTABLE: 4, RENTED: 0 },
+        totalQuantity: 4,
+      });
     } finally {
       productId = originalProductId;
     }
-  }, 30_000);
+  }, 45_000);
 });

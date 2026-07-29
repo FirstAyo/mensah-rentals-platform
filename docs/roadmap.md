@@ -1,7 +1,8 @@
 # Development Roadmap
 
 - Phase 15: fulfilment preparation, atomic handoff/checkout, reservation consumption, and active rentals (implemented).
-- Recommended Phase 16: append-only return intake and reconciliation, including partial returns and damage/missing intake. Payments remain separate.
+- Phase 16 implemented: append-only partial/full return intake, damage/missing/maintenance classification, issue resolution and recovery, reconciliation, explicit completion, staff PDFs, and customer-safe status. Payments remain separate.
+- Recommended Phase 17: advanced maintenance work orders and inspection scheduling, without combining maintenance operations with return history or payment processing.
 
 ## Phase 14 — internal date-range reservations
 

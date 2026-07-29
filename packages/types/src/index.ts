@@ -736,7 +736,11 @@ export interface PublicRentalOrderResponse extends QuoteMoneyResponse {
       | 'READY_FOR_PICKUP'
       | 'READY_FOR_DELIVERY'
       | 'OUT_FOR_DELIVERY'
-      | 'RENTAL_ACTIVE';
+      | 'RENTAL_ACTIVE'
+      | 'PARTIALLY_RECEIVED'
+      | 'RECEIVED_REVIEWING'
+      | 'ISSUE_UNDER_REVIEW'
+      | 'COMPLETED';
     label: string;
   };
   expectedReturnDate?: string | null;
@@ -745,6 +749,16 @@ export interface PublicRentalOrderResponse extends QuoteMoneyResponse {
     quantity: number;
     rentalUnit: string;
   }>;
+  returnSummary?: {
+    returnedQuantity: number;
+    outstandingQuantity: number;
+    status:
+      | 'PARTIALLY_RECEIVED'
+      | 'RECEIVED_REVIEWING'
+      | 'ISSUE_UNDER_REVIEW'
+      | 'COMPLETED';
+    customerSafeMessage: string;
+  } | null;
 }
 
 export interface AdminWorkSummaryResponse {
@@ -780,6 +794,16 @@ export interface AdminWorkSummaryResponse {
     expectedReturnsToday: number;
     overdue: number;
   };
+  returns?: {
+    partiallyReturned: number;
+    awaitingReconciliation: number;
+    readyToComplete: number;
+  };
+  returnIssues?: {
+    missing: number;
+    damaged: number;
+    unresolved: number;
+  };
 }
 
 export type OrderFulfilmentStatusResponse =
@@ -787,7 +811,12 @@ export type OrderFulfilmentStatusResponse =
   | 'READY'
   | 'PARTIALLY_CHECKED_OUT'
   | 'CHECKED_OUT';
-export type ActiveRentalStatusResponse = 'PARTIALLY_ACTIVE' | 'ACTIVE';
+export type ActiveRentalStatusResponse =
+  | 'PARTIALLY_ACTIVE'
+  | 'ACTIVE'
+  | 'PARTIALLY_RETURNED'
+  | 'AWAITING_RECONCILIATION'
+  | 'COMPLETED';
 
 export interface AdminFulfilmentItemResponse {
   id: string;
@@ -998,6 +1027,7 @@ export type InventoryStateResponse =
   | 'RENTED'
   | 'MAINTENANCE'
   | 'DAMAGED'
+  | 'MISSING'
   | 'LOST'
   | 'RETIRED';
 
@@ -1039,4 +1069,107 @@ export interface AdminInventoryTransactionResponse {
   quantity: number;
   reason: string;
   toState: InventoryStateResponse | null;
+}
+
+export type RentalReturnStatusResponse =
+  | 'PARTIALLY_RETURNED'
+  | 'RECONCILIATION_REQUIRED'
+  | 'READY_TO_COMPLETE'
+  | 'COMPLETED';
+
+export interface AdminRentalReturnItemResponse {
+  id: string;
+  activeRentalItemId: string;
+  productName: string;
+  rentalUnit: string;
+  trackingMode: InventoryTrackingModeResponse;
+  expectedCheckedOutQuantity: number;
+  receivedQuantity: number;
+  rentableQuantity: number;
+  damagedQuantity: number;
+  maintenanceQuantity: number;
+  missingQuantity: number;
+  outstandingQuantity: number;
+  serializedAssets: Array<{
+    activeRentalSerializedAssetId: string;
+    assetNumber: string;
+    serialNumber: string | null;
+    accounted: boolean;
+    disposition: 'RENTABLE' | 'DAMAGED' | 'MAINTENANCE' | 'MISSING' | null;
+  }>;
+}
+
+export interface AdminRentalReturnResponse {
+  id: string;
+  returnNumber: string;
+  activeRentalId: string;
+  orderId: string;
+  orderNumber: string;
+  customerName: string;
+  projectName: string;
+  status: RentalReturnStatusResponse;
+  version: number;
+  firstReturnAt: string;
+  fullyAccountedAt: string | null;
+  reconciledAt: string | null;
+  completedAt: string | null;
+  items: AdminRentalReturnItemResponse[];
+  issueCount: number;
+  blockingIssueCount: number;
+  notice: string;
+}
+
+export interface AdminRentalReturnListResponse {
+  items: Array<
+    Pick<
+      AdminRentalReturnResponse,
+      | 'id'
+      | 'returnNumber'
+      | 'activeRentalId'
+      | 'orderId'
+      | 'orderNumber'
+      | 'customerName'
+      | 'projectName'
+      | 'status'
+      | 'version'
+      | 'firstReturnAt'
+      | 'completedAt'
+      | 'issueCount'
+      | 'blockingIssueCount'
+    >
+  >;
+  pagination: {
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+}
+
+export interface AdminRentalIssueResponse {
+  id: string;
+  returnId: string;
+  returnNumber: string;
+  orderNumber: string;
+  type:
+    | 'MISSING'
+    | 'DAMAGED'
+    | 'MAINTENANCE_REQUIRED'
+    | 'LATE_RETURN'
+    | 'WRONG_ITEM_RETURNED'
+    | 'UNRESOLVED_QUANTITY';
+  status: string;
+  version: number;
+  quantity: number;
+  openQuantity: number;
+  blocksCompletion: boolean;
+  internalDescription: string;
+  customerSafeDescription: string | null;
+  amountAssessedCents: string;
+  amountPaidCents: string;
+  productName: string | null;
+  assetNumber: string | null;
+  serialNumber: string | null;
+  createdAt: string;
+  updatedAt: string;
 }

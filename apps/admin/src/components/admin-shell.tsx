@@ -10,6 +10,8 @@ import {
   ShoppingBag,
   GitPullRequestArrow,
   Clock3,
+  RotateCcw,
+  TriangleAlert,
 } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -59,6 +61,18 @@ const links = [
     icon: Clock3,
     label: 'Active Rentals',
     permission: 'active_rental.view',
+  },
+  {
+    href: '/returns',
+    icon: RotateCcw,
+    label: 'Returns',
+    permission: 'return.view',
+  },
+  {
+    href: '/issues',
+    icon: TriangleAlert,
+    label: 'Return Issues',
+    permission: 'rental_issue.view',
   },
   {
     href: '/categories',
@@ -112,6 +126,12 @@ export function AdminShell({
                 {href === '/active-rentals' &&
                 permissions.has('fulfilment.view') ? (
                   <ActionableWorkBadge kind="fulfilment" />
+                ) : null}
+                {href === '/returns' ? (
+                  <ActionableWorkBadge kind="returns" />
+                ) : null}
+                {href === '/issues' ? (
+                  <ActionableWorkBadge kind="issues" />
                 ) : null}
               </Link>
             ))}

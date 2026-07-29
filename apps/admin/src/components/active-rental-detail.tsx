@@ -2,6 +2,7 @@
 import type { AdminActiveRentalDetailResponse } from '@mensah-rentals/types';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+import { ReturnIntakePanel } from './return-intake-panel';
 export function ActiveRentalDetail({ id }: { id: string }) {
   const [data, setData] = useState<AdminActiveRentalDetailResponse | null>(
     null,
@@ -69,6 +70,7 @@ export function ActiveRentalDetail({ id }: { id: string }) {
           ))}
         </div>
       </section>
+      <ReturnIntakePanel activeRentalId={id} />
       <section className="rounded-xl border bg-card p-5">
         <h2 className="text-xl font-semibold">Handoffs</h2>
         <ol className="mt-4 space-y-3">

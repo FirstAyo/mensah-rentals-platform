@@ -206,3 +206,5 @@ The administrative work summary is not public. It conditionally omits request,
 quote, or order groups unless the active staff user has the documented
 permissions. Counts are current workflow facts only; they are not inventory
 availability, reservation, return, missing/damaged, or financial-report data.
+
+Phase 16 staff return APIs may contain condition totals, internal issue descriptions, staff evidence, serialized asset identity, and ledger-linked state. They require explicit return/issue permissions and are never public. The order-capability response uses a distinct allowlisted mapper and exposes only coarse return status, the customer's own accounted/outstanding contract quantities, and a bounded customer-safe message. It recursively excludes inventory balances/states, asset and serial IDs, issue type/status/responsibility/amount, internal notes, staff, operation/hash/version/activity, and ledger data. Customer PDFs use the same safe projection.

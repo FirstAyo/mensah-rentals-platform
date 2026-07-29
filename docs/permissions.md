@@ -164,3 +164,7 @@ permissions. The actionable rental-request badge requires
 accepted-awaiting-order requires `order.create`; order cards require
 `order.view`. Backend omission, not frontend hiding, is the confidentiality
 boundary.
+
+## Phase 16 returns
+
+The permission catalogue adds `return.view`, `return.create`, `return.partial`, `return.inspect`, `return.reconcile`, `return.complete`, `return.pdf`, `rental_issue.view`, `rental_issue.update`, and `rental_issue.resolve`. `SUPER_ADMIN` and `ADMIN` receive all ten. `SALES_PERSON` receives `return.view` only. `EDITOR` receives none. Creating intake requires create plus inspect; intentional partial intake also requires partial. Completion requires reconcile plus complete. A physical issue resolution requires issue resolve plus return reconcile. Staff PDFs require return view plus return PDF. Inventory, order, fulfilment, or active-rental permissions never imply return authority.

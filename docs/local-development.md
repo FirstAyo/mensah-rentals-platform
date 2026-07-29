@@ -28,6 +28,26 @@ Stop applications with `Ctrl+C`; stop containers with:
 docker compose down
 ```
 
+## Phase 16 returns on Windows
+
+After pulling the Phase 16 work, open PowerShell in the repository and run:
+
+```powershell
+docker compose up -d postgres postgres-test
+pnpm install
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+pnpm dev
+```
+
+Migration `20260731100000_phase16_returns_reconciliation` introduces Phase 16 as migration 40. Hardening migration `20260731110000_phase16_return_hardening` is migration 41 and permits one immutable return ledger row per serialized asset while retaining one coalesced row per bulk destination bucket. The RBAC seed is idempotent and expands the catalogue from 63 to 73 permissions. Sign in at `http://localhost:3001/login`, prepare and check out a test order, open **Active Rentals**, select the rental, and use **Return intake**. Reconciliation queues are at `/returns` and `/issues`. Test bulk and serialized equipment separately. For a partial return, leave at least one checked-out unit untouched. For a full return, account for every unit, resolve blockers, click **Reconcile return**, then **Complete rental**. A partially checked-out order must have its remaining reservation quantity released before completion.
+
+If intake returns `409`, reload: the expected return version or operation identity is stale. A `422` means the quantity, asset occurrence, lifecycle, physical resolution, or remaining reservation commitment is invalid. A `403` means the active staff user lacks one of the exact return permissions. Never reset the normal development database merely to run return tests; browser and integration harnesses must use the local guarded `_test` database.
+
 Phase 15 deliberately has no return, damage, missing, maintenance-resolution, payment, or reconciliation controls.
 
 ## Phase 14 reservations on Windows

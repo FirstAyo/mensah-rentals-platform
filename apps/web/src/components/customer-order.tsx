@@ -190,6 +190,26 @@ export function CustomerOrder() {
           </ul>
         </section>
       ) : null}
+      {order.returnSummary ? (
+        <section
+          className="rounded-xl border bg-card p-5"
+          aria-labelledby="return-status-heading"
+        >
+          <h2 className="text-xl font-semibold" id="return-status-heading">
+            Return status
+          </h2>
+          <p className="mt-2 font-medium">
+            {order.returnSummary.status.replaceAll('_', ' ')}
+          </p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {order.returnSummary.customerSafeMessage}
+          </p>
+          <p className="mt-3 text-sm">
+            Accounted for: {order.returnSummary.returnedQuantity} · Remaining
+            with customer: {order.returnSummary.outstandingQuantity}
+          </p>
+        </section>
+      ) : null}
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(18rem,26rem)]">
         <div className="space-y-4">

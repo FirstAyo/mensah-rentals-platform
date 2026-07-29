@@ -45,6 +45,7 @@ const rootKeys = [
   'customerFulfilmentStatus',
   'expectedReturnDate',
   'checkedOutItems',
+  'returnSummary',
 ] as const;
 const itemKeys = [
   'approvedQuantity',
@@ -105,6 +106,10 @@ export function isPublicRentalOrder(
       'READY_FOR_DELIVERY',
       'OUT_FOR_DELIVERY',
       'RENTAL_ACTIVE',
+      'PARTIALLY_RECEIVED',
+      'RECEIVED_REVIEWING',
+      'ISSUE_UNDER_REVIEW',
+      'COMPLETED',
     ].includes(String(value.customerFulfilmentStatus.key)) ||
     typeof value.customerFulfilmentStatus.label !== 'string' ||
     !nullableString(value.expectedReturnDate) ||
@@ -117,6 +122,26 @@ export function isPublicRentalOrder(
         nonNegativeInteger(entry.quantity) &&
         typeof entry.rentalUnit === 'string',
     )
+  )
+    return false;
+  if (
+    value.returnSummary !== null &&
+    (!object(value.returnSummary) ||
+      !exact(value.returnSummary, [
+        'customerSafeMessage',
+        'outstandingQuantity',
+        'returnedQuantity',
+        'status',
+      ]) ||
+      typeof value.returnSummary.customerSafeMessage !== 'string' ||
+      !nonNegativeInteger(value.returnSummary.outstandingQuantity) ||
+      !nonNegativeInteger(value.returnSummary.returnedQuantity) ||
+      ![
+        'PARTIALLY_RECEIVED',
+        'RECEIVED_REVIEWING',
+        'ISSUE_UNDER_REVIEW',
+        'COMPLETED',
+      ].includes(String(value.returnSummary.status)))
   )
     return false;
   if (

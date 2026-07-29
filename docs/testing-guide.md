@@ -1037,3 +1037,27 @@ links fail after revoke/rotation, new links work, and no inventory or
 reservation state changes. A PDF is not verified merely because a file
 downloads: open it and inspect document number, revision where applicable,
 dates, item/charge lines, discount, tax, total, terms, status, and notices.
+
+## Phase 16 returns and reconciliation
+
+Run the complete gates from PowerShell:
+
+```powershell
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm test:e2e:admin-returns
+pnpm test:e2e:return-issues
+pnpm test:e2e:return-concurrency
+pnpm test:e2e:returns
+```
+
+Success means the empty guarded test database applies all 41 migrations; RBAC reports 4 system roles and 73 permissions; static gates and all tests exit 0. Browser fixtures must be test-owned and isolated by workflow. They must cover partial/full bulk intake, condition splits, exact serialized occurrence return, duplicate/concurrent attempts, missing recovery, issue resolution without accidental inventory movement, explicit reconciliation/completion, dark persistence, 320 px, keyboard/focus, Axe serious/critical checks, PDF content, customer-capability status, and recursive confidentiality. Inventory totals before and after must match, while state buckets and ledger rows move exactly once. Never point `TEST_DATABASE_URL` at development, staging, or production.

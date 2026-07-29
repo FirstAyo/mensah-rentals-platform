@@ -214,13 +214,54 @@ export class WorkSummaryService {
       const tomorrowUtc = new Date(todayUtc);
       tomorrowUtc.setUTCDate(tomorrowUtc.getUTCDate() + 1);
       const [active, expectedReturnsToday, overdue] = await Promise.all([
-        prisma.activeRental.count(),
         prisma.activeRental.count({
-          where: { expectedReturnAt: { gte: todayUtc, lt: tomorrowUtc } },
+          where: { status: { in: ['PARTIALLY_ACTIVE', 'ACTIVE'] } },
         }),
-        prisma.activeRental.count({ where: { expectedReturnAt: { lt: now } } }),
+        prisma.activeRental.count({
+          where: {
+            expectedReturnAt: { gte: todayUtc, lt: tomorrowUtc },
+            status: { in: ['PARTIALLY_ACTIVE', 'ACTIVE'] },
+          },
+        }),
+        prisma.activeRental.count({
+          where: {
+            expectedReturnAt: { lt: now },
+            status: { in: ['PARTIALLY_ACTIVE', 'ACTIVE'] },
+          },
+        }),
       ]);
       response.activeRentals = { active, expectedReturnsToday, overdue };
+    }
+
+    if (permissions.has('return.view')) {
+      const [partiallyReturned, awaitingReconciliation, readyToComplete] =
+        await Promise.all([
+          prisma.rentalReturn.count({
+            where: { status: 'PARTIALLY_RETURNED' },
+          }),
+          prisma.rentalReturn.count({
+            where: { status: 'RECONCILIATION_REQUIRED' },
+          }),
+          prisma.rentalReturn.count({ where: { status: 'READY_TO_COMPLETE' } }),
+        ]);
+      response.returns = {
+        partiallyReturned,
+        awaitingReconciliation,
+        readyToComplete,
+      };
+    }
+
+    if (permissions.has('rental_issue.view')) {
+      const [missing, damaged, unresolved] = await Promise.all([
+        prisma.rentalIssue.count({
+          where: { type: 'MISSING', status: { not: 'RESOLVED' } },
+        }),
+        prisma.rentalIssue.count({
+          where: { type: 'DAMAGED', status: { not: 'RESOLVED' } },
+        }),
+        prisma.rentalIssue.count({ where: { status: { not: 'RESOLVED' } } }),
+      ]);
+      response.returnIssues = { damaged, missing, unresolved };
     }
 
     return response;

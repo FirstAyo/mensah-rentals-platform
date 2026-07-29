@@ -389,3 +389,7 @@ The binary BFF routes forward only the named HttpOnly capability/session,
 accept only PDFs, impose a size ceiling, and return private/no-store attachment
 headers. Documents contain no staff, internal notes, decisions, activities,
 operations, capability material, inventory, availability, or reservations.
+
+## Phase 16 return boundary
+
+The return module owns return intake, reconciliation, issues, recovery, and explicit rental completion. It uses immutable command/evidence rows plus database-guarded current projections and the existing append-only inventory ledger. The first finalized return freezes the Phase 15 checkout set. All return mutations use serializable transactions, expected versions, UUID operation identity, live permissions, and a common active-rental/return lock root. Staff DTO/PDF builders are separate from the order-capability customer mapper. See [Returns and reconciliation](returns-and-reconciliation.md).

@@ -1,13 +1,13 @@
 # Active rentals
 
-An `ActiveRental` is created only by the first successful authorised checkout. It is distinct from the confirmed order, reservation, fulfilment, handoff, and future return intake.
+An `ActiveRental` is created only by the first successful authorised checkout. It is distinct from the confirmed order, reservation, fulfilment, handoff, and Phase 16 return intake.
 
 ## Lifecycle
 
 - `PARTIALLY_ACTIVE`: less than the confirmed commercial quantity has left Mensah Rentals.
 - `ACTIVE`: every confirmed commercial quantity has been checked out.
 
-There is exactly one active rental per order and fulfilment. Later checkout updates it. `COMPLETED` is deferred until returns exist.
+There is exactly one active rental per order and fulfilment. Later checkout updates it only until the first finalized return freezes the checkout set. Phase 16 adds `PARTIALLY_RETURNED`, `AWAITING_RECONCILIATION`, and explicit `COMPLETED` states.
 
 `ActiveRentalItem` stores cumulative checked-out quantities. `ActiveRentalSerializedAsset` preserves exact allocation/asset identity. `FulfilmentHandoff` records every partial or full pickup/delivery event.
 
@@ -22,4 +22,4 @@ There is exactly one active rental per order and fulfilment. Later checkout upda
 - `GET /admin/active-rentals`
 - `GET /admin/active-rentals/:activeRentalId`
 
-All require `active_rental.view`. Dashboard counts include active rentals, expected returns today, and overdue active rentals only for authorised staff. Phase 15 provides no return, damage, missing, maintenance, or payment controls.
+All require `active_rental.view`. Return intake additionally requires the Phase 16 return permissions. Dashboard counts separate active/overdue rentals, returns awaiting reconciliation, and unresolved issues. Payment controls remain deferred.

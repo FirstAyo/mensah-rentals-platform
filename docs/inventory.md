@@ -59,3 +59,7 @@ Phase 12 confirmed orders remain non-reserving. Conversion and order reads do
 not query or mutate inventory records or calculate availability. `NOT_RESERVED`
 is an order workflow fact, not an inventory state. Date-based reservation is a
 separate future phase.
+
+## Phase 16 return ledger
+
+Return intake now appends explicit inventory actions for return-to-rentable, return-to-damaged, return-to-maintenance, and mark-missing. `MISSING` is recoverable; `LOST` requires an explicit write-off. Recovery, repair, and write-off append issue-resolution-linked transactions. Payment/waiver writes no inventory transaction. The `kind` continues to describe bulk versus serialized ledger shape, while `action` describes operational meaning. Total physical quantity remains invariant.

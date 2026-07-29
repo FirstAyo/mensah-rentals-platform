@@ -12,7 +12,7 @@ describe('RBAC catalogue', () => {
     expect(new Set(SYSTEM_ROLES.map(({ name }) => name)).size).toBe(
       SYSTEM_ROLES.length,
     );
-    expect(PERMISSION_CATALOGUE).toHaveLength(63);
+    expect(PERMISSION_CATALOGUE).toHaveLength(73);
   });
   it('grants SUPER_ADMIN every seeded permission', () => {
     expect(DEFAULT_ROLE_PERMISSION_KEYS.SUPER_ADMIN).toEqual(
@@ -58,5 +58,19 @@ describe('RBAC catalogue', () => {
     expect(DEFAULT_ROLE_PERMISSION_KEYS.ADMIN).not.toContain(
       'user.role.manage',
     );
+  });
+  it('grants return authority by least privilege', () => {
+    expect(DEFAULT_ROLE_PERMISSION_KEYS.ADMIN).toContain('return.complete');
+    expect(DEFAULT_ROLE_PERMISSION_KEYS.ADMIN).toContain(
+      'rental_issue.resolve',
+    );
+    expect(DEFAULT_ROLE_PERMISSION_KEYS.SALES_PERSON).toContain('return.view');
+    expect(DEFAULT_ROLE_PERMISSION_KEYS.SALES_PERSON).not.toContain(
+      'return.create',
+    );
+    expect(DEFAULT_ROLE_PERMISSION_KEYS.SALES_PERSON).not.toContain(
+      'rental_issue.view',
+    );
+    expect(DEFAULT_ROLE_PERMISSION_KEYS.EDITOR).not.toContain('return.view');
   });
 });

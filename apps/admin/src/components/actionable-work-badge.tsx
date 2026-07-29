@@ -7,7 +7,7 @@ export function ActionableWorkBadge({
   kind = 'requests',
 }: {
   compact?: boolean;
-  kind?: 'requests' | 'reservations' | 'fulfilment';
+  kind?: 'requests' | 'reservations' | 'fulfilment' | 'returns' | 'issues';
 }) {
   const { data } = useWorkSummary();
   const count =
@@ -16,11 +16,17 @@ export function ActionableWorkBadge({
       : kind === 'reservations'
         ? (data?.reservations?.awaitingReservation ?? 0) +
           (data?.reservations?.partiallyReserved ?? 0)
-        : (data?.fulfilment?.awaitingPreparation ?? 0) +
-          (data?.fulfilment?.preparing ?? 0) +
-          (data?.fulfilment?.readyForPickup ?? 0) +
-          (data?.fulfilment?.readyForDelivery ?? 0) +
-          (data?.fulfilment?.partiallyCheckedOut ?? 0);
+        : kind === 'fulfilment'
+          ? (data?.fulfilment?.awaitingPreparation ?? 0) +
+            (data?.fulfilment?.preparing ?? 0) +
+            (data?.fulfilment?.readyForPickup ?? 0) +
+            (data?.fulfilment?.readyForDelivery ?? 0) +
+            (data?.fulfilment?.partiallyCheckedOut ?? 0)
+          : kind === 'returns'
+            ? (data?.returns?.partiallyReturned ?? 0) +
+              (data?.returns?.awaitingReconciliation ?? 0) +
+              (data?.returns?.readyToComplete ?? 0)
+            : (data?.returnIssues?.unresolved ?? 0);
   if (count === 0) return null;
   const display = count > 99 ? '99+' : String(count);
   const label =
@@ -28,7 +34,11 @@ export function ActionableWorkBadge({
       ? `${count} submitted rental ${count === 1 ? 'request' : 'requests'} awaiting review`
       : kind === 'reservations'
         ? `${count} rental ${count === 1 ? 'order requires' : 'orders require'} reservation work`
-        : `${count} rental ${count === 1 ? 'order requires' : 'orders require'} fulfilment work`;
+        : kind === 'fulfilment'
+          ? `${count} rental ${count === 1 ? 'order requires' : 'orders require'} fulfilment work`
+          : kind === 'returns'
+            ? `${count} ${count === 1 ? 'return requires' : 'returns require'} reconciliation work`
+            : `${count} unresolved return ${count === 1 ? 'issue' : 'issues'}`;
   return (
     <span
       aria-label={label}

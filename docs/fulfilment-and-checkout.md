@@ -54,3 +54,5 @@ SUPER_ADMIN/ADMIN receive all. SALES_PERSON receives `fulfilment.view` only. EDI
 - `GET /admin/orders/:orderId/fulfilment/active-rental-pdf`
 
 All use strict validation, fixed BFF allowlists, no-store responses, live backend permissions, operation IDs, payload hashes, and optimistic versions. Staff PDFs are selectable text and use stored snapshots. Customer DTOs are separately allowlisted and exclude internal quantities, shortfalls, assets, notes, staff, operations, hashes, and versions.
+
+Phase 16 freezes checkout when the first return operation is finalized. Both service validation and database triggers reject later checkout quantity or serialized checkout-occurrence changes. Existing fulfilment, checkout, handoff, reservation-consumption, and inventory transaction history remains immutable.

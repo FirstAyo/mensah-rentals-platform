@@ -14,6 +14,7 @@ import {
   InventoryReservationItemType,
   InventoryReservationStatus,
   InventoryState,
+  InventoryTransactionAction,
   InventoryTransactionKind,
   OrderFulfilmentStatus,
   Prisma,
@@ -488,7 +489,12 @@ export class FulfilmentService {
       });
       let activeRental = await tx.activeRental.findUnique({
         where: { rentalOrderId: order.id },
+        include: { rentalReturn: { select: { id: true } } },
       });
+      if (activeRental?.rentalReturn)
+        throw new ConflictException(
+          'Checkout is frozen because return intake has started',
+        );
       if (!activeRental)
         activeRental = await tx.activeRental.create({
           data: {
@@ -502,6 +508,7 @@ export class FulfilmentService {
               ? ActiveRentalStatus.ACTIVE
               : ActiveRentalStatus.PARTIALLY_ACTIVE,
           },
+          include: { rentalReturn: { select: { id: true } } },
         });
       for (const { item, target } of after) {
         if (!target) continue;
@@ -561,6 +568,7 @@ export class FulfilmentService {
               fulfilmentOperationId: operation.id,
               inventoryId,
               kind: InventoryTransactionKind.BULK_MOVEMENT,
+              action: InventoryTransactionAction.CHECKOUT,
               operationId: this.derivedUuid(input.operationId, item.id),
               quantity: target.quantity,
               reason: 'Fulfilment checkout',
@@ -615,6 +623,7 @@ export class FulfilmentService {
                 inventoryId,
                 inventoryItemId: inventoryItem.id,
                 kind: InventoryTransactionKind.SERIALIZED_ITEM_STATE_CHANGED,
+                action: InventoryTransactionAction.CHECKOUT,
                 operationId: this.derivedUuid(input.operationId, allocation.id),
                 quantity: 1,
                 reason: 'Fulfilment checkout',
