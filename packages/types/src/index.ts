@@ -76,6 +76,13 @@ export interface AdminCategoryResponse {
   updatedAt: string;
 }
 
+export interface DeleteCategoryResponse {
+  categoryDeleted: true;
+  hardDeletedProductCount: number;
+  productsRemovedFromCatalogue: number;
+  tombstonedProductCount: number;
+}
+
 export interface AdminProductImageResponse {
   altText: string;
   createdAt: string;

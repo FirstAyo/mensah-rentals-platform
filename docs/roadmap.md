@@ -40,6 +40,7 @@ database, API, authorization, UI, documentation, and tests where applicable.
 14. **Date-based reservations:** half-open UTC ranges, concurrency-safe bulk/serialized allocation, overlap and double-booking tests.
 15. **Operational dashboard and notifications:** reviewed cross-domain work queues and delivery mechanisms beyond the bounded Phase 12.1 polling foundation.
 16. **Fulfilment:** separate pickup/delivery preparation, handoff, and asset/quantity fulfilment records.
+    16.2. **Category-management correction (complete):** editable normalized category slugs, separate reversible deactivation and permanent deletion, hard deletion for unreferenced catalogue data, and historical tombstones for referenced products without weakening rental or inventory history.
 17. **Returns and reconciliation:** return intake, missing/damaged outcomes, inventory reconciliation, and maintenance handoff with audit history.
 18. **Content management:** pages, sections, galleries, FAQs, testimonials, SEO, EDITOR permissions.
 19. **Reporting and audit:** permission-aware analytics, audit review, structured operational reporting.

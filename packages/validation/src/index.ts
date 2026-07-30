@@ -328,11 +328,16 @@ export type ApiEnvironment = z.infer<typeof apiEnvironmentSchema>;
 export const catalogueSlugSchema = z
   .string()
   .trim()
-  .min(1)
-  .max(120)
-  .regex(
-    /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
-    'Use lowercase words separated by hyphens.',
+  .transform((value) => value.toLowerCase())
+  .pipe(
+    z
+      .string()
+      .min(1, 'Please enter a valid category slug.')
+      .max(120, 'Please enter a valid category slug.')
+      .regex(
+        /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
+        'Please enter a valid category slug.',
+      ),
   );
 
 const boundedPage = z.preprocess(
@@ -401,18 +406,26 @@ export const publicProductListQuerySchema = z
 
 const categoryMutableFields = {
   description: z.string().trim().max(4000).nullable().optional(),
-  name: z.string().trim().min(1).max(160),
+  name: z
+    .string()
+    .trim()
+    .min(1, 'Please enter a category name.')
+    .max(160, 'Please enter a category name.'),
+  slug: catalogueSlugSchema,
   sortOrder: z.number().int().min(0).max(1_000_000).default(0),
 };
 
 export const createCategorySchema = z
   .object({
     ...categoryMutableFields,
-    slug: catalogueSlugSchema,
     isActive: z.boolean().default(true),
   })
   .strict();
 export const updateCategorySchema = z.object(categoryMutableFields).strict();
+
+export const deleteCategorySchema = z
+  .object({ confirmDeleteProducts: z.boolean().default(false) })
+  .strict();
 
 export const PRODUCT_IMAGE_LIMITS = {
   allowedMimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
@@ -852,6 +865,7 @@ export type RejectRentalRequestDecisionInput = z.infer<
 >;
 export type CreateCategoryInput = z.infer<typeof createCategorySchema>;
 export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
+export type DeleteCategoryInput = z.infer<typeof deleteCategorySchema>;
 export type CreateProductInput = z.infer<typeof createProductSchema>;
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;
 

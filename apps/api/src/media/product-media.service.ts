@@ -75,8 +75,8 @@ export class ProductMediaService {
     try {
       const imageId = await prisma.$transaction(async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${productId}))`;
-        const product = await tx.product.findUnique({
-          where: { id: productId },
+        const product = await tx.product.findFirst({
+          where: { id: productId, deletedAt: null },
         });
         if (!product) throw new NotFoundException('Product not found');
         const existing = await tx.productImage.findFirst({
@@ -166,6 +166,15 @@ export class ProductMediaService {
     const diskPath = this.pathForPublicUrl(removed);
     if (diskPath) await unlink(diskPath).catch(() => undefined);
     return { status: 'deleted' as const };
+  }
+
+  async removeCommittedFiles(urls: readonly string[]) {
+    await Promise.all(
+      urls.map(async (url) => {
+        const diskPath = this.pathForPublicUrl(url);
+        if (diskPath) await unlink(diskPath).catch(() => undefined);
+      }),
+    );
   }
 
   async read(productId: string, filename: string) {

@@ -18,7 +18,8 @@ import {
   type ColumnDef,
 } from '@tanstack/react-table';
 import Link from 'next/link';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
+import { AccessibleDialog } from './accessible-dialog';
 
 type Row = AdminCategoryResponse | AdminProductResponse;
 
@@ -33,7 +34,60 @@ function TableView({
 }) {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const [confirmation, setConfirmation] = useState<{
+    action: 'deactivate' | 'delete';
+    row: Row;
+  } | null>(null);
+  const [mutationError, setMutationError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const triggerRef = useRef<HTMLElement | null>(null);
   const queryClient = useQueryClient();
+
+  async function confirmMutation() {
+    if (!confirmation || submitting) return;
+    setSubmitting(true);
+    setMutationError(null);
+    const isCategory = resource === 'categories';
+    const deleting = confirmation.action === 'delete';
+    const url = deleting
+      ? `/api/catalogue/categories/${confirmation.row.id}`
+      : `/api/catalogue/${resource}/${confirmation.row.id}${isCategory ? '/deactivate' : ''}`;
+    const response = await fetch(url, {
+      method: deleting || !isCategory ? 'DELETE' : 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: deleting
+        ? JSON.stringify({
+            confirmDeleteProducts:
+              'productCount' in confirmation.row &&
+              confirmation.row.productCount > 0,
+          })
+        : !isCategory
+          ? undefined
+          : '{}',
+    });
+    if (!response.ok) {
+      const body = (await response.json().catch(() => null)) as {
+        message?: string;
+      } | null;
+      setMutationError(
+        response.status === 403
+          ? 'You do not have permission to delete categories.'
+          : response.status === 409
+            ? (body?.message ??
+              'This category changed while you were viewing it. Refresh and try again.')
+            : (body?.message ?? 'This category could not be deleted.'),
+      );
+      setSubmitting(false);
+      return;
+    }
+    const actionLabel = deleting ? 'deleted' : 'deactivated';
+    setConfirmation(null);
+    setNotice(`${confirmation.row.name} was ${actionLabel}.`);
+    await queryClient.invalidateQueries({ queryKey: [resource] });
+    setSubmitting(false);
+  }
   const query = useQuery<PaginatedResponse<Row>>({
     queryKey: [resource, page, search],
     queryFn: async () => {
@@ -92,20 +146,32 @@ function TableView({
                 Edit
               </Link>
             ) : null}
-            {canDelete && row.original.isActive ? (
+            {((resource === 'categories' && canUpdate) ||
+              (resource === 'products' && canDelete)) &&
+            row.original.isActive ? (
               <button
                 className="rounded-md border border-border px-2.5 py-1.5 text-sm"
-                onClick={async () => {
-                  if (!window.confirm(`Deactivate ${row.original.name}?`))
-                    return;
-                  await fetch(`/api/catalogue/${resource}/${row.original.id}`, {
-                    method: 'DELETE',
-                  });
-                  await queryClient.invalidateQueries({ queryKey: [resource] });
+                onClick={(event) => {
+                  triggerRef.current = event.currentTarget;
+                  setMutationError(null);
+                  setConfirmation({ action: 'deactivate', row: row.original });
                 }}
                 type="button"
               >
                 Deactivate
+              </button>
+            ) : null}
+            {resource === 'categories' && canDelete ? (
+              <button
+                className="rounded-md border border-destructive/50 px-2.5 py-1.5 text-sm text-destructive"
+                onClick={(event) => {
+                  triggerRef.current = event.currentTarget;
+                  setMutationError(null);
+                  setConfirmation({ action: 'delete', row: row.original });
+                }}
+                type="button"
+              >
+                Delete
               </button>
             ) : null}
             {canUpdate && !row.original.isActive ? (
@@ -136,6 +202,12 @@ function TableView({
   });
   return (
     <div>
+      <div
+        aria-live="polite"
+        className="mb-3 min-h-6 text-sm text-emerald-700 dark:text-emerald-300"
+      >
+        {notice}
+      </div>
       <label className="sr-only" htmlFor={`${resource}-search`}>
         Search
       </label>
@@ -219,6 +291,106 @@ function TableView({
           Next
         </button>
       </nav>
+      <AccessibleDialog
+        descriptionId="catalogue-confirmation-description"
+        initialFocusRef={cancelRef}
+        onClose={() => {
+          if (!submitting) setConfirmation(null);
+        }}
+        open={Boolean(confirmation)}
+        returnFocusRef={triggerRef}
+        titleId="catalogue-confirmation-title"
+      >
+        {confirmation ? (
+          <div className="space-y-4 p-5 sm:p-6">
+            <h2
+              className="text-xl font-semibold"
+              id="catalogue-confirmation-title"
+            >
+              {confirmation.action === 'delete'
+                ? 'productCount' in confirmation.row &&
+                  confirmation.row.productCount > 0
+                  ? 'Delete category and products?'
+                  : 'Delete this category?'
+                : `Deactivate ${confirmation.row.name}?`}
+            </h2>
+            <div
+              className="space-y-3 text-sm text-muted-foreground"
+              id="catalogue-confirmation-description"
+            >
+              {confirmation.action === 'delete' ? (
+                'productCount' in confirmation.row &&
+                confirmation.row.productCount > 0 ? (
+                  <>
+                    <p>
+                      <strong className="text-foreground">
+                        {confirmation.row.name}
+                      </strong>{' '}
+                      contains {confirmation.row.productCount} product
+                      {confirmation.row.productCount === 1 ? '' : 's'}.
+                      Continuing permanently removes the category and all
+                      products inside it from the active catalogue.
+                    </p>
+                    <p>
+                      Historical rental, quote, order, inventory, fulfilment,
+                      and return records will remain preserved. This action
+                      cannot be undone.
+                    </p>
+                  </>
+                ) : (
+                  <p>
+                    This action permanently removes the category and cannot be
+                    undone.
+                  </p>
+                )
+              ) : (
+                <p>
+                  Deactivation hides this record without permanently deleting
+                  it.
+                </p>
+              )}
+            </div>
+            {mutationError ? (
+              <p
+                className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+                role="alert"
+              >
+                {mutationError}
+              </p>
+            ) : null}
+            <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button
+                className="rounded-lg border border-border px-4 py-2"
+                disabled={submitting}
+                onClick={() => setConfirmation(null)}
+                ref={cancelRef}
+                type="button"
+              >
+                Cancel
+              </button>
+              <button
+                className={
+                  confirmation.action === 'delete'
+                    ? 'rounded-lg bg-destructive px-4 py-2 font-semibold text-destructive-foreground disabled:opacity-50'
+                    : 'rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground disabled:opacity-50'
+                }
+                disabled={submitting}
+                onClick={() => void confirmMutation()}
+                type="button"
+              >
+                {submitting
+                  ? 'Working…'
+                  : confirmation.action === 'delete'
+                    ? 'productCount' in confirmation.row &&
+                      confirmation.row.productCount > 0
+                      ? 'Delete category and products'
+                      : 'Delete category'
+                    : 'Deactivate'}
+              </button>
+            </div>
+          </div>
+        ) : null}
+      </AccessibleDialog>
     </div>
   );
 }

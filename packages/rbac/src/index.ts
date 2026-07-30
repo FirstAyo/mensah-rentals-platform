@@ -194,7 +194,6 @@ const EDITOR_PERMISSIONS = [
   'category.view',
   'category.create',
   'category.update',
-  'category.delete',
   'content.view',
   'content.create',
   'content.update',

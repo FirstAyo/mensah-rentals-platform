@@ -199,3 +199,7 @@ reservation.
 ## Phase 16 return models
 
 `RentalReturn` is the one-per-active-rental aggregate. `RentalReturnItem` freezes each checked-out item quantity and projects received/condition/missing/outstanding totals. `RentalReturnOperation`, `RentalReturnOperationItem`, and `ReturnedSerializedAsset` are immutable intake evidence. `RentalIssue` is a versioned current projection; `RentalIssueResolution` and `ReturnActivity` are append-only history. Inventory transactions link directly to the immutable operation item or issue resolution. `MISSING` is a recoverable inventory state and is not `LOST`. These concepts never overwrite quote, order, reservation, fulfilment, checkout, or handoff history.
+
+## Phase 16.2 catalogue tombstones
+
+`Category.deletedAt` and `Product.deletedAt` are private retention markers, not publication fields. Null means the record remains in catalogue management; a timestamp means confirmed permanent removal from active catalogue surfaces while minimum identity remains for restrictive historical or operational references. `isActive` remains the reversible publication switch. This distinction permits true deletion of unreferenced records without weakening immutable rental or inventory history.

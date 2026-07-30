@@ -10,6 +10,7 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:catalogue": "playwright test --grep @catalogue",
+    "test:e2e:categories": "node ../../scripts/run-admin-decisions-e2e.mjs categories",
     "test:e2e:cart": "playwright test --grep @cart",
     "test:e2e:requests": "playwright test --grep @requests",
     "test:e2e:admin": "playwright test --grep @admin",

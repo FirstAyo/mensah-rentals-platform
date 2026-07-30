@@ -14,12 +14,14 @@ import {
   createCategorySchema,
   createProductSchema,
   cuidParamSchema,
+  deleteCategorySchema,
   productListQuerySchema,
   updateCategorySchema,
   updateProductSchema,
   type CategoryListQuery,
   type CreateCategoryInput,
   type CreateProductInput,
+  type DeleteCategoryInput,
   type ProductListQuery,
   type UpdateCategoryInput,
   type UpdateProductInput,
@@ -28,6 +30,7 @@ import {
 import { ZodBodyPipe } from '../auth/zod-body.pipe';
 import { RequirePermissions } from '../authorization/require-permissions.decorator';
 import { CatalogueService } from './catalogue.service';
+import { CatalogueZodPipe } from './catalogue-zod.pipe';
 
 @Controller('admin/categories')
 export class AdminCategoriesController {
@@ -68,6 +71,16 @@ export class AdminCategoriesController {
 
   @Delete(':id')
   @RequirePermissions('category.delete')
+  delete(
+    @Param('id', new ZodBodyPipe(cuidParamSchema)) id: string,
+    @Body(new CatalogueZodPipe(deleteCategorySchema))
+    input: DeleteCategoryInput,
+  ) {
+    return this.catalogue.deleteCategory(id, input);
+  }
+
+  @Post(':id/deactivate')
+  @RequirePermissions('category.update')
   deactivate(@Param('id', new ZodBodyPipe(cuidParamSchema)) id: string) {
     return this.catalogue.deactivateCategory(id);
   }

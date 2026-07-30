@@ -5,9 +5,39 @@ import {
   productListQuerySchema,
   publicProductListQuerySchema,
   updateProductSchema,
+  updateCategorySchema,
 } from './index';
 
 describe('catalogue validation', () => {
+  it('normalizes category edits and returns friendly validation messages', () => {
+    expect(
+      updateCategorySchema.parse({
+        name: '  Seating  ',
+        slug: '  EVENT-SEATING  ',
+        sortOrder: 0,
+      }),
+    ).toMatchObject({ name: 'Seating', slug: 'event-seating' });
+    const invalidName = updateCategorySchema.safeParse({
+      name: '   ',
+      slug: 'seating',
+      sortOrder: 0,
+    });
+    expect(invalidName.success).toBe(false);
+    if (!invalidName.success)
+      expect(invalidName.error.issues[0]?.message).toBe(
+        'Please enter a category name.',
+      );
+    const invalidSlug = updateCategorySchema.safeParse({
+      name: 'Seating',
+      slug: 'not a slug!',
+      sortOrder: 0,
+    });
+    expect(invalidSlug.success).toBe(false);
+    if (!invalidSlug.success)
+      expect(invalidSlug.error.issues[0]?.message).toBe(
+        'Please enter a valid category slug.',
+      );
+  });
   it('accepts safe product metadata without media mutations', () => {
     const base = {
       categoryId: 'cm00000000000000000000000',

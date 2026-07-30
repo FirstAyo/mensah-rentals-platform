@@ -209,7 +209,7 @@ function FormBody({
             <span>Slug</span>
             <input
               className={field}
-              readOnly={Boolean(id)}
+              readOnly={Boolean(id) && resource === 'products'}
               {...register('slug')}
             />
           </label>

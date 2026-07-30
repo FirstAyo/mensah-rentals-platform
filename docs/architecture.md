@@ -393,3 +393,7 @@ operations, capability material, inventory, availability, or reservations.
 ## Phase 16 return boundary
 
 The return module owns return intake, reconciliation, issues, recovery, and explicit rental completion. It uses immutable command/evidence rows plus database-guarded current projections and the existing append-only inventory ledger. The first finalized return freezes the Phase 15 checkout set. All return mutations use serializable transactions, expected versions, UUID operation identity, live permissions, and a common active-rental/return lock root. Staff DTO/PDF builders are separate from the order-capability customer mapper. See [Returns and reconciliation](returns-and-reconciliation.md).
+
+## Phase 16.2 category-retention boundary
+
+Reversible category deactivation is separate from permanent catalogue deletion. A transaction-level catalogue lock plus product row locks protects dependency recalculation. Safe, unreferenced records are hard-deleted; historically or operationally referenced products and their category receive a private `deletedAt` tombstone. No restrictive request or inventory relationship is weakened. Product media filesystem cleanup runs only after the database transaction commits.

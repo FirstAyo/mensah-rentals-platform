@@ -8,6 +8,7 @@ import { ProductMediaService } from './product-media.service';
 
 @Module({
   controllers: [AdminProductMediaController, PublicProductMediaController],
+  exports: [ProductMediaService],
   providers: [ProductMediaService],
 })
 export class ProductMediaModule {}

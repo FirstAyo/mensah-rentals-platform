@@ -1082,3 +1082,9 @@ pnpm test:e2e:returns
 ```
 
 Success means the empty guarded test database applies all 41 migrations; RBAC reports 4 system roles and 73 permissions; static gates and all tests exit 0. Browser fixtures must be test-owned and isolated by workflow. They must cover partial/full bulk intake, condition splits, exact serialized occurrence return, duplicate/concurrent attempts, missing recovery, issue resolution without accidental inventory movement, explicit reconciliation/completion, dark persistence, 320 px, keyboard/focus, Axe serious/critical checks, PDF content, customer-capability status, and recursive confidentiality. Inventory totals before and after must match, while state buckets and ledger rows move exactly once. Never point `TEST_DATABASE_URL` at development, staging, or production.
+
+## Phase 16.2 category correction
+
+From the repository root, run `docker compose up -d postgres-test`, then `pnpm db:validate`, `pnpm db:generate`, `pnpm test`, `pnpm test:e2e:categories`, `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, and `pnpm build`.
+
+The focused browser command resets only the allowlisted test database, creates test-owned empty and historically referenced categories, builds/starts the three applications, and stops them afterward. Success covers slug editing/normalization, empty hard deletion, non-empty cancel/confirm behavior, focus restoration, 320px dark persistence, serious/critical Axe checks, public removal, and preserved request history. API/database tests cover 401/403/422/409 behavior, duplicate slugs, server-side recounting, hard deletion, tombstones, post-commit media cleanup dispatch, and immutable request retention.

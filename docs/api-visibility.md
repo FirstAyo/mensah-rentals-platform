@@ -208,3 +208,7 @@ permissions. Counts are current workflow facts only; they are not inventory
 availability, reservation, return, missing/damaged, or financial-report data.
 
 Phase 16 staff return APIs may contain condition totals, internal issue descriptions, staff evidence, serialized asset identity, and ledger-linked state. They require explicit return/issue permissions and are never public. The order-capability response uses a distinct allowlisted mapper and exposes only coarse return status, the customer's own accounted/outstanding contract quantities, and a bounded customer-safe message. It recursively excludes inventory balances/states, asset and serial IDs, issue type/status/responsibility/amount, internal notes, staff, operation/hash/version/activity, and ledger data. Customer PDFs use the same safe projection.
+
+## Phase 16.2 catalogue deletion visibility
+
+Rows with `deletedAt` are excluded from administrative catalogue lists, category selectors, public categories, public products, related products, and public slug details. Deleted products cannot be newly added to a cart or request. Historical request, quote, order, inventory, fulfilment, return, and issue endpoints continue to use protected projections and immutable snapshots. Tombstone markers, dependency counts, and retention decisions are never public fields.

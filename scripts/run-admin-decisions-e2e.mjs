@@ -30,6 +30,7 @@ const modes = new Set([
   'returns-issues',
   'returns-concurrency',
   'returns-all',
+  'categories',
 ]);
 if (!modes.has(mode)) throw new Error(`Unknown decision browser mode: ${mode}`);
 
@@ -439,13 +440,123 @@ if (mode === 'phase12-1-quote' || mode === 'phase12-1-order') {
   browserEnvironment.PHASE121_REQUEST_REFERENCE = referenceNumber;
   browserEnvironment.PHASE121_PROJECT_NAME = projectName;
 }
+if (mode === 'categories') {
+  const marker = randomUUID().replaceAll('-', '');
+  const emptyCategory = await prisma.category.create({
+    data: {
+      name: `Phase 16.2 Empty ${marker.slice(0, 8)}`,
+      slug: `phase-16-2-empty-${marker}`,
+    },
+  });
+  const historyCategory = await prisma.category.create({
+    data: {
+      name: `Phase 16.2 History ${marker.slice(0, 8)}`,
+      slug: `phase-16-2-history-${marker}`,
+    },
+  });
+  const product = await prisma.product.create({
+    data: {
+      categoryId: historyCategory.id,
+      name: `Phase 16.2 Referenced product ${marker.slice(0, 8)}`,
+      slug: `phase-16-2-referenced-${marker}`,
+      shortDescription: 'Test-owned referenced product',
+    },
+  });
+  const referenceNumber = `MR-2026-${marker.slice(0, 10).toUpperCase()}`;
+  await prisma.$transaction(async (tx) => {
+    const created = await tx.rentalRequest.create({
+      data: {
+        contactEmail: 'phase16-2@example.test',
+        contactFirstName: 'Phase',
+        contactLastName: 'Sixteen',
+        contactPhone: '+15555550162',
+        fulfillmentMethod: 'PICKUP',
+        projectLocation: 'Test location',
+        projectName: 'Phase 16.2 retention fixture',
+        projectType: 'Automated test',
+        referenceNumber,
+        rentalEndDate: new Date('2027-02-02T00:00:00.000Z'),
+        rentalStartDate: new Date('2027-02-01T00:00:00.000Z'),
+        requestedTimeZone: 'UTC',
+        sourceCartTokenHash: randomBytes(32).toString('hex'),
+        submissionKeyHash: randomBytes(32).toString('hex'),
+        submissionPayloadHash: randomBytes(32).toString('hex'),
+        items: {
+          create: {
+            categoryName: historyCategory.name,
+            categorySlug: historyCategory.slug,
+            productId: product.id,
+            productName: product.name,
+            productSlug: product.slug,
+            rentalUnit: 'each',
+            requestedQuantity: 2,
+          },
+        },
+      },
+      include: { items: true },
+    });
+    const revision = await tx.rentalRequestRevision.create({
+      data: {
+        amendmentReason: null,
+        companyName: created.companyName,
+        contactEmail: created.contactEmail,
+        contactFirstName: created.contactFirstName,
+        contactLastName: created.contactLastName,
+        contactPhone: created.contactPhone,
+        customerNotes: created.customerNotes,
+        deliveryAddress: created.deliveryAddress,
+        fulfillmentMethod: created.fulfillmentMethod,
+        operationId: randomUUID(),
+        payloadHash: randomBytes(32).toString('hex'),
+        projectLocation: created.projectLocation,
+        projectName: created.projectName,
+        projectType: created.projectType,
+        rentalEndDate: created.rentalEndDate,
+        rentalRequestId: created.id,
+        rentalStartDate: created.rentalStartDate,
+        requestedTimeZone: created.requestedTimeZone,
+        revisionNumber: 1,
+        submittedByType: 'ORIGINAL_SUBMISSION',
+        items: {
+          create: created.items.map((item, sortOrder) => ({
+            categoryNameSnapshot: item.categoryName,
+            categorySlugSnapshot: item.categorySlug,
+            primaryImageUrlSnapshot: null,
+            productId: item.productId,
+            productNameSnapshot: item.productName,
+            productSlugSnapshot: item.productSlug,
+            rentalUnitSnapshot: item.rentalUnit,
+            requestedQuantity: item.requestedQuantity,
+            sortOrder,
+          })),
+        },
+      },
+    });
+    await tx.rentalRequest.update({
+      where: { id: created.id },
+      data: { currentRevisionId: revision.id },
+    });
+  });
+  browserEnvironment.PHASE16_2_EMPTY_CATEGORY_NAME = emptyCategory.name;
+  browserEnvironment.PHASE16_2_HISTORY_CATEGORY_NAME = historyCategory.name;
+  browserEnvironment.PHASE16_2_HISTORY_PRODUCT_NAME = product.name;
+  browserEnvironment.PHASE16_2_HISTORY_PRODUCT_SLUG = product.slug;
+  browserEnvironment.PHASE16_2_REQUEST_REFERENCE = referenceNumber;
+}
 await prisma.$disconnect();
 
 const phase121Mode = mode.startsWith('phase12-1-');
+const categoryMode = mode === 'categories';
 const reservationMode = mode.startsWith('reservations-');
 const fulfilmentMode = mode.startsWith('fulfilment-');
 const returnMode = mode.startsWith('returns-');
-if (phase121Mode || reservationMode || fulfilmentMode || returnMode)
+if (
+  phase121Mode ||
+  categoryMode ||
+  reservationMode ||
+  fulfilmentMode ||
+  returnMode
+)
   run(
     pnpm,
     [
@@ -471,6 +582,7 @@ const servers = [
       '--filter',
       workspace,
       phase121Mode ||
+      categoryMode ||
       ((fulfilmentMode || returnMode) && workspace !== '@mensah-rentals/web')
         ? 'start'
         : 'dev',
@@ -507,45 +619,47 @@ try {
   const isPhase121Quote = mode === 'phase12-1-quote';
   const isQuoteMode = mode.startsWith('quotes-');
   const isOrderMode = mode.startsWith('orders-');
-  const grep = returnMode
-    ? mode === 'returns-all'
-      ? '@returns'
-      : mode === 'returns-concurrency'
-        ? '@return-concurrency'
-        : mode === 'returns-issues'
-          ? '@return-issues'
-          : '@admin-returns'
-    : fulfilmentMode
-      ? mode === 'fulfilment-all'
-        ? '@fulfilment'
-        : mode === 'fulfilment-concurrency'
-          ? '@fulfilment-concurrency'
-          : mode === 'fulfilment-active-rentals'
-            ? '@active-rentals'
-            : '@admin-fulfilment'
-      : reservationMode
-        ? mode === 'reservations-all'
-          ? '@reservations'
-          : mode === 'reservations-concurrency'
-            ? '@reservation-concurrency'
-            : '@admin-reservations'
-        : isPhase121
-          ? '@phase12-1'
-          : isOrderMode
-            ? mode === 'orders-all'
-              ? '@orders'
-              : mode === 'orders-admin'
-                ? '@admin-orders'
-                : '@customer-orders'
-            : isQuoteMode
-              ? mode === 'quotes-all'
-                ? '@quotes'
-                : mode === 'quotes-admin'
-                  ? '@admin-quotes'
-                  : '@customer-quotes'
-              : mode === 'all'
-                ? '@admin-decisions'
-                : `@admin-decisions-${mode}`;
+  const grep = categoryMode
+    ? '@categories'
+    : returnMode
+      ? mode === 'returns-all'
+        ? '@returns'
+        : mode === 'returns-concurrency'
+          ? '@return-concurrency'
+          : mode === 'returns-issues'
+            ? '@return-issues'
+            : '@admin-returns'
+      : fulfilmentMode
+        ? mode === 'fulfilment-all'
+          ? '@fulfilment'
+          : mode === 'fulfilment-concurrency'
+            ? '@fulfilment-concurrency'
+            : mode === 'fulfilment-active-rentals'
+              ? '@active-rentals'
+              : '@admin-fulfilment'
+        : reservationMode
+          ? mode === 'reservations-all'
+            ? '@reservations'
+            : mode === 'reservations-concurrency'
+              ? '@reservation-concurrency'
+              : '@admin-reservations'
+          : isPhase121
+            ? '@phase12-1'
+            : isOrderMode
+              ? mode === 'orders-all'
+                ? '@orders'
+                : mode === 'orders-admin'
+                  ? '@admin-orders'
+                  : '@customer-orders'
+              : isQuoteMode
+                ? mode === 'quotes-all'
+                  ? '@quotes'
+                  : mode === 'quotes-admin'
+                    ? '@admin-quotes'
+                    : '@customer-quotes'
+                : mode === 'all'
+                  ? '@admin-decisions'
+                  : `@admin-decisions-${mode}`;
   const grepArgument =
     process.platform === 'win32' && grep.includes('|') ? `"${grep}"` : grep;
   run(
@@ -556,23 +670,25 @@ try {
       'exec',
       'playwright',
       'test',
-      ...(reservationMode || fulfilmentMode || returnMode
-        ? ['e2e/orders.spec.ts']
-        : isPhase121
-          ? [
-              isPhase121Layout
-                ? 'e2e/phase12-1.spec.ts'
-                : isPhase121Quote
-                  ? 'e2e/quotes.spec.ts'
-                  : 'e2e/orders.spec.ts',
-            ]
-          : [
-              isOrderMode
-                ? 'e2e/orders.spec.ts'
-                : isQuoteMode
-                  ? 'e2e/quotes.spec.ts'
-                  : 'e2e/admin-decisions.spec.ts',
-            ]),
+      ...(categoryMode
+        ? ['e2e/categories.spec.ts']
+        : reservationMode || fulfilmentMode || returnMode
+          ? ['e2e/orders.spec.ts']
+          : isPhase121
+            ? [
+                isPhase121Layout
+                  ? 'e2e/phase12-1.spec.ts'
+                  : isPhase121Quote
+                    ? 'e2e/quotes.spec.ts'
+                    : 'e2e/orders.spec.ts',
+              ]
+            : [
+                isOrderMode
+                  ? 'e2e/orders.spec.ts'
+                  : isQuoteMode
+                    ? 'e2e/quotes.spec.ts'
+                    : 'e2e/admin-decisions.spec.ts',
+              ]),
       '--grep',
       grepArgument,
     ],

@@ -9,6 +9,7 @@ import { AuthModule } from '../auth/auth.module';
 import { AuthService } from '../auth/auth.service';
 import { CatalogueModule } from './catalogue.module';
 import { CatalogueService } from './catalogue.service';
+import { ProductMediaService } from '../media/product-media.service';
 const user: StaffUserResponse = {
   createdAt: '2026-07-18T00:00:00.000Z',
   email: 'staff@example.test',
@@ -45,6 +46,12 @@ describe('catalogue HTTP visibility and authorization', () => {
     })),
     createProduct: vi.fn(async () => ({ id: 'product-id' })),
     createCategory: vi.fn(async () => ({ id: 'category-id' })),
+    deleteCategory: vi.fn(async () => ({
+      categoryDeleted: true,
+      hardDeletedProductCount: 0,
+      productsRemovedFromCatalogue: 0,
+      tombstonedProductCount: 0,
+    })),
   };
   beforeAll(async () => {
     const module = await Test.createTestingModule({
@@ -57,6 +64,7 @@ describe('catalogue HTTP visibility and authorization', () => {
               AUTH_COOKIE_SECURE: false,
               AUTH_LOGIN_RATE_LIMIT: 100,
               AUTH_LOGIN_RATE_WINDOW_SECONDS: 60,
+              MEDIA_STORAGE_ROOT: 'storage/test-media',
               STAFF_SESSION_COOKIE_NAME: 'mensah_staff_session',
               STAFF_SESSION_TTL_HOURS: 12,
             }),
@@ -74,6 +82,8 @@ describe('catalogue HTTP visibility and authorization', () => {
       })
       .overrideProvider(CatalogueService)
       .useValue(catalogue)
+      .overrideProvider(ProductMediaService)
+      .useValue({ removeCommittedFiles: vi.fn() })
       .compile();
     app = module.createNestApplication();
     app.use(cookieParser());
@@ -153,5 +163,28 @@ describe('catalogue HTTP visibility and authorization', () => {
       .set('Content-Type', 'application/json')
       .send({ name: 'Seating', slug: 'seating', sortOrder: 0, isActive: true })
       .expect(201);
+  });
+
+  it('protects permanent category deletion and validates confirmation safely', async () => {
+    const id = 'cm00000000000000000000000';
+    const sendDelete = () =>
+      request(app.getHttpServer())
+        .delete(`/admin/categories/${id}`)
+        .set('Cookie', 'mensah_staff_session=x')
+        .set('Origin', 'http://localhost:3001')
+        .set('Content-Type', 'application/json');
+    current = null;
+    await sendDelete().send({ confirmDeleteProducts: false }).expect(401);
+    current = { ...user, permissionKeys: ['category.update'] };
+    await sendDelete().send({ confirmDeleteProducts: false }).expect(403);
+    current = { ...user, permissionKeys: ['category.delete'] };
+    await sendDelete()
+      .send({ confirmDeleteProducts: 'yes' })
+      .expect(422)
+      .expect(({ body }) => {
+        expect(body.message).toBe('Invalid category deletion request');
+        expect(JSON.stringify(body)).not.toContain('Zod');
+      });
+    await sendDelete().send({ confirmDeleteProducts: true }).expect(200);
   });
 });

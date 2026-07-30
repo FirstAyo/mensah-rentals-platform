@@ -7,6 +7,7 @@ import type { Prisma } from '@mensah-rentals/database';
 import type {
   AdminCategoryResponse,
   AdminProductResponse,
+  DeleteCategoryResponse,
   PaginatedResponse,
   PublicCategoryResponse,
   PublicProductDetailResponse,
@@ -16,6 +17,7 @@ import type {
   CategoryListQuery,
   CreateCategoryInput,
   CreateProductInput,
+  DeleteCategoryInput,
   ProductListQuery,
   PublicCategoryListQuery,
   PublicProductListQuery,
@@ -24,11 +26,12 @@ import type {
 } from '@mensah-rentals/validation';
 
 import { CatalogueRepository } from './catalogue.repository';
+import { ProductMediaService } from '../media/product-media.service';
 
 const CATALOGUE_MUTATION_LOCK = 2_026_071_814;
 
 const categorySelect = {
-  _count: { select: { products: true } },
+  _count: { select: { products: { where: { deletedAt: null } } } },
   createdAt: true,
   description: true,
   id: true,
@@ -181,12 +184,16 @@ function mapPublicSummary(
 
 @Injectable()
 export class CatalogueService {
-  constructor(private readonly repository: CatalogueRepository) {}
+  constructor(
+    private readonly repository: CatalogueRepository,
+    private readonly media: ProductMediaService,
+  ) {}
 
   async listAdminCategories(
     query: CategoryListQuery,
   ): Promise<PaginatedResponse<AdminCategoryResponse>> {
     const where: Prisma.CategoryWhereInput = {
+      deletedAt: null,
       ...(query.isActive === undefined ? {} : { isActive: query.isActive }),
       ...(query.search
         ? { name: { contains: query.search, mode: 'insensitive' } }
@@ -215,9 +222,9 @@ export class CatalogueService {
   }
 
   async getAdminCategory(id: string) {
-    const category = await this.repository.prisma.category.findUnique({
+    const category = await this.repository.prisma.category.findFirst({
       select: categorySelect,
-      where: { id },
+      where: { id, deletedAt: null },
     });
     if (!category) throw new NotFoundException('Category not found');
     return mapAdminCategory(category);
@@ -227,28 +234,34 @@ export class CatalogueService {
     try {
       const category = await this.repository.prisma.category.create({
         select: categorySelect,
-        data: input,
+        data: { ...input, slug: input.slug.trim().toLowerCase() },
       });
       return mapAdminCategory(category);
     } catch (error) {
-      this.rethrowConflict(error, 'Category slug already exists');
+      this.rethrowConflict(error, 'That category slug is already in use.');
     }
   }
 
   async updateCategory(id: string, input: UpdateCategoryInput) {
     await this.getAdminCategory(id);
-    const category = await this.repository.prisma.category.update({
-      select: categorySelect,
-      where: { id },
-      data: input,
-    });
-    return mapAdminCategory(category);
+    try {
+      const category = await this.repository.prisma.category.update({
+        select: categorySelect,
+        where: { id },
+        data: { ...input, slug: input.slug.trim().toLowerCase() },
+      });
+      return mapAdminCategory(category);
+    } catch (error) {
+      this.rethrowConflict(error, 'That category slug is already in use.');
+    }
   }
 
   async deactivateCategory(id: string) {
     await this.repository.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(${CATALOGUE_MUTATION_LOCK})`;
-      const category = await tx.category.findUnique({ where: { id } });
+      const category = await tx.category.findFirst({
+        where: { id, deletedAt: null },
+      });
       if (!category) throw new NotFoundException('Category not found');
       const activeProducts = await tx.product.count({
         where: { categoryId: id, isActive: true },
@@ -262,9 +275,107 @@ export class CatalogueService {
     return this.getAdminCategory(id);
   }
 
+  async deleteCategory(
+    id: string,
+    input: DeleteCategoryInput,
+  ): Promise<DeleteCategoryResponse> {
+    const outcome = await this.repository.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${CATALOGUE_MUTATION_LOCK})`;
+      const category = await tx.category.findFirst({
+        where: { id, deletedAt: null },
+        select: { id: true, name: true },
+      });
+      if (!category) throw new NotFoundException('Category not found');
+
+      await tx.$queryRaw`SELECT id FROM "Product" WHERE "categoryId" = ${id} AND "deletedAt" IS NULL FOR UPDATE`;
+      const products = await tx.product.findMany({
+        where: { categoryId: id, deletedAt: null },
+        select: {
+          id: true,
+          images: { select: { url: true } },
+          inventory: {
+            select: {
+              id: true,
+              _count: {
+                select: {
+                  items: true,
+                  reservationItems: true,
+                  transactions: true,
+                },
+              },
+            },
+          },
+          _count: {
+            select: {
+              rentalChangeRequestItems: true,
+              rentalRequestItems: true,
+              rentalRequestRevisionItems: true,
+            },
+          },
+        },
+      });
+      if (products.length > 0 && !input.confirmDeleteProducts)
+        throw new ConflictException({
+          code: 'CATEGORY_DELETE_CONFIRMATION_REQUIRED',
+          message: `This category contains ${products.length} product${products.length === 1 ? '' : 's'}. Confirm deletion to continue.`,
+          productCount: products.length,
+          statusCode: 409,
+        });
+
+      const now = new Date();
+      const mediaUrls: string[] = [];
+      let hardDeletedProductCount = 0;
+      let tombstonedProductCount = 0;
+      for (const product of products) {
+        const hasHistoricalProductReference =
+          product._count.rentalRequestItems > 0 ||
+          product._count.rentalRequestRevisionItems > 0 ||
+          product._count.rentalChangeRequestItems > 0;
+        const inventoryHasHistory = Boolean(
+          product.inventory &&
+            (product.inventory._count.items > 0 ||
+              product.inventory._count.reservationItems > 0 ||
+              product.inventory._count.transactions > 0),
+        );
+        await tx.cartItem.deleteMany({ where: { productId: product.id } });
+        if (hasHistoricalProductReference || inventoryHasHistory) {
+          await tx.product.update({
+            where: { id: product.id },
+            data: { deletedAt: now, isActive: false, isFeatured: false },
+          });
+          tombstonedProductCount += 1;
+          continue;
+        }
+        if (product.inventory)
+          await tx.inventory.delete({ where: { id: product.inventory.id } });
+        mediaUrls.push(...product.images.map(({ url }) => url));
+        await tx.product.delete({ where: { id: product.id } });
+        hardDeletedProductCount += 1;
+      }
+      if (tombstonedProductCount > 0)
+        await tx.category.update({
+          where: { id },
+          data: { deletedAt: now, isActive: false },
+        });
+      else await tx.category.delete({ where: { id } });
+
+      return {
+        mediaUrls,
+        response: {
+          categoryDeleted: true as const,
+          hardDeletedProductCount,
+          productsRemovedFromCatalogue: products.length,
+          tombstonedProductCount,
+        },
+      };
+    });
+    await this.media.removeCommittedFiles(outcome.mediaUrls);
+    return outcome.response;
+  }
+
   async activateCategory(id: string) {
     await this.repository.prisma.category
-      .update({ where: { id }, data: { isActive: true } })
+      .update({ where: { id, deletedAt: null }, data: { isActive: true } })
       .catch((error) => {
         if (this.code(error) === 'P2025')
           throw new NotFoundException('Category not found');
@@ -300,9 +411,9 @@ export class CatalogueService {
   }
 
   async getAdminProduct(id: string) {
-    const product = await this.repository.prisma.product.findUnique({
+    const product = await this.repository.prisma.product.findFirst({
       select: productSelect,
-      where: { id },
+      where: { id, deletedAt: null },
     });
     if (!product) throw new NotFoundException('Product not found');
     return mapAdminProduct(product);
@@ -312,8 +423,8 @@ export class CatalogueService {
     try {
       const id = await this.repository.prisma.$transaction(async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(${CATALOGUE_MUTATION_LOCK})`;
-        const category = await tx.category.findUnique({
-          where: { id: input.categoryId },
+        const category = await tx.category.findFirst({
+          where: { id: input.categoryId, deletedAt: null },
         });
         if (!category) throw new NotFoundException('Category not found');
         if (input.isActive && !category.isActive)
@@ -335,10 +446,12 @@ export class CatalogueService {
     try {
       await this.repository.prisma.$transaction(async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(${CATALOGUE_MUTATION_LOCK})`;
-        const current = await tx.product.findUnique({ where: { id } });
+        const current = await tx.product.findFirst({
+          where: { id, deletedAt: null },
+        });
         if (!current) throw new NotFoundException('Product not found');
-        const category = await tx.category.findUnique({
-          where: { id: input.categoryId },
+        const category = await tx.category.findFirst({
+          where: { id: input.categoryId, deletedAt: null },
         });
         if (!category) throw new NotFoundException('Category not found');
         if (current.isActive && !category.isActive)
@@ -372,6 +485,7 @@ export class CatalogueService {
     query: PublicCategoryListQuery,
   ): Promise<PaginatedResponse<PublicCategoryResponse>> {
     const where: Prisma.CategoryWhereInput = {
+      deletedAt: null,
       isActive: true,
       ...(query.search
         ? { name: { contains: query.search, mode: 'insensitive' } }
@@ -397,7 +511,7 @@ export class CatalogueService {
 
   async getPublicCategory(slug: string) {
     const category = await this.repository.prisma.category.findFirst({
-      where: { slug, isActive: true },
+      where: { slug, isActive: true, deletedAt: null },
       select: { description: true, name: true, slug: true },
     });
     if (!category) throw new NotFoundException('Category not found');
@@ -435,7 +549,8 @@ export class CatalogueService {
       where: {
         slug: productSlug,
         isActive: true,
-        category: { slug: categorySlug, isActive: true },
+        deletedAt: null,
+        category: { slug: categorySlug, isActive: true, deletedAt: null },
       },
     });
     if (!product) throw new NotFoundException('Product not found');
@@ -444,7 +559,12 @@ export class CatalogueService {
       where: {
         slug: { not: product.slug },
         isActive: true,
-        category: { slug: product.category.slug, isActive: true },
+        deletedAt: null,
+        category: {
+          slug: product.category.slug,
+          isActive: true,
+          deletedAt: null,
+        },
       },
       orderBy: [{ isFeatured: 'desc' }, { name: 'asc' }, { id: 'asc' }],
       take: 4,
@@ -462,6 +582,7 @@ export class CatalogueService {
 
   private productWhere(query: ProductListQuery): Prisma.ProductWhereInput {
     return {
+      deletedAt: null,
       ...(query.isActive === undefined ? {} : { isActive: query.isActive }),
       ...(query.categorySlug ? { category: { slug: query.categorySlug } } : {}),
       ...(query.categoryId ? { categoryId: query.categoryId } : {}),
@@ -488,8 +609,10 @@ export class CatalogueService {
     query: PublicProductListQuery,
   ): Prisma.ProductWhereInput {
     return {
+      deletedAt: null,
       isActive: true,
       category: {
+        deletedAt: null,
         isActive: true,
         ...(query.categorySlug ? { slug: query.categorySlug } : {}),
       },
@@ -575,12 +698,15 @@ export class CatalogueService {
   private async setProductActive(id: string, isActive: boolean) {
     await this.repository.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(${CATALOGUE_MUTATION_LOCK})`;
-      const product = await tx.product.findUnique({
+      const product = await tx.product.findFirst({
         include: { category: true },
-        where: { id },
+        where: { id, deletedAt: null },
       });
       if (!product) throw new NotFoundException('Product not found');
-      if (isActive && !product.category.isActive)
+      if (
+        isActive &&
+        (!product.category.isActive || product.category.deletedAt)
+      )
         throw new ConflictException(
           'An active product requires an active category',
         );

@@ -407,9 +407,11 @@ model Category {
   sortOrder   Int       @default(0)
   createdAt   DateTime  @default(now()) @db.Timestamptz(3)
   updatedAt   DateTime  @updatedAt @db.Timestamptz(3)
+  deletedAt   DateTime? @db.Timestamptz(3)
   products    Product[]
 
   @@index([isActive, sortOrder, name, id])
+  @@index([deletedAt, sortOrder, name, id])
 }
 
 model Product {
@@ -424,6 +426,7 @@ model Product {
   isFeatured                 Boolean                     @default(false)
   createdAt                  DateTime                    @default(now()) @db.Timestamptz(3)
   updatedAt                  DateTime                    @updatedAt @db.Timestamptz(3)
+  deletedAt                  DateTime?                   @db.Timestamptz(3)
   category                   Category                    @relation(fields: [categoryId], references: [id], onDelete: Restrict)
   images                     ProductImage[]
   specifications             ProductSpecification[]
@@ -435,6 +438,7 @@ model Product {
 
   @@index([categoryId, isActive, name, id])
   @@index([isActive, isFeatured, updatedAt, id])
+  @@index([deletedAt, categoryId, name, id])
 }
 
 model Cart {
