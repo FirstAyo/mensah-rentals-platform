@@ -660,7 +660,11 @@ const requestRevisionFieldsSchema = rentalRequestDetailsSchema.omit({
 
 export const submitRentalRequestAmendmentSchema = requestRevisionFieldsSchema
   .extend({
-    amendmentReason: z.string().trim().min(1).max(2000),
+    amendmentReason: z
+      .string()
+      .trim()
+      .min(1, 'Please enter a reason for this amendment.')
+      .max(2000),
     expectedRevisionNumber: z.number().int().min(1),
     items: completeReplacementItemsSchema,
     operationId: z.string().uuid(),
@@ -673,7 +677,11 @@ export const submitRentalChangeRequestSchema = requestRevisionFieldsSchema
     expectedRevisionNumber: z.number().int().min(1),
     items: completeReplacementItemsSchema,
     operationId: z.string().uuid(),
-    reason: z.string().trim().min(1).max(2000),
+    reason: z
+      .string()
+      .trim()
+      .min(1, 'Please enter a reason for this change request.')
+      .max(2000),
   })
   .strict()
   .superRefine(validateRentalRequestDates);

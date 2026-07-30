@@ -23,6 +23,7 @@ import type {
   AdminEligibleAssetsResponse,
   AdminInventoryReservationResponse,
   AdminOrderAvailabilityResponse,
+  AdminReservationShortageItemResponse,
 } from '@mensah-rentals/types';
 import type {
   CompleteInventoryReservationInput,
@@ -111,11 +112,20 @@ export class InventoryReservationService {
         actorId,
         orderId,
       );
-      if (replay) return { id: replay.id, failure: replay.failed };
+      if (replay)
+        return {
+          id: replay.id,
+          failure: replay.failed,
+          failureItems: replay.failureItems,
+        };
       const order = await this.requireEligibleOrder(tx, orderId);
       if (order.reservation)
-        throw new ConflictException('An active reservation already exists');
+        throw new ConflictException({
+          code: 'RESERVATION_ALREADY_EXISTS',
+          message: 'This order already has a reservation record.',
+        });
       const inventories = await this.lockInventoriesForOrder(tx, order);
+      const availability = await this.calculateAvailability(tx, order);
       const range = this.orderRange(order);
       const reservation = await tx.inventoryReservation.create({
         data: {
@@ -169,6 +179,7 @@ export class InventoryReservationService {
         0,
       );
       if (reservedTotal === 0 || (hasShortfall && !input.allowPartial)) {
+        const failureItems = this.shortageItems(availability, plan);
         await tx.inventoryReservationOperation.create({
           data: {
             actorUserId: actorId,
@@ -179,7 +190,8 @@ export class InventoryReservationService {
                 reservedTotal === 0
                   ? 'NO_INTERNAL_ALLOCATION_AVAILABLE'
                   : 'INSUFFICIENT_INTERNAL_AVAILABILITY',
-            },
+              shortages: failureItems,
+            } as unknown as Prisma.InputJsonValue,
             operationId: input.operationId,
             payloadHash,
             resultingVersion: 1,
@@ -200,7 +212,7 @@ export class InventoryReservationService {
             reservationVersion: { increment: 1 },
           },
         });
-        return { id: reservation.id, failure: true };
+        return { id: reservation.id, failure: true, failureItems };
       }
       await this.assertPartialPolicy(tx, actorId, input, hasShortfall);
       const nextStatus = hasShortfall
@@ -233,12 +245,14 @@ export class InventoryReservationService {
           reservationVersion: { increment: 1 },
         },
       });
-      return { id: reservation.id, failure: false };
+      return { id: reservation.id, failure: false, failureItems: undefined };
     });
     if (reservationResult.failure)
-      throw new ConflictException(
-        'Full reservation is not currently available',
-      );
+      throw new ConflictException({
+        code: 'FULL_RESERVATION_UNAVAILABLE',
+        items: reservationResult.failureItems,
+        message: 'Full reservation is not currently possible.',
+      });
     return this.getWithNoPermissionCheck(reservationResult.id);
   }
 
@@ -271,24 +285,36 @@ export class InventoryReservationService {
       if (!reservation || reservation.id !== reservationId)
         throw new NotFoundException('Reservation not found');
       if (reservation.version !== input.expectedVersion)
-        throw new ConflictException('Reservation version is stale');
+        throw new ConflictException({
+          code: 'RESERVATION_STALE',
+          message:
+            'Reservation data changed while this page was open. Refresh and review the latest values.',
+        });
       if (reservation.status === InventoryReservationStatus.RELEASED)
         throw new ConflictException(
           'Released reservations cannot be completed',
         );
       await this.lockInventoriesForOrder(tx, order);
+      const availability = await this.calculateAvailability(tx, order);
       const plan = await this.planAdditionalAllocations(
         tx,
         reservation,
         reservation.items,
         input.serializedSelections,
       );
-      if (!plan.some(({ quantityDelta }) => quantityDelta > 0))
-        throw new ConflictException('No additional inventory can be reserved');
       const hasShortfall = plan.some(
         ({ committedAfter, requestedQuantity }) =>
           committedAfter < requestedQuantity,
       );
+      if (
+        !plan.some(({ quantityDelta }) => quantityDelta > 0) ||
+        (hasShortfall && !input.allowPartial)
+      )
+        throw new ConflictException({
+          code: 'FULL_RESERVATION_UNAVAILABLE',
+          items: this.shortageItems(availability, plan),
+          message: 'Full reservation is not currently possible.',
+        });
       await this.assertPartialPolicy(tx, actorId, input, hasShortfall);
       const nextVersion = reservation.version + 1;
       const hasConsumption = reservation.items.some(
@@ -361,7 +387,11 @@ export class InventoryReservationService {
       });
       if (!reservation) throw new NotFoundException('Reservation not found');
       if (reservation.version !== input.expectedVersion)
-        throw new ConflictException('Reservation version is stale');
+        throw new ConflictException({
+          code: 'RESERVATION_STALE',
+          message:
+            'Reservation data changed while this page was open. Refresh and review the latest values.',
+        });
       if (
         reservation.items.every(
           ({ reservedQuantity }) => reservedQuantity === 0,
@@ -906,13 +936,15 @@ export class InventoryReservationService {
   ) {
     if (!hasShortfall) return;
     if (!input.allowPartial)
-      throw new ConflictException(
-        'Full reservation is not currently available',
-      );
+      throw new ConflictException({
+        code: 'FULL_RESERVATION_UNAVAILABLE',
+        message: 'Full reservation is not currently possible.',
+      });
     if (!input.overrideReason)
-      throw new UnprocessableEntityException(
-        'A reason is required for an intentional partial reservation',
-      );
+      throw new UnprocessableEntityException({
+        code: 'MISSING_OVERRIDE_REASON',
+        message: 'Enter an internal reason for the partial reservation.',
+      });
     await this.requireActor(tx, actorId, ['inventory.reservation.override']);
   }
 
@@ -929,7 +961,10 @@ export class InventoryReservationService {
     });
     if (!order) throw new NotFoundException('Rental order not found');
     if (order.status !== 'CONFIRMED')
-      throw new ConflictException('Only confirmed orders can be reserved');
+      throw new ConflictException({
+        code: 'ORDER_NOT_CONFIRMED',
+        message: 'Only a confirmed rental order can be reserved.',
+      });
     if (
       await tx.rentalChangeRequest.findFirst({
         where: {
@@ -941,13 +976,17 @@ export class InventoryReservationService {
         select: { id: true },
       })
     )
-      throw new ConflictException(
-        'The order has an unresolved formal change request',
-      );
+      throw new ConflictException({
+        code: 'ORDER_CHANGE_REQUEST_PENDING',
+        message:
+          'This order cannot be reserved while a formal change request is unresolved.',
+      });
     if (order.rentalEndDateSnapshot < order.rentalStartDateSnapshot)
-      throw new UnprocessableEntityException(
-        'Order rental end date cannot precede its start date',
-      );
+      throw new UnprocessableEntityException({
+        code: 'INVALID_RENTAL_DATES',
+        message:
+          'The order rental dates must be corrected before inventory can be reserved.',
+      });
     this.orderRange(order);
     return order;
   }
@@ -1026,14 +1065,61 @@ export class InventoryReservationService {
       existing.actorUserId !== actorId ||
       existing.inventoryReservation.rentalOrderId !== orderId
     )
-      throw new ConflictException(
-        'Operation identifier was reused differently',
-      );
+      throw new ConflictException({
+        code: 'OPERATION_CONFLICT',
+        message:
+          'This reservation action conflicts with an earlier submission. Refresh before trying again.',
+      });
+    const metadata = existing.metadata as {
+      shortages?: AdminReservationShortageItemResponse[];
+    } | null;
     return {
       failed:
         existing.type === InventoryReservationOperationType.RESERVATION_FAILED,
       id: existing.inventoryReservationId,
+      failureItems: metadata?.shortages,
     };
+  }
+
+  private shortageItems(
+    availability: AdminOrderAvailabilityResponse,
+    plan: Awaited<
+      ReturnType<InventoryReservationService['planAdditionalAllocations']>
+    >,
+  ): AdminReservationShortageItemResponse[] {
+    const availabilityByItem = new Map(
+      availability.items.map((item) => [item.rentalOrderItemId, item]),
+    );
+    return plan.map((item) => {
+      const current = availabilityByItem.get(item.rentalOrderItemId);
+      const remaining = Math.max(
+        0,
+        item.requestedQuantity - item.consumedQuantity - item.reservedQuantity,
+      );
+      const currentlyAvailableQuantity = Math.max(
+        0,
+        current?.availableToReserve ?? item.quantityDelta,
+      );
+      const quantityCanBeReservedNow = Math.min(
+        remaining,
+        currentlyAvailableQuantity,
+      );
+      const missingQuantity = Math.max(0, remaining - quantityCanBeReservedNow);
+      return {
+        alreadyReservedQuantity: item.reservedQuantity,
+        currentlyAvailableQuantity,
+        missingQuantity,
+        orderedQuantity: item.requestedQuantity,
+        productName: current?.productName ?? 'Rental equipment',
+        quantityCanBeReservedNow,
+        rentalOrderItemId: item.rentalOrderItemId,
+        serializedAssetShortage:
+          current?.trackingMode === InventoryTrackingMode.SERIALIZED
+            ? missingQuantity
+            : null,
+        trackingMode: current?.trackingMode ?? null,
+      };
+    });
   }
 
   private async getWithNoPermissionCheck(id: string) {

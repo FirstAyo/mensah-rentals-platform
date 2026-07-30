@@ -1,5 +1,15 @@
 # Rental request amendments
 
+## Phase 16.1 form validation correction
+
+The customer amendment form trims every editable text value before validation
+and submission. Optional blank company, delivery-address, and customer-note
+values become `null`; required blank values remain invalid. A missing or
+whitespace-only amendment reason is associated with the reason field and shown
+as: `Please enter a reason for this amendment.` Raw Zod or upstream validation
+messages are never rendered to the customer. The review step and final submit
+step both parse the same normalized payload.
+
 Confirmed-order changes remain formal change requests. An unresolved change request blocks fulfilment inside the locked transaction. Amendments never mutate checkout, inventory, or active rentals.
 
 ## Phase 14 reservation boundary

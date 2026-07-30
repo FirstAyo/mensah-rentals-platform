@@ -1,5 +1,30 @@
 # Inventory reservations
 
+## Phase 16.1 reservation preview and order-page correction
+
+The confirmed-order page contains a prominent **Inventory reservation**
+section directly after the order notice. It explains that reservation is a
+staff-only inventory commitment, always displays the current reservation state
+to staff with reservation-view permission, and provides one primary **Check
+availability and reserve** action when creation is permitted.
+
+That action retrieves a fresh internal availability result before opening the
+confirmation dialog. The dialog shows, for every order item, the ordered
+quantity, quantity already reserved, current date-range availability, quantity
+that can be reserved now, missing quantity, and serialized-asset shortage when
+applicable. The API recalculates and locks the same data inside the mutation. If
+availability changes between preview and confirmation, the `409`
+`FULL_RESERVATION_UNAVAILABLE` response contains the same allowlisted shortage
+shape and the dialog refreshes to the authoritative values.
+
+When full reservation is impossible, permitted staff can use the explicit
+partial path and must provide an internal shortfall reason, such as a planned
+sub-rental, purchase, transfer, or awaited stock. Zero reservable quantity,
+missing override permission, and incomplete serialized selection prevent the
+partial action. The shared native dialog restores focus, supports Escape, traps
+focus through browser dialog behavior, and is bounded for 320px screens. None
+of these internal quantities or reasons are added to customer responses.
+
 ## Phase 15 consumption
 
 Checkout adds explicit `consumedQuantity` and `PARTIALLY_CONSUMED`/`CONSUMED` states. Requested equals active reserved plus consumed plus shortfall. Remaining quantities stay reserved until later checkout or explicit release; history is never deleted.

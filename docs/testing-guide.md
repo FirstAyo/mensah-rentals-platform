@@ -1,5 +1,26 @@
 # Testing Guide
 
+## Phase 16.1 focused regression checks
+
+From the repository root in PowerShell, start both guarded PostgreSQL services,
+then run the amendment and reservation suites:
+
+```powershell
+docker compose up -d postgres postgres-test
+pnpm test:e2e:amendments
+pnpm test:e2e:reservations
+```
+
+The amendment suite must show the friendly reason-field message for an empty or
+whitespace-only reason, submit trimmed text, serialize blank optional fields as
+`null`, and never render a raw `String must contain` message. The reservation
+suite must find the Inventory reservation section on the confirmed-order page,
+preview exact full and shortfall quantities, require the internal partial
+reason, complete full and partial paths, retain dark-theme and 320px behavior,
+and report no serious or critical Axe violations. Both suites use test-owned
+fixtures; do not point their guarded database variables at development,
+staging, or production databases.
+
 ## Phase 15 fulfilment testing (Windows PowerShell)
 
 Run database and quality checks from the repository root:

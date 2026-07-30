@@ -27,12 +27,17 @@ const base = {
 
 describe('rental request amendment validation', () => {
   it('accepts a bounded complete replacement list', () => {
-    expect(
-      submitRentalRequestAmendmentSchema.safeParse({
-        ...base,
-        amendmentReason: 'The project requirements changed.',
-      }).success,
-    ).toBe(true);
+    const result = submitRentalRequestAmendmentSchema.safeParse({
+      ...base,
+      amendmentReason: '  The project requirements changed.  ',
+      companyName: '   ',
+    });
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.amendmentReason).toBe(
+      'The project requirements changed.',
+    );
+    expect(result.data.companyName).toBeNull();
   });
 
   it.each([
@@ -56,4 +61,19 @@ describe('rental request amendment validation', () => {
         .success,
     ).toBe(false);
   });
+
+  it.each(['', '   \t'])(
+    'returns a friendly amendment-reason error for %j',
+    (amendmentReason) => {
+      const result = submitRentalRequestAmendmentSchema.safeParse({
+        ...base,
+        amendmentReason,
+      });
+      expect(result.success).toBe(false);
+      if (result.success) return;
+      expect(result.error.flatten().fieldErrors.amendmentReason).toContain(
+        'Please enter a reason for this amendment.',
+      );
+    },
+  );
 });

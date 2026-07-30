@@ -1,5 +1,6 @@
 import { createHash, createHmac, randomUUID } from 'node:crypto';
 
+import { ConflictException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { hashSessionToken } from '@mensah-rentals/auth';
 import { prisma, runRbacSeed } from '@mensah-rentals/database';
@@ -1071,6 +1072,31 @@ describe('confirmed rental orders against PostgreSQL', () => {
     });
     expect(second.status).toBe('RESERVED');
 
+    const shortageOrderId = await makeOrder('reserve-shortage-preview');
+    const shortageError = await reservations
+      .create(actor.id, shortageOrderId, {
+        allowPartial: false,
+        operationId: randomUUID(),
+        serializedSelections: [],
+      })
+      .catch((error: unknown) => error);
+    expect(shortageError).toBeInstanceOf(ConflictException);
+    expect((shortageError as ConflictException).getResponse()).toMatchObject({
+      code: 'FULL_RESERVATION_UNAVAILABLE',
+      items: [
+        {
+          alreadyReservedQuantity: 0,
+          currentlyAvailableQuantity: 5,
+          missingQuantity: 5,
+          orderedQuantity: 10,
+          productName: expect.any(String),
+          quantityCanBeReservedNow: 5,
+          serializedAssetShortage: null,
+          trackingMode: 'BULK',
+        },
+      ],
+    });
+
     const partialOrderId = await makeOrder('reserve-partial');
     const partial = await reservations.create(actor.id, partialOrderId, {
       allowPartial: true,
@@ -1086,6 +1112,30 @@ describe('confirmed rental orders against PostgreSQL', () => {
     expect(partial.items[0]).toMatchObject({
       reservedQuantity: 5,
       shortfallQuantity: 5,
+    });
+
+    const completionShortage = await reservations
+      .complete(actor.id, partialOrderId, partial.id, {
+        allowPartial: false,
+        expectedVersion: partial.version,
+        operationId: randomUUID(),
+        serializedSelections: [],
+      })
+      .catch((error: unknown) => error);
+    expect(completionShortage).toBeInstanceOf(ConflictException);
+    expect(
+      (completionShortage as ConflictException).getResponse(),
+    ).toMatchObject({
+      code: 'FULL_RESERVATION_UNAVAILABLE',
+      items: [
+        {
+          alreadyReservedQuantity: 5,
+          currentlyAvailableQuantity: 0,
+          missingQuantity: 5,
+          orderedQuantity: 10,
+          quantityCanBeReservedNow: 0,
+        },
+      ],
     });
 
     const releasedFirst = await reservations.release(

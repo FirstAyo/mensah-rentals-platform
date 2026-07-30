@@ -489,17 +489,17 @@ try {
     waitFor(
       'http://localhost:3000/rentals',
       'Customer website',
-      fulfilmentMode || returnMode ? 180_000 : 90_000,
+      reservationMode || fulfilmentMode || returnMode ? 180_000 : 90_000,
     ),
     waitFor(
       'http://localhost:3001/login',
       'Admin application',
-      fulfilmentMode || returnMode ? 180_000 : 90_000,
+      reservationMode || fulfilmentMode || returnMode ? 180_000 : 90_000,
     ),
     waitFor(
       'http://localhost:4000/health/database',
       'API database health',
-      fulfilmentMode || returnMode ? 180_000 : 90_000,
+      reservationMode || fulfilmentMode || returnMode ? 180_000 : 90_000,
     ),
   ]);
   const isPhase121 = phase121Mode;

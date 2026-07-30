@@ -4,10 +4,11 @@ import type {
   AdminEligibleAssetsResponse,
   AdminInventoryReservationResponse,
   AdminOrderAvailabilityResponse,
+  RentalOrderReservationStatusResponse,
 } from '@mensah-rentals/types';
 import {
-  AlertTriangle,
   CheckCircle2,
+  Loader2,
   PackageCheck,
   RefreshCw,
   ShieldAlert,
@@ -15,6 +16,13 @@ import {
 } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { invalidateWorkSummary } from '@/lib/work-summary';
+import { AccessibleDialog } from './accessible-dialog';
+import {
+  buildReservationPreview,
+  mapReservationApiError,
+  reservationStatusLabel,
+  type ReservationPreview,
+} from '@/lib/reservation-preview';
 
 interface ReservationPermissions {
   canComplete: boolean;
@@ -26,7 +34,13 @@ interface ReservationPermissions {
 }
 
 type Confirmation =
-  | { action: 'complete' | 'create-full' | 'create-partial' }
+  | {
+      action:
+        | 'complete'
+        | 'complete-partial'
+        | 'create-full'
+        | 'create-partial';
+    }
   | { action: 'release-all' | 'release-selected' };
 
 const statusStyles: Record<string, string> = {
@@ -36,21 +50,13 @@ const statusStyles: Record<string, string> = {
   RESERVED: 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300',
 };
 
-function friendlyError(status: number) {
-  if (status === 409)
-    return 'Reservation data changed while this page was open. Refresh and review the latest values.';
-  if (status === 422)
-    return 'The reservation could not be applied to this order. Review quantities, dates, and selected assets.';
-  if (status === 403)
-    return 'Your current permissions do not allow this reservation action.';
-  return 'The reservation action could not be completed.';
-}
-
 export function ReservationPanel({
   orderId,
+  orderReservationStatus,
   permissions,
 }: {
   orderId: string;
+  orderReservationStatus: RentalOrderReservationStatusResponse;
   permissions: ReservationPermissions;
 }) {
   const [availability, setAvailability] =
@@ -72,10 +78,16 @@ export function ReservationPanel({
   const [overrideReason, setOverrideReason] = useState('');
   const [releaseReason, setReleaseReason] = useState('');
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
+  const [preview, setPreview] = useState<ReservationPreview | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
+  const [reasonError, setReasonError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [checking, setChecking] = useState(false);
   const [pending, setPending] = useState(false);
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
+  const reasonInputRef = useRef<HTMLTextAreaElement>(null);
+  const dialogReturnFocusRef = useRef<HTMLButtonElement>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -99,11 +111,24 @@ export function ReservationPanel({
             (await reservationResponse.json()) as AdminInventoryReservationResponse,
           );
         else if (reservationResponse.status === 404) setReservation(null);
-        else throw new Error('Reservation details could not be loaded.');
+        else {
+          const body: unknown = await reservationResponse
+            .json()
+            .catch(() => null);
+          throw new Error(
+            mapReservationApiError(reservationResponse.status, body).message,
+          );
+        }
       }
       if (availabilityResponse) {
-        if (!availabilityResponse.ok)
-          throw new Error('Internal availability could not be loaded.');
+        if (!availabilityResponse.ok) {
+          const body: unknown = await availabilityResponse
+            .json()
+            .catch(() => null);
+          throw new Error(
+            mapReservationApiError(availabilityResponse.status, body).message,
+          );
+        }
         setAvailability(
           (await availabilityResponse.json()) as AdminOrderAvailabilityResponse,
         );
@@ -124,9 +149,48 @@ export function ReservationPanel({
   ]);
 
   useEffect(() => void load(), [load]);
-  useEffect(() => {
-    if (confirmation) confirmButtonRef.current?.focus();
-  }, [confirmation]);
+  async function checkAvailability(action: 'create' | 'complete') {
+    if (checking || pending || !permissions.canViewAvailability) return;
+    setChecking(true);
+    setError(null);
+    setSuccess(null);
+    setReasonError(null);
+    try {
+      const response = await fetch(`/api/orders/${orderId}/availability`, {
+        cache: 'no-store',
+      });
+      const body: unknown = await response.json().catch(() => null);
+      if (!response.ok) {
+        const mapped = mapReservationApiError(response.status, body);
+        throw new Error(mapped.message);
+      }
+      const latestAvailability = body as AdminOrderAvailabilityResponse;
+      setAvailability(latestAvailability);
+      const latestPreview = buildReservationPreview(
+        latestAvailability,
+        reservation,
+      );
+      setPreview(latestPreview);
+      setConfirmation({
+        action:
+          action === 'create'
+            ? latestPreview.fullReservationPossible
+              ? 'create-full'
+              : 'create-partial'
+            : latestPreview.fullReservationPossible
+              ? 'complete'
+              : 'complete-partial',
+      });
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : 'Internal availability could not be checked.',
+      );
+    } finally {
+      setChecking(false);
+    }
+  }
 
   async function loadEligibleAssets(rentalOrderItemId: string) {
     setError(null);
@@ -155,28 +219,44 @@ export function ReservationPanel({
 
   async function mutate(action: Confirmation['action']) {
     if (pending) return;
+    const partial =
+      action === 'create-partial' || action === 'complete-partial';
+    if (partial && !permissions.canOverride) {
+      setError(
+        'You do not have permission to reserve less than the confirmed order quantity.',
+      );
+      return;
+    }
+    if (partial && !overrideReason.trim()) {
+      setReasonError('Enter an internal reason for the partial reservation.');
+      return;
+    }
     setPending(true);
     setError(null);
+    setSuccess(null);
+    setReasonError(null);
     try {
       let url = `/api/orders/${orderId}/reservations`;
       let body: Record<string, unknown> = { operationId: crypto.randomUUID() };
       if (action === 'create-full' || action === 'create-partial') {
         body = {
           ...body,
-          allowPartial: action === 'create-partial',
-          ...(action === 'create-partial' &&
-          permissions.canOverride &&
-          overrideReason.trim()
+          allowPartial: partial,
+          ...(partial && permissions.canOverride && overrideReason.trim()
             ? { overrideReason: overrideReason.trim() }
             : {}),
           serializedSelections: serializedSelections(),
         };
-      } else if (action === 'complete' && reservation) {
+      } else if (
+        (action === 'complete' || action === 'complete-partial') &&
+        reservation
+      ) {
         url += `/${reservation.id}/complete`;
         body = {
           ...body,
-          allowPartial: false,
+          allowPartial: partial,
           expectedVersion: reservation.version,
+          ...(partial ? { overrideReason: overrideReason.trim() } : {}),
           serializedSelections: serializedSelections(),
         };
       } else if (reservation) {
@@ -202,13 +282,48 @@ export function ReservationPanel({
         headers: { 'Content-Type': 'application/json' },
         method: 'POST',
       });
-      if (!response.ok) throw new Error(friendlyError(response.status));
+      const responseBody: unknown = await response.json().catch(() => null);
+      if (!response.ok) {
+        const mapped = mapReservationApiError(response.status, responseBody);
+        await load();
+        if (mapped.items) {
+          const items = mapped.items;
+          setPreview({
+            fullReservationPossible: items.every(
+              (item) => item.missingQuantity === 0,
+            ),
+            items,
+            missingTotal: items.reduce(
+              (sum, item) => sum + item.missingQuantity,
+              0,
+            ),
+            reservableNowTotal: items.reduce(
+              (sum, item) => sum + item.quantityCanBeReservedNow,
+              0,
+            ),
+          });
+          setConfirmation({ action: 'complete-partial' });
+        }
+        throw new Error(mapped.message);
+      }
+      const applied = responseBody as AdminInventoryReservationResponse;
       setConfirmation(null);
+      setPreview(null);
       setOverrideReason('');
       setReleaseReason('');
       setReleaseAssets({});
       setReleaseQuantities({});
       setSelectedAssets({});
+      setReservation(applied);
+      const resultShortfall = applied.items.reduce(
+        (sum, item) => sum + item.shortfallQuantity,
+        0,
+      );
+      setSuccess(
+        resultShortfall > 0
+          ? `Partial reservation saved. ${resultShortfall} item${resultShortfall === 1 ? '' : 's'} remain in the recorded shortfall.`
+          : 'The confirmed order is now reserved in full.',
+      );
       invalidateWorkSummary();
       await load();
     } catch (caught) {
@@ -223,7 +338,22 @@ export function ReservationPanel({
   }
 
   if (!permissions.canViewReservation && !permissions.canViewAvailability)
-    return null;
+    return (
+      <section className="rounded-xl border border-border bg-card p-4 sm:p-5">
+        <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+          Staff-only workflow
+        </p>
+        <h2 className="mt-1 text-xl font-semibold">Inventory reservation</h2>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Reservations are created from confirmed rental orders and are visible
+          only to staff.
+        </p>
+        <p className="mt-4 rounded-lg border bg-muted/40 p-3 text-sm">
+          You do not have permission to view internal reservation status or
+          inventory availability.
+        </p>
+      </section>
+    );
 
   const shortfall =
     reservation?.items.reduce((sum, item) => sum + item.shortfallQuantity, 0) ??
@@ -251,6 +381,25 @@ export function ReservationPanel({
   const hasReleaseSelection =
     Object.values(releaseQuantities).some((quantity) => quantity > 0) ||
     Object.values(releaseAssets).some((ids) => ids.length > 0);
+  const livePreview = availability
+    ? buildReservationPreview(availability, reservation)
+    : null;
+  const partialConfirmation =
+    confirmation?.action === 'create-partial' ||
+    confirmation?.action === 'complete-partial';
+  const reservationConfirmation = Boolean(
+    confirmation &&
+      !['release-all', 'release-selected'].includes(confirmation.action),
+  );
+  const partialActionUnavailable = Boolean(
+    partialConfirmation &&
+      (!permissions.canOverride ||
+        !preview?.reservableNowTotal ||
+        serializedPartialSelectionIncomplete),
+  );
+  const fullActionUnavailable = Boolean(
+    confirmation?.action === 'create-full' && serializedFullSelectionIncomplete,
+  );
 
   return (
     <section
@@ -260,22 +409,27 @@ export function ReservationPanel({
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-            Staff-only inventory commitment
+            Staff-only workflow
           </p>
           <h2 className="mt-1 text-xl font-semibold" id="reservation-heading">
-            Reservation
+            Inventory reservation
           </h2>
           <p className="mt-1 max-w-3xl text-sm text-muted-foreground">
-            Reservations commit internal inventory for the order dates. They do
-            not check equipment out, change the commercial order, or expose
-            inventory information to customers.
+            Reservations are created from confirmed rental orders and are
+            visible only to staff. They commit internal inventory for the order
+            dates without changing the confirmed order or checking equipment
+            out.
           </p>
         </div>
         <div className="flex items-center gap-2">
           <span
             className={`rounded-full px-3 py-1.5 text-sm font-semibold ${statusStyles[reservation?.status ?? ''] ?? 'bg-muted'}`}
           >
-            {reservation?.status.replaceAll('_', ' ') ?? 'NOT RESERVED'}
+            {reservationStatusLabel(
+              reservation?.status && reservation.status !== 'PENDING'
+                ? reservation.status
+                : orderReservationStatus,
+            )}
           </span>
           <button
             aria-label="Refresh reservation and availability"
@@ -295,6 +449,14 @@ export function ReservationPanel({
           role="alert"
         >
           {error}
+        </p>
+      ) : null}
+      {success ? (
+        <p
+          className="mt-4 rounded-lg border border-emerald-600/40 bg-emerald-500/10 p-3 text-sm"
+          role="status"
+        >
+          {success}
         </p>
       ) : null}
       {loading ? (
@@ -342,59 +504,56 @@ export function ReservationPanel({
 
           {availability ? (
             <div
-              aria-label="Reservation quantities table"
-              className="mt-5 overflow-x-auto"
-              role="region"
-              tabIndex={0}
+              aria-label="Reservation quantities by equipment item"
+              className="mt-5 grid gap-3 lg:grid-cols-2"
             >
-              <table className="w-full min-w-[760px] text-left text-sm">
-                <caption className="sr-only">
-                  Internal order-item availability and reservation quantities
-                </caption>
-                <thead className="border-b text-muted-foreground">
-                  <tr>
-                    <th className="px-3 py-3">Equipment</th>
-                    <th className="px-3 py-3">Tracking</th>
-                    <th className="px-3 py-3 text-right">Ordered</th>
-                    <th className="px-3 py-3 text-right">Reserved</th>
-                    <th className="px-3 py-3 text-right">Shortfall</th>
-                    <th className="px-3 py-3 text-right">Available</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {availability.items.map((item) => {
-                    const current = reservation?.items.find(
-                      (entry) =>
-                        entry.rentalOrderItemId === item.rentalOrderItemId,
-                    );
-                    return (
-                      <tr
-                        className="border-b last:border-0"
-                        key={item.rentalOrderItemId}
-                      >
-                        <td className="px-3 py-4 font-medium">
-                          {item.productName}
-                        </td>
-                        <td className="px-3 py-4">
-                          {item.trackingMode ?? 'No inventory record'}
-                        </td>
-                        <td className="px-3 py-4 text-right tabular-nums">
-                          {item.orderedQuantity}
-                        </td>
-                        <td className="px-3 py-4 text-right tabular-nums">
-                          {current?.reservedQuantity ?? 0}
-                        </td>
-                        <td className="px-3 py-4 text-right tabular-nums">
-                          {current?.shortfallQuantity ?? item.shortfallQuantity}
-                        </td>
-                        <td className="px-3 py-4 text-right font-semibold tabular-nums">
-                          {item.availableToReserve}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              {livePreview?.items.map((item) => (
+                <article
+                  className="min-w-0 rounded-lg border bg-background p-4"
+                  key={item.rentalOrderItemId}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <h3 className="break-words font-semibold">
+                      {item.productName}
+                    </h3>
+                    <span className="rounded-full bg-muted px-2 py-1 text-xs font-semibold">
+                      {item.trackingMode ?? 'No inventory record'}
+                    </span>
+                  </div>
+                  <dl className="mt-4 grid grid-cols-2 gap-x-4 gap-y-3 text-sm">
+                    <Quantity
+                      label="Ordered quantity"
+                      value={item.orderedQuantity}
+                    />
+                    <Quantity
+                      label="Already reserved"
+                      value={item.alreadyReservedQuantity}
+                    />
+                    <Quantity
+                      label="Currently available"
+                      privateValue
+                      value={item.currentlyAvailableQuantity}
+                    />
+                    <Quantity
+                      label="Can reserve now"
+                      privateValue
+                      value={item.quantityCanBeReservedNow}
+                    />
+                    <Quantity
+                      label="Missing quantity"
+                      value={item.missingQuantity}
+                      warning={item.missingQuantity > 0}
+                    />
+                    {item.serializedAssetShortage !== null ? (
+                      <Quantity
+                        label="Serialized-asset shortage"
+                        value={item.serializedAssetShortage}
+                        warning={item.serializedAssetShortage > 0}
+                      />
+                    ) : null}
+                  </dl>
+                </article>
+              ))}
             </div>
           ) : null}
 
@@ -425,61 +584,53 @@ export function ReservationPanel({
           permissions.canComplete ||
           permissions.canRelease ? (
             <div className="mt-5 space-y-4 rounded-lg border bg-muted/30 p-4">
-              {permissions.canOverride ? (
-                <label className="block text-sm font-medium">
-                  Override/shortfall reason (required only when applying an
-                  override)
-                  <textarea
-                    className="mt-2 min-h-24 w-full rounded-lg border bg-background p-3"
-                    maxLength={500}
-                    onChange={(event) => setOverrideReason(event.target.value)}
-                    value={overrideReason}
-                  />
-                </label>
-              ) : null}
               <div className="flex flex-wrap gap-3">
                 {!reservation && permissions.canCreate ? (
-                  <>
-                    <ActionButton
-                      disabled={serializedFullSelectionIncomplete}
-                      icon={PackageCheck}
-                      label="Reserve in full"
-                      onClick={() => setConfirmation({ action: 'create-full' })}
-                      pending={pending}
-                      primary
-                    />
-                    {permissions.canOverride ? (
-                      <ActionButton
-                        disabled={
-                          !overrideReason.trim() ||
-                          serializedPartialSelectionIncomplete
-                        }
-                        icon={AlertTriangle}
-                        label="Confirm partial reservation"
-                        onClick={() =>
-                          setConfirmation({ action: 'create-partial' })
-                        }
-                        pending={pending}
-                      />
-                    ) : null}
-                  </>
+                  <ActionButton
+                    disabled={!permissions.canViewAvailability}
+                    icon={checking ? Loader2 : PackageCheck}
+                    label={
+                      checking
+                        ? 'Checking availability...'
+                        : 'Check availability and reserve'
+                    }
+                    onClick={(event) => {
+                      dialogReturnFocusRef.current = event.currentTarget;
+                      void checkAvailability('create');
+                    }}
+                    pending={pending || checking}
+                    primary
+                  />
                 ) : null}
                 {(reservation?.status === 'PARTIALLY_RESERVED' ||
                   reservation?.status === 'RESERVATION_FAILED') &&
                 permissions.canComplete ? (
                   <ActionButton
-                    icon={CheckCircle2}
+                    disabled={!permissions.canViewAvailability}
+                    icon={checking ? Loader2 : CheckCircle2}
                     label={
-                      reservation.status === 'RESERVATION_FAILED'
-                        ? 'Retry reservation'
-                        : 'Complete shortfall'
+                      checking
+                        ? 'Checking availability...'
+                        : reservation.status === 'RESERVATION_FAILED'
+                          ? 'Check availability and retry'
+                          : 'Check availability to complete shortfall'
                     }
-                    onClick={() => setConfirmation({ action: 'complete' })}
-                    pending={pending}
+                    onClick={(event) => {
+                      dialogReturnFocusRef.current = event.currentTarget;
+                      void checkAvailability('complete');
+                    }}
+                    pending={pending || checking}
                     primary
                   />
                 ) : null}
               </div>
+              {!permissions.canViewAvailability &&
+              (permissions.canCreate || permissions.canComplete) ? (
+                <p className="text-sm text-muted-foreground">
+                  Internal availability permission is required before a
+                  reservation can be checked and applied.
+                </p>
+              ) : null}
               {reservation &&
               !['RELEASED', 'RESERVATION_FAILED'].includes(
                 reservation.status,
@@ -502,16 +653,20 @@ export function ReservationPanel({
                       disabled={!releaseReason.trim() || !hasReleaseSelection}
                       icon={Unlock}
                       label="Release selected"
-                      onClick={() =>
-                        setConfirmation({ action: 'release-selected' })
-                      }
+                      onClick={(event) => {
+                        dialogReturnFocusRef.current = event.currentTarget;
+                        setConfirmation({ action: 'release-selected' });
+                      }}
                       pending={pending}
                     />
                     <ActionButton
                       disabled={!releaseReason.trim()}
                       icon={ShieldAlert}
                       label="Release entire reservation"
-                      onClick={() => setConfirmation({ action: 'release-all' })}
+                      onClick={(event) => {
+                        dialogReturnFocusRef.current = event.currentTarget;
+                        setConfirmation({ action: 'release-all' });
+                      }}
                       pending={pending}
                     />
                   </div>
@@ -546,33 +701,149 @@ export function ReservationPanel({
         </>
       )}
 
-      {confirmation ? (
-        <div
-          aria-describedby="reservation-confirm-description"
-          aria-labelledby="reservation-confirm-title"
-          aria-modal="true"
-          className="fixed inset-0 z-50 grid place-items-center bg-black/60 p-4"
-          role="alertdialog"
-          onKeyDown={(event) => {
-            if (event.key === 'Escape' && !pending) setConfirmation(null);
-          }}
-        >
-          <div className="w-full max-w-lg rounded-xl border bg-card p-5 shadow-xl">
+      <AccessibleDialog
+        descriptionId="reservation-confirm-description"
+        initialFocusRef={
+          partialConfirmation ? reasonInputRef : confirmButtonRef
+        }
+        onClose={() => {
+          if (!pending) setConfirmation(null);
+        }}
+        open={Boolean(confirmation)}
+        returnFocusRef={dialogReturnFocusRef}
+        titleId="reservation-confirm-title"
+      >
+        {confirmation ? (
+          <div className="p-4 sm:p-6">
             <h3
               className="text-lg font-semibold"
               id="reservation-confirm-title"
             >
-              Confirm reservation action
+              {partialConfirmation
+                ? 'Full reservation is not currently possible.'
+                : confirmation.action.startsWith('release')
+                  ? 'Confirm reservation release'
+                  : 'Confirm full reservation'}
             </h3>
             <p
               className="mt-2 text-sm text-muted-foreground"
               id="reservation-confirm-description"
             >
-              This changes internal date-range commitments and records
-              append-only history. It does not change the confirmed order or
-              check equipment out.
+              {reservationConfirmation
+                ? 'Review the current date-range quantities before changing the internal inventory commitment. This does not check equipment out.'
+                : 'This records an append-only release without changing the confirmed order.'}
             </p>
-            <div className="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+
+            {reservationConfirmation && preview ? (
+              <div className="mt-5 space-y-3">
+                {preview.items.map((item) => (
+                  <article
+                    className="rounded-lg border bg-background p-3"
+                    key={item.rentalOrderItemId}
+                  >
+                    <h4 className="break-words font-semibold">
+                      {item.productName}
+                    </h4>
+                    <dl className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+                      <Quantity label="Ordered" value={item.orderedQuantity} />
+                      <Quantity
+                        label="Already reserved"
+                        value={item.alreadyReservedQuantity}
+                      />
+                      <Quantity
+                        label="Available now"
+                        privateValue
+                        value={item.currentlyAvailableQuantity}
+                      />
+                      <Quantity
+                        label="Reserve now"
+                        privateValue
+                        value={item.quantityCanBeReservedNow}
+                      />
+                      <Quantity
+                        label="Missing"
+                        value={item.missingQuantity}
+                        warning={item.missingQuantity > 0}
+                      />
+                      {item.serializedAssetShortage !== null ? (
+                        <Quantity
+                          label="Serialized shortage"
+                          value={item.serializedAssetShortage}
+                          warning={item.serializedAssetShortage > 0}
+                        />
+                      ) : null}
+                    </dl>
+                  </article>
+                ))}
+              </div>
+            ) : null}
+
+            {partialConfirmation ? (
+              <div className="mt-5">
+                <label
+                  className="block text-sm font-medium"
+                  htmlFor="reservation-override-reason"
+                >
+                  Internal shortfall reason <span aria-hidden="true">*</span>
+                </label>
+                <textarea
+                  aria-describedby={`reservation-override-help${reasonError ? ' reservation-override-error' : ''}`}
+                  aria-invalid={Boolean(reasonError)}
+                  className="mt-2 min-h-24 w-full rounded-lg border bg-background p-3"
+                  id="reservation-override-reason"
+                  maxLength={500}
+                  onChange={(event) => {
+                    setOverrideReason(event.target.value);
+                    setReasonError(null);
+                  }}
+                  placeholder="For example: Sub-rent remaining equipment"
+                  ref={reasonInputRef}
+                  value={overrideReason}
+                />
+                <p
+                  className="mt-1 text-xs text-muted-foreground"
+                  id="reservation-override-help"
+                >
+                  Staff-only. Examples include purchase, transfer, sub-rental,
+                  or awaiting stock.
+                </p>
+                {reasonError ? (
+                  <p
+                    className="mt-2 text-sm text-destructive"
+                    id="reservation-override-error"
+                    role="alert"
+                  >
+                    {reasonError}
+                  </p>
+                ) : null}
+                {!permissions.canOverride ? (
+                  <p
+                    className="mt-2 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm"
+                    role="alert"
+                  >
+                    You do not have permission to reserve less than the
+                    confirmed order quantity.
+                  </p>
+                ) : null}
+                {!preview?.reservableNowTotal ? (
+                  <p className="mt-2 rounded-lg border border-amber-600/40 bg-amber-500/10 p-3 text-sm">
+                    Nothing can be reserved for these dates right now. No
+                    inventory will be committed.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            {reservationConfirmation &&
+            (partialConfirmation
+              ? serializedPartialSelectionIncomplete
+              : serializedFullSelectionIncomplete) ? (
+              <p className="mt-4 rounded-lg border border-amber-600/40 bg-amber-500/10 p-3 text-sm">
+                Select the required serialized assets before continuing.
+              </p>
+            ) : null}
+
+            <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
               <button
                 className="min-h-11 rounded-lg border px-4 font-semibold"
                 disabled={pending}
@@ -584,16 +855,24 @@ export function ReservationPanel({
               <button
                 ref={confirmButtonRef}
                 className="min-h-11 rounded-lg bg-primary px-4 font-semibold text-primary-foreground disabled:opacity-50"
-                disabled={pending}
+                disabled={
+                  pending || partialActionUnavailable || fullActionUnavailable
+                }
                 onClick={() => void mutate(confirmation.action)}
                 type="button"
               >
-                {pending ? 'Applying…' : 'Confirm action'}
+                {pending
+                  ? 'Applying…'
+                  : partialConfirmation
+                    ? 'Reserve available quantity'
+                    : confirmation.action.startsWith('release')
+                      ? 'Confirm release'
+                      : 'Reserve in full'}
               </button>
             </div>
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </AccessibleDialog>
     </section>
   );
 }
@@ -721,6 +1000,34 @@ function Metric({
   );
 }
 
+function Quantity({
+  label,
+  privateValue = false,
+  value,
+  warning = false,
+}: {
+  label: string;
+  privateValue?: boolean;
+  value: number;
+  warning?: boolean;
+}) {
+  return (
+    <div className="min-w-0">
+      <dt className="text-xs text-muted-foreground">{label}</dt>
+      <dd
+        className={`mt-0.5 font-semibold tabular-nums ${warning ? 'text-amber-700 dark:text-amber-300' : ''}`}
+      >
+        {value}
+        {privateValue ? (
+          <span className="block text-[0.6875rem] font-normal text-muted-foreground">
+            Internal only
+          </span>
+        ) : null}
+      </dd>
+    </div>
+  );
+}
+
 function ActionButton({
   disabled = false,
   icon: Icon,
@@ -732,7 +1039,7 @@ function ActionButton({
   disabled?: boolean;
   icon: typeof PackageCheck;
   label: string;
-  onClick: () => void;
+  onClick: (event: React.MouseEvent<HTMLButtonElement>) => void;
   pending: boolean;
   primary?: boolean;
 }) {

@@ -25,6 +25,11 @@ import {
   submitRentalRequestAmendment,
   submitRentalChangeRequest,
 } from '@/lib/rental-request-client';
+import {
+  mapAmendmentValidationIssues,
+  optionalText,
+  requiredText,
+} from '@/lib/amendment-form';
 
 type CatalogueItem = {
   categoryName: string;
@@ -62,6 +67,7 @@ export function RentalRequestAmendmentForm({
   const [results, setResults] = useState<CatalogueItem[]>([]);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     if (step === 'review') reviewHeadingRef.current?.focus();
@@ -174,6 +180,7 @@ export function RentalRequestAmendmentForm({
 
   function review() {
     setError(null);
+    setFieldErrors({});
     if (!activeItems.length)
       return setError('At least one equipment item must remain.');
     const preview = buildInput(false);
@@ -182,10 +189,11 @@ export function RentalRequestAmendmentForm({
         ? submitRentalRequestAmendmentSchema
         : submitRentalChangeRequestSchema
     ).safeParse(preview);
-    if (!parsed.success)
-      return setError(
-        parsed.error.issues[0]?.message ?? 'Review the amendment details.',
-      );
+    if (!parsed.success) {
+      const mapped = mapAmendmentValidationIssues(parsed.error.issues, mode);
+      setFieldErrors(mapped.fieldErrors);
+      return setError(mapped.summary);
+    }
     setStep('review');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   }
@@ -194,13 +202,13 @@ export function RentalRequestAmendmentForm({
     withOperation = true,
   ): SubmitRentalRequestAmendmentInput | SubmitRentalChangeRequestInput {
     const common = {
-      companyName: values.companyName || null,
-      contactEmail: values.contactEmail ?? '',
-      contactFirstName: values.contactFirstName ?? '',
-      contactLastName: values.contactLastName ?? '',
-      contactPhone: values.contactPhone ?? '',
-      customerNotes: values.customerNotes || null,
-      deliveryAddress: values.deliveryAddress || null,
+      companyName: optionalText(values.companyName),
+      contactEmail: requiredText(values.contactEmail),
+      contactFirstName: requiredText(values.contactFirstName),
+      contactLastName: requiredText(values.contactLastName),
+      contactPhone: requiredText(values.contactPhone),
+      customerNotes: optionalText(values.customerNotes),
+      deliveryAddress: optionalText(values.deliveryAddress),
       expectedRevisionNumber: current?.revisionNumber ?? 0,
       fulfillmentMethod: (values.fulfillmentMethod ??
         'PICKUP') as SubmitRentalRequestAmendmentInput['fulfillmentMethod'],
@@ -211,30 +219,51 @@ export function RentalRequestAmendmentForm({
       operationId: withOperation
         ? crypto.randomUUID()
         : '00000000-0000-4000-8000-000000000000',
-      projectLocation: values.projectLocation ?? '',
-      projectName: values.projectName ?? '',
-      projectType: values.projectType ?? '',
-      rentalEndDate: values.rentalEndDate ?? '',
-      rentalStartDate: values.rentalStartDate ?? '',
-      requestedTimeZone: values.requestedTimeZone ?? 'UTC',
+      projectLocation: requiredText(values.projectLocation),
+      projectName: requiredText(values.projectName),
+      projectType: requiredText(values.projectType),
+      rentalEndDate: requiredText(values.rentalEndDate),
+      rentalStartDate: requiredText(values.rentalStartDate),
+      requestedTimeZone: requiredText(values.requestedTimeZone) || 'UTC',
     };
     return mode === 'amendment'
-      ? { ...common, amendmentReason: values.amendmentReason ?? '' }
-      : { ...common, reason: values.amendmentReason ?? '' };
+      ? { ...common, amendmentReason: requiredText(values.amendmentReason) }
+      : { ...common, reason: requiredText(values.amendmentReason) };
   }
 
   async function submit() {
     setPending(true);
     setError(null);
+    setFieldErrors({});
     try {
-      if (mode === 'amendment')
-        await submitRentalRequestAmendment(
-          buildInput() as SubmitRentalRequestAmendmentInput,
-        );
-      else
-        await submitRentalChangeRequest(
-          buildInput() as SubmitRentalChangeRequestInput,
-        );
+      const raw = buildInput();
+      if (mode === 'amendment') {
+        const parsed = submitRentalRequestAmendmentSchema.safeParse(raw);
+        if (!parsed.success) {
+          const mapped = mapAmendmentValidationIssues(
+            parsed.error.issues,
+            mode,
+          );
+          setFieldErrors(mapped.fieldErrors);
+          setError(mapped.summary);
+          setStep('edit');
+          return;
+        }
+        await submitRentalRequestAmendment(parsed.data);
+      } else {
+        const parsed = submitRentalChangeRequestSchema.safeParse(raw);
+        if (!parsed.success) {
+          const mapped = mapAmendmentValidationIssues(
+            parsed.error.issues,
+            mode,
+          );
+          setFieldErrors(mapped.fieldErrors);
+          setError(mapped.summary);
+          setStep('edit');
+          return;
+        }
+        await submitRentalChangeRequest(parsed.data);
+      }
       router.push(`/rental-requests/${current!.referenceNumber}`);
       router.refresh();
     } catch (caught) {
@@ -566,18 +595,40 @@ export function RentalRequestAmendmentForm({
           />
         </label>
         <label className="block text-sm font-semibold sm:col-span-2">
-          Reason for amendment
+          {mode === 'amendment'
+            ? 'Reason for amendment'
+            : 'Reason for requested change'}
+          <span aria-hidden="true" className="ml-2 text-xs text-destructive">
+            Required
+          </span>
           <textarea
+            aria-describedby="amendment-reason-error"
+            aria-invalid={Boolean(
+              fieldErrors.amendmentReason ?? fieldErrors.reason,
+            )}
             required
             className={`${inputClass} min-h-28`}
             value={values.amendmentReason}
-            onChange={(event) =>
+            onChange={(event) => {
               setValues((old) => ({
                 ...old,
                 amendmentReason: event.target.value,
-              }))
-            }
+              }));
+              setFieldErrors((current) => ({
+                ...current,
+                amendmentReason: '',
+                reason: '',
+              }));
+            }}
           />
+          {fieldErrors.amendmentReason || fieldErrors.reason ? (
+            <span
+              className="mt-1 block text-sm text-destructive"
+              id="amendment-reason-error"
+            >
+              {fieldErrors.amendmentReason ?? fieldErrors.reason}
+            </span>
+          ) : null}
         </label>
       </div>
       <button

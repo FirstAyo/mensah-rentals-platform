@@ -211,6 +211,45 @@ async function createOrder(
   return { ...fixture, customerLink, orderId: orderId!, orderNumber };
 }
 
+function reservationPanel(page: Page) {
+  return page.locator('section[aria-labelledby="reservation-heading"]');
+}
+
+async function reserveCurrentOrderInFull(page: Page) {
+  const panel = reservationPanel(page);
+  await panel
+    .getByRole('button', { name: 'Check availability and reserve' })
+    .click();
+  const dialog = page.getByRole('dialog');
+  await expect(
+    dialog.getByRole('heading', { name: 'Confirm full reservation' }),
+  ).toBeVisible();
+  await dialog.getByRole('button', { name: 'Reserve in full' }).click();
+  await expect(panel.getByText('Reserved', { exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+}
+
+async function reserveCurrentOrderPartially(page: Page, reason: string) {
+  const panel = reservationPanel(page);
+  await panel
+    .getByRole('button', { name: 'Check availability and reserve' })
+    .click();
+  const dialog = page.getByRole('dialog');
+  await expect(
+    dialog.getByRole('heading', {
+      name: 'Full reservation is not currently possible.',
+    }),
+  ).toBeVisible();
+  await dialog.getByLabel('Internal shortfall reason').fill(reason);
+  await dialog
+    .getByRole('button', { name: 'Reserve available quantity' })
+    .click();
+  await expect(
+    panel.getByText('Partially reserved', { exact: true }),
+  ).toBeVisible({ timeout: 30_000 });
+}
+
 async function createActiveBulkRental(
   page: Page,
   quantity = 2,
@@ -218,14 +257,7 @@ async function createActiveBulkRental(
 ) {
   expect(productName).toBeTruthy();
   const created = await createOrder(page, 0, quantity, 'DELIVERY', productName);
-  await page.getByRole('button', { name: 'Reserve in full' }).click();
-  await page
-    .getByRole('alertdialog')
-    .getByRole('button', { name: 'Confirm action' })
-    .click();
-  await expect(page.getByText('RESERVED', { exact: true })).toBeVisible({
-    timeout: 30_000,
-  });
+  await reserveCurrentOrderInFull(page);
   await page.reload();
   await page.getByRole('button', { name: 'Start preparation' }).click();
   await page.getByLabel('Prepared total').fill(String(quantity));
@@ -260,14 +292,7 @@ async function createActiveSerializedRental(page: Page) {
   const created = await createOrder(page, 0, 1, 'PICKUP', productName);
   await page.getByRole('button', { name: 'Load eligible assets' }).click();
   await page.getByLabel(new RegExp(assetNumber!)).first().check();
-  await page.getByRole('button', { name: 'Reserve in full' }).click();
-  await page
-    .getByRole('alertdialog')
-    .getByRole('button', { name: 'Confirm action' })
-    .click();
-  await expect(page.getByText('RESERVED', { exact: true })).toBeVisible({
-    timeout: 30_000,
-  });
+  await reserveCurrentOrderInFull(page);
   await page.reload();
   await page.getByRole('button', { name: 'Start preparation' }).click();
   const fulfilment = page.locator(
@@ -397,36 +422,53 @@ test('@reservations @admin-reservations staff intentionally creates a partial re
 }, info) => {
   test.skip(info.project.name !== 'desktop-1024');
   await createOrder(page);
+  const panel = reservationPanel(page);
   await expect(
-    page.getByRole('heading', { name: 'Reservation', exact: true }),
+    panel.getByRole('heading', { name: 'Inventory reservation' }),
   ).toBeVisible({ timeout: 30_000 });
-  await expect(page.getByText('Staff-only inventory commitment')).toBeVisible();
-  await page
-    .getByLabel(
-      'Override/shortfall reason (required only when applying an override)',
-    )
-    .fill('Browser-test intentional shortfall');
-  await page
-    .getByRole('button', { name: 'Confirm partial reservation' })
-    .click();
-  const confirmation = page.getByRole('alertdialog');
-  await expect(confirmation).toBeVisible();
-  await confirmation.getByRole('button', { name: 'Confirm action' }).click();
   await expect(
-    page.getByText('PARTIALLY RESERVED', { exact: true }),
-  ).toBeVisible({
-    timeout: 30_000,
-  });
-  await expect(page.getByText('Internal only')).toBeVisible();
-  await page.getByLabel('Release reason').fill('Browser-test release');
-  await page
+    panel.getByText(/created from confirmed rental orders/i),
+  ).toBeVisible();
+  await expect(panel.getByText('Not reserved', { exact: true })).toBeVisible();
+  await panel
+    .getByRole('button', { name: 'Check availability and reserve' })
+    .click();
+  const confirmation = page.getByRole('dialog');
+  await expect(
+    confirmation.getByRole('heading', {
+      name: 'Full reservation is not currently possible.',
+    }),
+  ).toBeVisible();
+  await expect(confirmation.getByText('Ordered')).toBeVisible();
+  await expect(confirmation.getByText('Available now')).toBeVisible();
+  await expect(confirmation.getByText('Missing')).toBeVisible();
+  await confirmation
+    .getByRole('button', { name: 'Reserve available quantity' })
+    .click();
+  await expect(
+    confirmation.getByText(
+      'Enter an internal reason for the partial reservation.',
+    ),
+  ).toBeVisible();
+  await confirmation
+    .getByLabel('Internal shortfall reason')
+    .fill('Browser-test intentional shortfall');
+  await confirmation
+    .getByRole('button', { name: 'Reserve available quantity' })
+    .click();
+  await expect(
+    panel.getByText('Partially reserved', { exact: true }),
+  ).toBeVisible({ timeout: 30_000 });
+  await expect(panel.getByText('Internal only').first()).toBeVisible();
+  await panel.getByLabel('Release reason').fill('Browser-test release');
+  await panel
     .getByRole('button', { name: 'Release entire reservation' })
     .click();
   await page
-    .getByRole('alertdialog')
-    .getByRole('button', { name: 'Confirm action' })
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirm release' })
     .click();
-  await expect(page.getByText('RELEASED', { exact: true })).toBeVisible({
+  await expect(panel.getByText('Released', { exact: true })).toBeVisible({
     timeout: 30_000,
   });
   await page.getByRole('button', { name: /switch to dark theme/i }).click();
@@ -438,6 +480,54 @@ test('@reservations @admin-reservations staff intentionally creates a partial re
     ),
   ).toBe(true);
   await axe(page);
+});
+
+test('@reservations @admin-reservations full reservation dialog is accessible at 320px and restores focus', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'mobile-320');
+  await createOrder(page, 1, 2);
+  const panel = reservationPanel(page);
+  const trigger = panel.getByRole('button', {
+    name: 'Check availability and reserve',
+  });
+  await page.getByRole('button', { name: /switch to dark theme/i }).click();
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  await page.reload();
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  await trigger.click();
+  const dialog = page.getByRole('dialog');
+  await expect(
+    dialog.getByRole('heading', { name: 'Confirm full reservation' }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+    ),
+  ).toBe(true);
+  await axe(page);
+  await page.keyboard.press('Escape');
+  await expect(dialog).toBeHidden();
+  await expect(trigger).toBeFocused();
+  await trigger.click();
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Reserve in full' })
+    .click();
+  await expect(panel.getByText('Reserved', { exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
+  await panel.getByLabel('Release reason').fill('320px browser-test release');
+  await panel
+    .getByRole('button', { name: 'Release entire reservation' })
+    .click();
+  await page
+    .getByRole('dialog')
+    .getByRole('button', { name: 'Confirm release' })
+    .click();
+  await expect(panel.getByText('Released', { exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
 });
 
 test('@reservations @reservation-concurrency duplicate reservation submission is idempotent', async ({
@@ -473,21 +563,10 @@ test('@reservations @reservation-concurrency duplicate reservation submission is
 
 async function createPartiallyReservedOrder(page: Page, productIndex = 0) {
   const created = await createOrder(page, productIndex);
-  await page
-    .getByLabel(
-      'Override/shortfall reason (required only when applying an override)',
-    )
-    .fill('Phase 15 isolated reservation shortfall');
-  await page
-    .getByRole('button', { name: 'Confirm partial reservation' })
-    .click();
-  await page
-    .getByRole('alertdialog')
-    .getByRole('button', { name: 'Confirm action' })
-    .click();
-  await expect(
-    page.getByText('PARTIALLY RESERVED', { exact: true }),
-  ).toBeVisible({ timeout: 30_000 });
+  await reserveCurrentOrderPartially(
+    page,
+    'Phase 15 isolated reservation shortfall',
+  );
   await page.reload();
   return created;
 }
@@ -565,14 +644,7 @@ test('@fulfilment @admin-fulfilment @active-rentals fully checks out a delivery 
     'DELIVERY',
     productName,
   );
-  await page.getByRole('button', { name: 'Reserve in full' }).click();
-  await page
-    .getByRole('alertdialog')
-    .getByRole('button', { name: 'Confirm action' })
-    .click();
-  await expect(page.getByText('RESERVED', { exact: true })).toBeVisible({
-    timeout: 30_000,
-  });
+  await reserveCurrentOrderInFull(page);
   await page.reload();
   await page.getByRole('button', { name: 'Start preparation' }).click();
   await page.getByLabel('Prepared total').fill('2');
@@ -638,14 +710,7 @@ test('@fulfilment @admin-fulfilment checks out the exact prepared serialized ass
   );
   await page.getByRole('button', { name: 'Load eligible assets' }).click();
   await page.getByLabel(new RegExp(assetNumber!)).first().check();
-  await page.getByRole('button', { name: 'Reserve in full' }).click();
-  await page
-    .getByRole('alertdialog')
-    .getByRole('button', { name: 'Confirm action' })
-    .click();
-  await expect(page.getByText('RESERVED', { exact: true })).toBeVisible({
-    timeout: 30_000,
-  });
+  await reserveCurrentOrderInFull(page);
   await page.reload();
   await page.getByRole('button', { name: 'Start preparation' }).click();
   const fulfilmentPanel = page.locator(

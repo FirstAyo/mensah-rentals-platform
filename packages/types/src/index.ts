@@ -954,6 +954,32 @@ export interface AdminOrderAvailabilityResponse {
   requestedTimeZone: string;
 }
 
+export interface AdminReservationShortageItemResponse {
+  alreadyReservedQuantity: number;
+  currentlyAvailableQuantity: number;
+  missingQuantity: number;
+  orderedQuantity: number;
+  productName: string;
+  quantityCanBeReservedNow: number;
+  rentalOrderItemId: string;
+  serializedAssetShortage: number | null;
+  trackingMode: InventoryTrackingModeResponse | null;
+}
+
+export interface AdminReservationErrorResponse {
+  code:
+    | 'FULL_RESERVATION_UNAVAILABLE'
+    | 'INVALID_RENTAL_DATES'
+    | 'MISSING_OVERRIDE_REASON'
+    | 'OPERATION_CONFLICT'
+    | 'ORDER_CHANGE_REQUEST_PENDING'
+    | 'ORDER_NOT_CONFIRMED'
+    | 'RESERVATION_ALREADY_EXISTS'
+    | 'RESERVATION_STALE';
+  items?: AdminReservationShortageItemResponse[];
+  message: string;
+}
+
 export interface AdminReservationAllocationResponse {
   allocatedAt: string;
   allocationId: string;

@@ -138,6 +138,39 @@ test('@customer-amendments dark theme and double-submit protection', async ({
   ).toBeEnabled();
 });
 
+test('@customer-amendments normalizes blank optional fields and explains a missing reason', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop-1024');
+  let submittedBody: Record<string, unknown> | null = null;
+  page.on('request', (request) => {
+    if (
+      request.method() === 'POST' &&
+      new URL(request.url()).pathname.endsWith('/amendments')
+    )
+      submittedBody = request.postDataJSON() as Record<string, unknown>;
+  });
+  await page.goto('/rental-requests/MR-2026-ABCDEFGHJK/amend');
+  await page.getByLabel('Company').fill('   ');
+  await page.getByLabel('Reason for amendment').fill('   ');
+  await page.getByRole('button', { name: 'Review changes' }).click();
+  await expect(page.locator('#amendment-reason-error')).toBeVisible();
+  await expect(page.locator('#amendment-reason-error')).toHaveText(
+    'Please enter a reason for this amendment.',
+  );
+  await expect(page.getByText(/String must contain/i)).toHaveCount(0);
+  await page
+    .getByLabel('Reason for amendment')
+    .fill('  Updated equipment plan.  ');
+  await page.getByRole('button', { name: 'Review changes' }).click();
+  await page.getByRole('button', { name: 'Submit amendment' }).click();
+  await expect.poll(() => submittedBody).not.toBeNull();
+  expect(submittedBody).toMatchObject({
+    amendmentReason: 'Updated equipment plan.',
+    companyName: null,
+  });
+});
+
 test('@change-requests accepted workflow uses the formal warning', async ({
   page,
 }, testInfo) => {
@@ -154,7 +187,7 @@ test('@change-requests accepted workflow uses the formal warning', async ({
   );
   await page.goto('/rental-requests/MR-2026-ABCDEFGHJK/change-request');
   await page
-    .getByLabel('Reason for amendment')
+    .getByLabel('Reason for requested change')
     .fill('Change the confirmed equipment list.');
   await page.getByRole('button', { name: 'Review changes' }).click();
   await expect(

@@ -8,6 +8,8 @@ import type {
   SubmitRentalRequestInput,
 } from '@mensah-rentals/validation';
 
+import { friendlyAmendmentSubmissionError } from './amendment-form';
+
 const forbidden =
   /inventory|availability|available|remaining|reserved|reservation|stock|price|internal|staff|role|permission|password|token|hash|contact|email|phone|address|notes|cart|actor|decidedby|operation|version/i;
 
@@ -346,13 +348,8 @@ export async function submitRentalRequestAmendment(
     body: JSON.stringify(input),
   });
   const body: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
-    const message =
-      body && typeof body === 'object' && 'message' in body
-        ? String(body.message)
-        : 'The amendment could not be submitted.';
-    throw new Error(message);
-  }
+  if (!response.ok)
+    throw new Error(friendlyAmendmentSubmissionError(response.status));
   assertRentalRequestRevisionResponse(body);
   return body;
 }

@@ -173,7 +173,11 @@ export function RentalOrderDetail({
         {order.notice}
       </p>
 
-      <ReservationPanel orderId={id} permissions={reservationPermissions} />
+      <ReservationPanel
+        orderId={id}
+        orderReservationStatus={order.reservationStatus ?? 'NOT_RESERVED'}
+        permissions={reservationPermissions}
+      />
       <FulfilmentPanel
         orderId={id}
         orderReservationVersion={order.reservationVersion}
