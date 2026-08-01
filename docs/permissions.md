@@ -1,5 +1,13 @@
 # Permissions and Roles
 
+## Phase 16.4A media and category-cover enforcement
+
+Reusable media listing requires both `homepage.view` and `product.view`. Homepage upload/removal still requires `homepage.media.manage`; editing placements requires `homepage.edit`; preview and publish remain independent. Category-cover assignment/removal requires both `category.update` and `homepage.media.manage`, including a live active-user permission check inside the serializable mutation transaction. `homepage.view` alone is genuinely read-only. SALES_PERSON receives none of these media-management rights.
+
+## Phase 16.4 homepage permissions
+
+`homepage.view`, `homepage.edit`, `homepage.publish`, `homepage.media.manage`, `homepage.preview`, and `homepage.google_reviews.view_status` protect independent capabilities. SUPER_ADMIN, ADMIN, and EDITOR receive all six seeded defaults; SALES_PERSON receives none. Public homepage access requires no staff permission and reads only the published allowlisted DTO.
+
 ## Phase 15 permissions
 
 `fulfilment.view`, `fulfilment.prepare`, `fulfilment.checkout`, `fulfilment.partial_checkout`, `fulfilment.handoff`, `fulfilment.pdf`, and `active_rental.view` are independent. SUPER_ADMIN/ADMIN receive all, SALES_PERSON receives view-only fulfilment access, and EDITOR receives none.

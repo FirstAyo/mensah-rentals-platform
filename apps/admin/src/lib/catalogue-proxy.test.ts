@@ -49,6 +49,7 @@ describe('fixed catalogue BFF proxy', () => {
         headers: {
           Origin: 'http://localhost:3001',
           Cookie: 'mensah_staff_session=opaque',
+          'Content-Type': 'application/json',
         },
         body: '{}',
       }),

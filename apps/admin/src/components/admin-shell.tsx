@@ -12,14 +12,22 @@ import {
   Clock3,
   RotateCcw,
   TriangleAlert,
+  PanelsTopLeft,
 } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { LogoutButton } from './logout-button';
 import { ActionableWorkBadge } from './actionable-work-badge';
+import { MobileAdminNavigation } from './mobile-admin-navigation';
 
 const links = [
   { href: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  {
+    href: '/website/homepage',
+    icon: PanelsTopLeft,
+    label: 'Website Content',
+    permission: 'homepage.view',
+  },
   {
     href: '/products',
     icon: Boxes,
@@ -101,15 +109,20 @@ export function AdminShell({
       >
         Skip to content
       </a>
-      <div className="grid min-h-screen w-full min-w-0 lg:grid-cols-[17rem_minmax(0,1fr)]">
-        <aside className="hidden border-r border-border bg-card p-5 lg:block">
-          <Link className="text-xl font-bold" href="/">
-            Mensah Rentals
-          </Link>
-          <p className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">
-            Administration
-          </p>
-          <nav aria-label="Administrative sections" className="mt-8 space-y-1">
+      <div className="min-h-screen w-full min-w-0">
+        <aside className="fixed inset-y-0 left-0 z-30 hidden h-dvh w-[17rem] flex-col border-r border-border bg-card lg:flex">
+          <div className="shrink-0 p-5 pb-3">
+            <Link className="text-xl font-bold" href="/">
+              Mensah Rentals
+            </Link>
+            <p className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">
+              Administration
+            </p>
+          </div>
+          <nav
+            aria-label="Administrative sections"
+            className="min-h-0 flex-1 space-y-1 overflow-y-auto px-5 pb-5 pt-4"
+          >
             {visible.map(({ href, icon: Icon, label }) => (
               <Link
                 className="flex min-w-0 items-center gap-3 rounded-lg px-3 py-2.5 text-sm hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
@@ -137,34 +150,12 @@ export function AdminShell({
             ))}
           </nav>
         </aside>
-        <div className="min-w-0">
+        <div className="min-w-0 lg:pl-[17rem]">
           <header className="sticky top-0 z-20 border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-6 lg:px-8">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <nav
-                aria-label="Mobile administrative sections"
-                className="flex gap-2 overflow-x-auto lg:hidden"
-              >
-                {visible.map(({ href, label }) => (
-                  <Link
-                    className="rounded-lg px-3 py-2 text-sm hover:bg-muted"
-                    href={href}
-                    key={href}
-                  >
-                    <span>{label}</span>
-                    {href === '/rental-requests' ? (
-                      <ActionableWorkBadge compact />
-                    ) : null}
-                    {href === '/orders' &&
-                    permissions.has('inventory.reservation.view') ? (
-                      <ActionableWorkBadge compact kind="reservations" />
-                    ) : null}
-                    {href === '/active-rentals' &&
-                    permissions.has('fulfilment.view') ? (
-                      <ActionableWorkBadge compact kind="fulfilment" />
-                    ) : null}
-                  </Link>
-                ))}
-              </nav>
+              <MobileAdminNavigation
+                links={visible.map(({ href, label }) => ({ href, label }))}
+              />
               <div className="ml-auto flex items-center gap-2">
                 <span className="hidden text-sm text-muted-foreground sm:inline">
                   {user.firstName} {user.lastName}

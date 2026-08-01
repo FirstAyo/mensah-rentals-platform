@@ -4,12 +4,13 @@ import { resolve } from 'node:path';
 
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   UnsupportedMediaTypeException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { prisma } from '@mensah-rentals/database';
+import { Prisma, UserStatus, prisma } from '@mensah-rentals/database';
 import type { AdminProductImageResponse } from '@mensah-rentals/types';
 import {
   PRODUCT_IMAGE_LIMITS,
@@ -64,7 +65,12 @@ export class ProductMediaService {
     );
   }
 
-  async upload(productId: string, source: Buffer, altText: string) {
+  async upload(
+    productId: string,
+    source: Buffer,
+    altText: string,
+    actorUserId: string,
+  ) {
     const normalized = await this.normalizeImage(source);
     const hash = createHash('sha256').update(normalized.data).digest('hex');
     const filename = `${hash}.webp`;
@@ -75,6 +81,7 @@ export class ProductMediaService {
     try {
       const imageId = await prisma.$transaction(async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${productId}))`;
+        await this.requireActorPermission(tx, actorUserId);
         const product = await tx.product.findFirst({
           where: { id: productId, deletedAt: null },
         });
@@ -115,9 +122,11 @@ export class ProductMediaService {
     productId: string,
     imageId: string,
     input: UpdateProductImageInput,
+    actorUserId: string,
   ) {
     await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${productId}))`;
+      await this.requireActorPermission(tx, actorUserId);
       const image = await tx.productImage.findFirst({
         where: { id: imageId, productId },
       });
@@ -142,13 +151,31 @@ export class ProductMediaService {
     return this.getImage(productId, imageId);
   }
 
-  async remove(productId: string, imageId: string) {
+  async remove(productId: string, imageId: string, actorUserId: string) {
     const removed = await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${productId}))`;
+      await this.requireActorPermission(tx, actorUserId);
       const image = await tx.productImage.findFirst({
         where: { id: imageId, productId },
+        include: {
+          _count: {
+            select: {
+              homepagePlacements: true,
+              homepageCategoryOverrides: true,
+              categoryCovers: true,
+            },
+          },
+        },
       });
       if (!image) throw new NotFoundException('Product image not found');
+      if (
+        image._count.homepagePlacements > 0 ||
+        image._count.homepageCategoryOverrides > 0 ||
+        image._count.categoryCovers > 0
+      )
+        throw new ConflictException(
+          'This image is referenced by website content and cannot be removed',
+        );
       await tx.productImage.delete({ where: { id: imageId } });
       if (image.isPrimary) {
         const next = await tx.productImage.findFirst({
@@ -218,6 +245,29 @@ export class ProductMediaService {
       url,
     );
     return match ? resolve(this.root, 'products', match[1]!, match[2]!) : null;
+  }
+
+  private async requireActorPermission(
+    tx: Prisma.TransactionClient,
+    actorUserId: string,
+  ) {
+    const actor = await tx.user.findFirst({
+      where: {
+        id: actorUserId,
+        status: UserStatus.ACTIVE,
+        roles: {
+          some: {
+            role: {
+              permissions: {
+                some: { permission: { key: 'product.update' } },
+              },
+            },
+          },
+        },
+      },
+      select: { id: true },
+    });
+    if (!actor) throw new ForbiddenException('Insufficient permissions');
   }
 
   private isAlreadyExists(error: unknown) {

@@ -20,6 +20,7 @@ import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { ProductImageManager } from './product-image-manager';
+import { CategoryCoverManager } from './category-cover-manager';
 
 interface Values {
   categoryId: string;
@@ -49,9 +50,11 @@ const defaults: Values = {
 function FormBody({
   id,
   resource,
+  canManageMedia = false,
 }: {
   id?: string;
   resource: 'categories' | 'products';
+  canManageMedia?: boolean;
 }) {
   const router = useRouter();
   const [error, setError] = useState<string | null>(null);
@@ -301,6 +304,14 @@ function FormBody({
           refresh={() => detail.refetch()}
         />
       ) : null}
+      {resource === 'categories' && id ? (
+        <CategoryCoverManager canManageMedia={canManageMedia} categoryId={id} />
+      ) : resource === 'categories' ? (
+        <p className="rounded-xl border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+          Save the category first, then choose or upload its cover image from
+          the edit page.
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -308,6 +319,7 @@ function FormBody({
 export function CatalogueForm(props: {
   id?: string;
   resource: 'categories' | 'products';
+  canManageMedia?: boolean;
 }) {
   const [client] = useState(() => new QueryClient());
   return (

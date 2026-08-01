@@ -5,12 +5,16 @@ export default async function EditCategoryPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireStaffPermission('category.update');
+  const user = await requireStaffPermission('category.update');
   const { id } = await params;
   return (
     <>
       <h1 className="mb-6 text-3xl font-semibold">Edit category</h1>
-      <CatalogueForm id={id} resource="categories" />
+      <CatalogueForm
+        canManageMedia={user.permissionKeys.includes('homepage.media.manage')}
+        id={id}
+        resource="categories"
+      />
     </>
   );
 }

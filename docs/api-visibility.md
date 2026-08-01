@@ -1,5 +1,15 @@
 # API Data Visibility
 
+## Phase 16.4A media-library and category-image visibility
+
+Administrative media-library responses are allowlisted to a media reference, managed URL, safe label/description, dimensions/size where known, source type, product display name where relevant, and aggregate saved-reference count. They never contain filesystem paths, content hashes, creators, permissions, or raw storage metadata. Category-cover administration returns only its assignment and resolved presentation source.
+
+Public homepage category DTOs contain `name`, `slug`, public description, and an image object limited to managed URL or null, alt text, focal position, and the safe source label. Public hero DTOs contain only enabled slides with managed desktop/mobile URLs and presentation metadata. Product/homepage IDs used for assignments, revisions, actors, hashes, storage paths, inventory, availability, and RBAC data are excluded.
+
+## Phase 16.4 public homepage visibility
+
+`GET /public/homepage` may contain published structured copy, active public-safe categories/products, managed homepage URLs, and public Google links. An exact shared allowlist schema rejects unknown fields. It never contains homepage media/database IDs, draft/publication pointers, actors, activity/audit data, permissions, credentials, Place IDs, raw provider data, filesystem paths, inventory, availability, reservations, staff, or workflow internals. Public media retrieval is limited to assets referenced by the current publication. Preview and draft media use separate staff-authenticated private/no-store/noindex routes.
+
 ## Phase 15 fulfilment visibility
 
 Administrative DTOs may contain reserved/prepared/checked-out/shortfall quantities and serialized identities after exact permissions. Customer order DTOs may contain only a coarse status, inclusive expected return date, and checked-out product summary. They exclude reservation/preparation/shortfall counts, assets/serials, internal notes, staff, transactions, versions, operations, and hashes.

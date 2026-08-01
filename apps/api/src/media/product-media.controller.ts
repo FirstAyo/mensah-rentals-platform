@@ -20,9 +20,11 @@ import {
   updateProductImageSchema,
   type UpdateProductImageInput,
 } from '@mensah-rentals/validation';
+import type { StaffUserResponse } from '@mensah-rentals/types';
 import { memoryStorage } from 'multer';
 
 import { Public } from '../auth/public.decorator';
+import { CurrentStaffUser } from '../auth/current-staff-user.decorator';
 import { AllowMultipart } from '../auth/origin.guard';
 import { ZodBodyPipe } from '../auth/zod-body.pipe';
 import { RequirePermissions } from '../authorization/require-permissions.decorator';
@@ -46,9 +48,10 @@ export class AdminProductMediaController {
     @UploadedFile() file: Express.Multer.File,
     @Body(new ZodBodyPipe(productImageUploadMetadataSchema))
     body: { altText: string },
+    @CurrentStaffUser() user: StaffUserResponse,
   ) {
     if (!file?.buffer) throw new BadRequestException('Image file is required');
-    return this.media.upload(productId, file.buffer, body.altText);
+    return this.media.upload(productId, file.buffer, body.altText, user.id);
   }
 
   @Put(':imageId')
@@ -58,8 +61,9 @@ export class AdminProductMediaController {
     @Param('imageId', new ZodBodyPipe(cuidParamSchema)) imageId: string,
     @Body(new ZodBodyPipe(updateProductImageSchema))
     input: UpdateProductImageInput,
+    @CurrentStaffUser() user: StaffUserResponse,
   ) {
-    return this.media.update(productId, imageId, input);
+    return this.media.update(productId, imageId, input, user.id);
   }
 
   @Delete(':imageId')
@@ -67,8 +71,9 @@ export class AdminProductMediaController {
   remove(
     @Param('productId', new ZodBodyPipe(cuidParamSchema)) productId: string,
     @Param('imageId', new ZodBodyPipe(cuidParamSchema)) imageId: string,
+    @CurrentStaffUser() user: StaffUserResponse,
   ) {
-    return this.media.remove(productId, imageId);
+    return this.media.remove(productId, imageId, user.id);
   }
 }
 

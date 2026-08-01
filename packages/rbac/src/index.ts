@@ -85,6 +85,15 @@ export const PERMISSION_CATALOGUE = [
   ['content.create', 'Create website content.'],
   ['content.update', 'Update website content.'],
   ['content.delete', 'Delete or archive website content.'],
+  ['homepage.view', 'View homepage drafts and publication history.'],
+  ['homepage.edit', 'Create and edit homepage drafts.'],
+  ['homepage.publish', 'Publish or restore homepage revisions.'],
+  ['homepage.media.manage', 'Upload and remove homepage media.'],
+  ['homepage.preview', 'Preview unpublished homepage revisions.'],
+  [
+    'homepage.google_reviews.view_status',
+    'View the Google Reviews integration configuration status.',
+  ],
   ['report.view', 'View protected reports.'],
   ['audit_log.view', 'View audit logs.'],
 ] as const;
@@ -183,6 +192,12 @@ const ADMIN_PERMISSIONS = [
   'content.create',
   'content.update',
   'content.delete',
+  'homepage.view',
+  'homepage.edit',
+  'homepage.publish',
+  'homepage.media.manage',
+  'homepage.preview',
+  'homepage.google_reviews.view_status',
   'report.view',
 ] as const satisfies readonly PermissionKey[];
 
@@ -197,6 +212,12 @@ const EDITOR_PERMISSIONS = [
   'content.create',
   'content.update',
   'content.delete',
+  'homepage.view',
+  'homepage.edit',
+  'homepage.publish',
+  'homepage.media.manage',
+  'homepage.preview',
+  'homepage.google_reviews.view_status',
 ] as const satisfies readonly PermissionKey[];
 
 const SALES_PERSON_PERMISSIONS = [

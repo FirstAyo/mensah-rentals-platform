@@ -18,6 +18,7 @@ import { RentalOrderModule } from './rental-order/rental-order.module';
 import { WorkSummaryModule } from './work-summary/work-summary.module';
 import { FulfilmentModule } from './fulfilment/fulfilment.module';
 import { ReturnModule } from './returns/return.module';
+import { HomepageModule } from './homepage/homepage.module';
 
 @Module({
   imports: [
@@ -37,6 +38,7 @@ import { ReturnModule } from './returns/return.module';
     WorkSummaryModule,
     FulfilmentModule,
     ReturnModule,
+    HomepageModule,
   ],
   controllers: [HealthController],
   providers: [DatabaseService, HealthService],

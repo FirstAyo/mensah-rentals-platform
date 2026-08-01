@@ -1,5 +1,13 @@
 # Planned Domain Model
 
+## Phase 16.4A media-reference additions
+
+`HomepageMediaPlacement` now has an exclusive `mediaId`/`productImageId` source pair and a semantic `slotKey` unique within its immutable revision. `HomepageFeaturedCategory` may snapshot one exclusive homepage/product image override plus alt text and focal position. `CategoryCover` is the category's current exclusive media assignment and records its updater and timestamps. Database checks require valid exclusive sources; foreign keys to media are restrictive. Category deletion may cascade only the cover assignment, never the source media. These models contain no inventory, availability, reservation, price, or rental-workflow state.
+
+## Phase 16.4 homepage content
+
+`HomepageSite` is the singleton pointer/concurrency record. `HomepageRevision` is an immutable complete DRAFT or PUBLISHED snapshot. `HomepageFeaturedCategory`, `HomepageFeaturedProduct`, and `HomepageMediaPlacement` retain ordered relationships. `HomepageMedia` stores normalized assets in an isolated namespace. `HomepageActivity` is append-only. These models do not own or mutate catalogue, inventory, rental, quote, order, fulfilment, or return data.
+
 ## Phase 15 implemented models
 
 `OrderFulfilment`, `OrderFulfilmentItem`, `PreparedSerializedAsset`, `FulfilmentOperation`, `FulfilmentOperationItem`, `ActiveRental`, `ActiveRentalItem`, `ActiveRentalSerializedAsset`, and `FulfilmentHandoff` implement preparation and checkout. `PreparedSerializedAsset` is the exact current serialized picking set while append-only operation items preserve its changes. `InventoryReservationItem.consumedQuantity` separates active commitment from physical checkout. These are not return, damage, loss, maintenance-resolution, or payment models.

@@ -1,5 +1,56 @@
 # Local Development on Windows
 
+## Phase 16.4A local homepage-media workflow
+
+From PowerShell in the repository root, preserve a development database containing manual work before migration. Do not run `pnpm db:reset`; that command is only used by the guarded test harness.
+
+```powershell
+docker compose up -d postgres postgres-test
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+pnpm dev
+```
+
+Open `http://localhost:3001/website/homepage`. Inside a hero or section image field, choose an existing homepage/product image or upload a new image and then explicitly select **Use this image**. Save with either action bar, preview the immutable draft, then publish. Category covers are managed on `http://localhost:3001/categories/{categoryId}/edit`; removing one falls back without deleting media. Verify the public result at `http://localhost:3000/`. Desktop navigation stays fixed; at narrow widths use **Menu**. Test light/dark themes, 320-pixel reflow, three-slide navigation, and category fallbacks.
+
+Focused guarded browser commands are:
+
+```powershell
+pnpm test:e2e:homepage
+pnpm test:e2e:homepage-admin
+pnpm test:e2e:homepage-media
+pnpm test:e2e:homepage-all
+```
+
+These commands reset only `mensah_rentals_test`, create test-owned catalogue/media fixtures under `storage/test-media`, build/start the apps, and stop them afterward. Stop any ordinary local dev servers first because the harness refuses to reuse occupied ports.
+
+## Phase 16.4 homepage setup
+
+From PowerShell in the repository root:
+
+```powershell
+docker compose up -d postgres postgres-test
+pnpm install
+Copy-Item .env.example .env -ErrorAction SilentlyContinue
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+pnpm dev
+```
+
+Do not replace an existing ignored `.env`; add only missing values. Google URLs are optional. Leave the API key and Place ID blank because live cards are disabled until a compliant integration is approved.
+
+Open `http://localhost:3000/` for the public page and `http://localhost:3001/website/homepage` for the staff manager. Sign in with the local account created through `pnpm staff:bootstrap`, save a draft, preview it, and publish. Uploaded homepage files use ignored `storage/media/homepage`; product media remains under `storage/media/products`.
+
+Before migrating a development database containing local work, create an ignored custom-format `pg_dump` and media manifest/backup. Never use `pnpm db:reset`, delete Docker volumes, or run test fixtures on that development database. Browser automation accepts only the guarded local `_test` database.
+
 ## Phase 15 first-time/update setup (Windows PowerShell)
 
 From the repository root, close any older development terminals, open Docker Desktop, and run:

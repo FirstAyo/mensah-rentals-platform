@@ -1,5 +1,9 @@
 # Public SEO Foundation
 
+## Phase 16.4 homepage metadata
+
+The public homepage derives title, description, canonical `/`, Open Graph, and Twitter metadata only from the current published revision. A managed published homepage image may be used socially. Draft preview is noindex/noarchive and excluded from sitemap. Homepage content is server-rendered. No price, offer, availability, rating, or review structured data is invented.
+
 The public app uses the Next.js Metadata API with `WEB_ORIGIN` as the canonical origin. `SITE_INDEXING_ENABLED=false` is the safe local/staging default. Production should use `WEB_ORIGIN=https://mensahrentals.com` and enable indexing only after launch review.
 
 The home, rentals, category, and product pages define truthful titles, descriptions, canonical URLs, Open Graph data, and Twitter summary data where appropriate. Category and product canonicals use slugs returned by the public API. A category/product mismatch returns 404 rather than producing duplicate content.

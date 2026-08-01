@@ -1,5 +1,15 @@
 # Architecture
 
+## Phase 16.4A presentation-media references
+
+Homepage media placement is a dual-source reference: exactly one of `HomepageMedia` or `ProductImage` is selected for each immutable semantic slot. This additive design reuses validated product files without inventing a risky universal media table. Restrictive foreign keys and service-level usage checks prevent source deletion; removing placement never mutates the owner. Revision copies preserve both source identity and ordered slot keys.
+
+Category presentation is separate from catalogue identity. `CategoryCover` holds the current category-level assignment, while `HomepageFeaturedCategory` snapshots an optional per-publication override. The public mapper deterministically resolves override → cover → active product image → neutral fallback and emits an explicit safe DTO. All homepage/category mutations recheck live active-user permissions in their locked transaction. Fixed admin BFF routes enforce exact origins, content types, body limits, query allowlists, and named session-cookie forwarding.
+
+## Phase 16.4 homepage boundary
+
+The API owns an append-only homepage aggregate with immutable revisions, one draft pointer, one published pointer, a lock version, relational featured catalogue selections, isolated media, and activity history. Public web reads only `GET /public/homepage`; admin uses authenticated `/admin/homepage` routes with exact `homepage.*` permissions. Preview stays inside the staff application and is private/no-store/noindex. Public rendering is server-first and only the accessible hero controller hydrates. Homepage media has a separate table and filesystem namespace. Live Google review caching is absent because it conflicts with current Places policy.
+
 ## Phase 15 fulfilment boundary
 
 The NestJS API is the sole authority for preparation, reservation consumption, physical inventory movement, handoff, and active-rental creation. A serializable transaction connects these separate aggregates without changing order/quote snapshots. Admin BFF routes are fixed allowlists; customer mapping is a separate coarse allowlist.

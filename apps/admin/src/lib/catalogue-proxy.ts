@@ -43,6 +43,12 @@ export async function proxyCatalogue(
   const cookie = sessionCookie(request);
   if (cookie) headers.set('Cookie', cookie);
   if (unsafe) {
+    const type = request.headers.get('content-type')?.split(';')[0]?.trim();
+    if (request.method !== 'DELETE' && type !== 'application/json')
+      return Response.json(
+        { message: 'JSON body is required' },
+        { status: 415 },
+      );
     headers.set('Content-Type', 'application/json');
     headers.set('Origin', getAdminOrigin());
   }
@@ -51,12 +57,27 @@ export async function proxyCatalogue(
   for (const [key, value] of incoming.searchParams)
     if (queryKeys.has(key)) query.append(key, value);
   const url = `${getApiInternalUrl()}/admin/${resource}${suffix}${query.size ? `?${query}` : ''}`;
+  let body: string | undefined;
+  if (unsafe) {
+    const declared = Number(request.headers.get('content-length'));
+    if (Number.isFinite(declared) && declared > 64 * 1024)
+      return Response.json(
+        { message: 'Request body is too large' },
+        { status: 413 },
+      );
+    body = await request.text();
+    if (new TextEncoder().encode(body).byteLength > 64 * 1024)
+      return Response.json(
+        { message: 'Request body is too large' },
+        { status: 413 },
+      );
+  }
   try {
     const upstream = await fetcher(url, {
       method: request.method,
       headers,
       cache: 'no-store',
-      body: unsafe ? await request.text() : undefined,
+      body,
     });
     return new Response(upstream.body, {
       status: upstream.status,

@@ -4,10 +4,20 @@ export * from './quote';
 export * from './order';
 export * from './fulfilment';
 export * from './returns';
+export * from './homepage';
 
 const environmentBoolean = z
   .enum(['true', 'false'])
   .transform((value) => value === 'true');
+
+const optionalEnvironmentString = z.preprocess(
+  (value) => (value === '' ? undefined : value),
+  z.string().trim().min(1).optional(),
+);
+const optionalEnvironmentUrl = z.preprocess(
+  (value) => (value === '' ? undefined : value),
+  z.string().url().optional(),
+);
 
 export const staffLoginSchema = z
   .object({
@@ -83,6 +93,10 @@ export const apiEnvironmentSchema = z
       .default(60),
     DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
     MEDIA_STORAGE_ROOT: z.string().trim().min(1).default('storage/media'),
+    GOOGLE_PLACES_API_KEY: optionalEnvironmentString,
+    GOOGLE_BUSINESS_PLACE_ID: optionalEnvironmentString,
+    GOOGLE_REVIEWS_URL: optionalEnvironmentUrl,
+    GOOGLE_WRITE_REVIEW_URL: optionalEnvironmentUrl,
     NODE_ENV: z
       .enum(['development', 'test', 'production'])
       .default('development'),

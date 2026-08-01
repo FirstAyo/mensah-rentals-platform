@@ -1,5 +1,9 @@
 # Mensah Rentals Platform
 
+Phase 16.4 adds a published guest homepage and permission-protected homepage content manager. The platform remains request-based: customers select desired quantities, staff review supply, and authorized staff prepare custom quotes. It is not an automatic-price e-commerce checkout.
+
+Phase 16.4 references: [homepage content management](docs/homepage-content-management.md) and [Google Reviews integration](docs/google-reviews-integration.md).
+
 Phase 16 adds protected partial/full return intake, condition reconciliation, missing-item recovery, issue resolution, explicit rental completion, and customer-safe return status. See [Returns and reconciliation](docs/returns-and-reconciliation.md) and [Rental issues](docs/rental-issues.md).
 
 Phase 16.2 corrects category slug editing and separates reversible deactivation from permission-gated permanent catalogue deletion. Referenced products use private historical tombstones; unreferenced records and committed media are safely removed. See [Products and categories](docs/products-and-categories.md).

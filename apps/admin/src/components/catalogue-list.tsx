@@ -46,6 +46,23 @@ function TableView({
   const triggerRef = useRef<HTMLElement | null>(null);
   const queryClient = useQueryClient();
 
+  function closeConfirmation() {
+    const pending = confirmation;
+    setConfirmation(null);
+    window.setTimeout(() => {
+      if (triggerRef.current?.isConnected) {
+        triggerRef.current.focus();
+        return;
+      }
+      if (!pending) return;
+      document
+        .querySelector<HTMLButtonElement>(
+          `button[data-catalogue-action="${pending.action}"][data-record-id="${pending.row.id}"]`,
+        )
+        ?.focus();
+    }, 0);
+  }
+
   const prepareProductDeletion = useCallback(
     async (row: Row) => {
       if (submitting) return;
@@ -204,6 +221,8 @@ function TableView({
             {canDelete ? (
               <button
                 className="rounded-md border border-destructive/50 px-2.5 py-1.5 text-sm text-destructive"
+                data-catalogue-action="delete"
+                data-record-id={row.original.id}
                 disabled={submitting}
                 onClick={(event) => {
                   triggerRef.current = event.currentTarget;
@@ -353,7 +372,7 @@ function TableView({
         descriptionId="catalogue-confirmation-description"
         initialFocusRef={cancelRef}
         onClose={() => {
-          if (!submitting) setConfirmation(null);
+          if (!submitting) closeConfirmation();
         }}
         open={Boolean(confirmation)}
         returnFocusRef={triggerRef}
@@ -440,7 +459,7 @@ function TableView({
               <button
                 className="rounded-lg border border-border px-4 py-2"
                 disabled={submitting}
-                onClick={() => setConfirmation(null)}
+                onClick={closeConfirmation}
                 ref={cancelRef}
                 type="button"
               >

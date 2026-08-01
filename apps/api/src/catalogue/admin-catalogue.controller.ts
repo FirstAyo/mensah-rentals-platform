@@ -28,7 +28,9 @@ import {
   type UpdateCategoryInput,
   type UpdateProductInput,
 } from '@mensah-rentals/validation';
+import type { StaffUserResponse } from '@mensah-rentals/types';
 
+import { CurrentStaffUser } from '../auth/current-staff-user.decorator';
 import { ZodBodyPipe } from '../auth/zod-body.pipe';
 import { RequirePermissions } from '../authorization/require-permissions.decorator';
 import { CatalogueService } from './catalogue.service';
@@ -58,8 +60,9 @@ export class AdminCategoriesController {
   @RequirePermissions('category.create')
   create(
     @Body(new ZodBodyPipe(createCategorySchema)) input: CreateCategoryInput,
+    @CurrentStaffUser() user: StaffUserResponse,
   ) {
-    return this.catalogue.createCategory(input);
+    return this.catalogue.createCategory(input, user.id);
   }
 
   @Put(':id')
@@ -67,8 +70,9 @@ export class AdminCategoriesController {
   update(
     @Param('id', new ZodBodyPipe(cuidParamSchema)) id: string,
     @Body(new ZodBodyPipe(updateCategorySchema)) input: UpdateCategoryInput,
+    @CurrentStaffUser() user: StaffUserResponse,
   ) {
-    return this.catalogue.updateCategory(id, input);
+    return this.catalogue.updateCategory(id, input, user.id);
   }
 
   @Delete(':id')
@@ -77,20 +81,27 @@ export class AdminCategoriesController {
     @Param('id', new ZodBodyPipe(cuidParamSchema)) id: string,
     @Body(new CatalogueZodPipe(deleteCategorySchema))
     input: DeleteCategoryInput,
+    @CurrentStaffUser() user: StaffUserResponse,
   ) {
-    return this.catalogue.deleteCategory(id, input);
+    return this.catalogue.deleteCategory(id, input, user.id);
   }
 
   @Post(':id/deactivate')
   @RequirePermissions('category.update')
-  deactivate(@Param('id', new ZodBodyPipe(cuidParamSchema)) id: string) {
-    return this.catalogue.deactivateCategory(id);
+  deactivate(
+    @Param('id', new ZodBodyPipe(cuidParamSchema)) id: string,
+    @CurrentStaffUser() user: StaffUserResponse,
+  ) {
+    return this.catalogue.deactivateCategory(id, user.id);
   }
 
   @Post(':id/activate')
   @RequirePermissions('category.update')
-  activate(@Param('id', new ZodBodyPipe(cuidParamSchema)) id: string) {
-    return this.catalogue.activateCategory(id);
+  activate(
+    @Param('id', new ZodBodyPipe(cuidParamSchema)) id: string,
+    @CurrentStaffUser() user: StaffUserResponse,
+  ) {
+    return this.catalogue.activateCategory(id, user.id);
   }
 }
 
@@ -118,8 +129,9 @@ export class AdminProductsController {
   @RequirePermissions('product.create')
   create(
     @Body(new ZodBodyPipe(createProductSchema)) input: CreateProductInput,
+    @CurrentStaffUser() user: StaffUserResponse,
   ) {
-    return this.catalogue.createProduct(input);
+    return this.catalogue.createProduct(input, user.id);
   }
 
   @Put(':id')
@@ -127,8 +139,9 @@ export class AdminProductsController {
   update(
     @Param('id', new ZodBodyPipe(cuidParamSchema)) id: string,
     @Body(new ZodBodyPipe(updateProductSchema)) input: UpdateProductInput,
+    @CurrentStaffUser() user: StaffUserResponse,
   ) {
-    return this.catalogue.updateProduct(id, input);
+    return this.catalogue.updateProduct(id, input, user.id);
   }
 
   @Delete(':id')
@@ -142,19 +155,26 @@ export class AdminProductsController {
       ),
     )
     input: DeleteProductInput,
+    @CurrentStaffUser() user: StaffUserResponse,
   ) {
-    return this.catalogue.deleteProduct(id, input);
+    return this.catalogue.deleteProduct(id, input, user.id);
   }
 
   @Post(':id/deactivate')
   @RequirePermissions('product.update')
-  deactivate(@Param('id', new ZodBodyPipe(cuidParamSchema)) id: string) {
-    return this.catalogue.deactivateProduct(id);
+  deactivate(
+    @Param('id', new ZodBodyPipe(cuidParamSchema)) id: string,
+    @CurrentStaffUser() user: StaffUserResponse,
+  ) {
+    return this.catalogue.deactivateProduct(id, user.id);
   }
 
   @Post(':id/activate')
   @RequirePermissions('product.update')
-  activate(@Param('id', new ZodBodyPipe(cuidParamSchema)) id: string) {
-    return this.catalogue.activateProduct(id);
+  activate(
+    @Param('id', new ZodBodyPipe(cuidParamSchema)) id: string,
+    @CurrentStaffUser() user: StaffUserResponse,
+  ) {
+    return this.catalogue.activateProduct(id, user.id);
   }
 }

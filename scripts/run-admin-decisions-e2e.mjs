@@ -1,5 +1,7 @@
-import { randomBytes, randomUUID } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { spawn, spawnSync } from 'node:child_process';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { loadTestEnvironment } from './test-database.mjs';
@@ -32,6 +34,13 @@ const modes = new Set([
   'returns-all',
   'categories',
   'products',
+  'catalogue',
+  'cart',
+  'homepage',
+  'homepage-admin',
+  'homepage-media',
+  'homepage-google-reviews',
+  'homepage-all',
 ]);
 if (!modes.has(mode)) throw new Error(`Unknown decision browser mode: ${mode}`);
 
@@ -97,6 +106,7 @@ const { environment } = loadTestEnvironment();
 const browserEnvironment = {
   ...environment,
   MENSAH_ISOLATED_E2E: 'verified-local-test-database',
+  MEDIA_STORAGE_ROOT: 'storage/test-media',
   STAFF_BOOTSTRAP_EMAIL: 'phase10-browser@example.test',
   STAFF_BOOTSTRAP_FIRST_NAME: 'Phase Ten',
   STAFF_BOOTSTRAP_LAST_NAME: 'Browser',
@@ -676,6 +686,52 @@ if (mode === 'products') {
   browserEnvironment.PHASE16_3_EDITOR_EMAIL = editor.email;
   browserEnvironment.PHASE16_3_EDITOR_PASSWORD = editorPassword;
 }
+if (mode.startsWith('homepage')) {
+  const product = await prisma.product.findFirst({
+    where: { isActive: true, deletedAt: null },
+    include: { category: true },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+  });
+  if (!product) throw new Error('Homepage browser fixture needs a product.');
+  const { default: sharp } = await import(
+    '../apps/api/node_modules/sharp/dist/index.mjs'
+  );
+  const productBuffer = await sharp({
+    create: {
+      width: 640,
+      height: 420,
+      channels: 3,
+      background: { r: 35, g: 71, b: 118 },
+    },
+  })
+    .webp({ quality: 82 })
+    .toBuffer();
+  const contentHash = createHash('sha256').update(productBuffer).digest('hex');
+  const mediaDirectory = resolve(
+    repositoryRoot,
+    browserEnvironment.MEDIA_STORAGE_ROOT,
+    'products',
+    product.id,
+  );
+  await mkdir(mediaDirectory, { recursive: true });
+  await writeFile(
+    resolve(mediaDirectory, `${contentHash}.webp`),
+    productBuffer,
+  );
+  await prisma.productImage.create({
+    data: {
+      productId: product.id,
+      url: `/media/products/${product.id}/${contentHash}.webp`,
+      altText: 'Existing blue product media fixture',
+      sortOrder: 0,
+      isPrimary: true,
+    },
+  });
+  browserEnvironment.PHASE16_4A_CATEGORY_ID = product.categoryId;
+  browserEnvironment.PHASE16_4A_CATEGORY_NAME = product.category.name;
+  browserEnvironment.PHASE16_4A_PRODUCT_IMAGE_LABEL =
+    'Existing blue product media fixture';
+}
 await prisma.$disconnect();
 
 const phase121Mode = mode.startsWith('phase12-1-');
@@ -684,13 +740,18 @@ const productMode = mode === 'products';
 const reservationMode = mode.startsWith('reservations-');
 const fulfilmentMode = mode.startsWith('fulfilment-');
 const returnMode = mode.startsWith('returns-');
+const homepageMode = mode.startsWith('homepage');
+const publicRegressionMode = mode === 'catalogue' || mode === 'cart';
+const productionPublicRegressionMode = mode === 'catalogue';
 if (
   phase121Mode ||
   categoryMode ||
   productMode ||
   reservationMode ||
   fulfilmentMode ||
-  returnMode
+  returnMode ||
+  homepageMode ||
+  publicRegressionMode
 )
   run(
     pnpm,
@@ -719,6 +780,8 @@ const servers = [
       phase121Mode ||
       categoryMode ||
       productMode ||
+      homepageMode ||
+      productionPublicRegressionMode ||
       ((fulfilmentMode || returnMode) && workspace !== '@mensah-rentals/web')
         ? 'start'
         : 'dev',
@@ -755,49 +818,64 @@ try {
   const isPhase121Quote = mode === 'phase12-1-quote';
   const isQuoteMode = mode.startsWith('quotes-');
   const isOrderMode = mode.startsWith('orders-');
+  const isHomepageMode = homepageMode;
   const grep = categoryMode
     ? '@categories'
     : productMode
       ? '@products'
-      : returnMode
-        ? mode === 'returns-all'
-          ? '@returns'
-          : mode === 'returns-concurrency'
-            ? '@return-concurrency'
-            : mode === 'returns-issues'
-              ? '@return-issues'
-              : '@admin-returns'
-        : fulfilmentMode
-          ? mode === 'fulfilment-all'
-            ? '@fulfilment'
-            : mode === 'fulfilment-concurrency'
-              ? '@fulfilment-concurrency'
-              : mode === 'fulfilment-active-rentals'
-                ? '@active-rentals'
-                : '@admin-fulfilment'
-          : reservationMode
-            ? mode === 'reservations-all'
-              ? '@reservations'
-              : mode === 'reservations-concurrency'
-                ? '@reservation-concurrency'
-                : '@admin-reservations'
-            : isPhase121
-              ? '@phase12-1'
-              : isOrderMode
-                ? mode === 'orders-all'
-                  ? '@orders'
-                  : mode === 'orders-admin'
-                    ? '@admin-orders'
-                    : '@customer-orders'
-                : isQuoteMode
-                  ? mode === 'quotes-all'
-                    ? '@quotes'
-                    : mode === 'quotes-admin'
-                      ? '@admin-quotes'
-                      : '@customer-quotes'
-                  : mode === 'all'
-                    ? '@admin-decisions'
-                    : `@admin-decisions-${mode}`;
+      : publicRegressionMode
+        ? mode === 'catalogue'
+          ? '@catalogue'
+          : '@cart'
+        : isHomepageMode
+          ? mode === 'homepage-admin'
+            ? '@homepage-admin'
+            : mode === 'homepage-media'
+              ? '@homepage-media'
+              : mode === 'homepage-google-reviews'
+                ? '@homepage-google'
+                : mode === 'homepage-all'
+                  ? '@homepage'
+                  : '@homepage-public'
+          : returnMode
+            ? mode === 'returns-all'
+              ? '@returns'
+              : mode === 'returns-concurrency'
+                ? '@return-concurrency'
+                : mode === 'returns-issues'
+                  ? '@return-issues'
+                  : '@admin-returns'
+            : fulfilmentMode
+              ? mode === 'fulfilment-all'
+                ? '@fulfilment'
+                : mode === 'fulfilment-concurrency'
+                  ? '@fulfilment-concurrency'
+                  : mode === 'fulfilment-active-rentals'
+                    ? '@active-rentals'
+                    : '@admin-fulfilment'
+              : reservationMode
+                ? mode === 'reservations-all'
+                  ? '@reservations'
+                  : mode === 'reservations-concurrency'
+                    ? '@reservation-concurrency'
+                    : '@admin-reservations'
+                : isPhase121
+                  ? '@phase12-1'
+                  : isOrderMode
+                    ? mode === 'orders-all'
+                      ? '@orders'
+                      : mode === 'orders-admin'
+                        ? '@admin-orders'
+                        : '@customer-orders'
+                    : isQuoteMode
+                      ? mode === 'quotes-all'
+                        ? '@quotes'
+                        : mode === 'quotes-admin'
+                          ? '@admin-quotes'
+                          : '@customer-quotes'
+                      : mode === 'all'
+                        ? '@admin-decisions'
+                        : `@admin-decisions-${mode}`;
   const grepArgument =
     process.platform === 'win32' && grep.includes('|') ? `"${grep}"` : grep;
   run(
@@ -808,27 +886,44 @@ try {
       'exec',
       'playwright',
       'test',
-      ...(categoryMode || productMode
-        ? [categoryMode ? 'e2e/categories.spec.ts' : 'e2e/products.spec.ts']
-        : reservationMode || fulfilmentMode || returnMode
-          ? ['e2e/orders.spec.ts']
-          : isPhase121
-            ? [
-                isPhase121Layout
-                  ? 'e2e/phase12-1.spec.ts'
-                  : isPhase121Quote
-                    ? 'e2e/quotes.spec.ts'
-                    : 'e2e/orders.spec.ts',
-              ]
-            : [
-                isOrderMode
-                  ? 'e2e/orders.spec.ts'
-                  : isQuoteMode
-                    ? 'e2e/quotes.spec.ts'
-                    : 'e2e/admin-decisions.spec.ts',
-              ]),
+      ...(categoryMode || productMode || publicRegressionMode
+        ? [
+            categoryMode
+              ? 'e2e/categories.spec.ts'
+              : productMode
+                ? 'e2e/products.spec.ts'
+                : mode === 'catalogue'
+                  ? 'e2e/catalogue.spec.ts'
+                  : 'e2e/cart.spec.ts',
+          ]
+        : isHomepageMode
+          ? ['e2e/homepage.spec.ts']
+          : reservationMode || fulfilmentMode || returnMode
+            ? ['e2e/orders.spec.ts']
+            : isPhase121
+              ? [
+                  isPhase121Layout
+                    ? 'e2e/phase12-1.spec.ts'
+                    : isPhase121Quote
+                      ? 'e2e/quotes.spec.ts'
+                      : 'e2e/orders.spec.ts',
+                ]
+              : [
+                  isOrderMode
+                    ? 'e2e/orders.spec.ts'
+                    : isQuoteMode
+                      ? 'e2e/quotes.spec.ts'
+                      : 'e2e/admin-decisions.spec.ts',
+                ]),
       '--grep',
       grepArgument,
+      ...(mode === 'homepage-admin' ||
+      mode === 'homepage-media' ||
+      mode === 'homepage-all'
+        ? ['--project=mobile-320', '--project=wide-1440']
+        : mode === 'homepage-google-reviews'
+          ? ['--project=wide-1440']
+          : []),
     ],
     browserEnvironment,
   );

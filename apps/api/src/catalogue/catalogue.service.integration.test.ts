@@ -15,8 +15,44 @@ describe('catalogue service against PostgreSQL', () => {
   } as unknown as ProductMediaService);
   const suffix = randomUUID().replaceAll('-', '');
   const categoryIds: string[] = [];
+  let actorUserId: string;
 
   beforeAll(async () => {
+    const actor = await prisma.user.create({
+      data: {
+        email: `catalogue-actor-${suffix}@example.test`,
+        passwordHash: 'test-only',
+        firstName: 'Catalogue',
+        lastName: 'Actor',
+        status: 'ACTIVE',
+      },
+    });
+    const role = await prisma.role.create({
+      data: {
+        name: 'CATALOGUE_TEST_ACTOR',
+        displayName: 'Catalogue test actor',
+        isSystem: false,
+      },
+    });
+    for (const key of [
+      'category.update',
+      'category.delete',
+      'product.update',
+      'product.delete',
+    ]) {
+      const permission = await prisma.permission.upsert({
+        where: { key },
+        update: {},
+        create: { key, description: `Test permission ${key}` },
+      });
+      await prisma.rolePermission.create({
+        data: { roleId: role.id, permissionId: permission.id },
+      });
+    }
+    await prisma.userRole.create({
+      data: { userId: actor.id, roleId: role.id },
+    });
+    actorUserId = actor.id;
     const active = await prisma.category.create({
       data: { name: `Active ${suffix}`, slug: `active-${suffix}` },
     });
@@ -129,33 +165,45 @@ describe('catalogue service against PostgreSQL', () => {
     const category = await prisma.category.create({
       data: { name: `Editable ${suffix}`, slug: `editable-${suffix}` },
     });
-    const renamed = await service.updateCategory(category.id, {
-      description: null,
-      name: `Renamed ${suffix}`,
-      slug: `editable-${suffix}`,
-      sortOrder: 3,
-    });
+    const renamed = await service.updateCategory(
+      category.id,
+      {
+        description: null,
+        name: `Renamed ${suffix}`,
+        slug: `editable-${suffix}`,
+        sortOrder: 3,
+      },
+      actorUserId,
+    );
     expect(renamed).toMatchObject({
       name: `Renamed ${suffix}`,
       slug: `editable-${suffix}`,
     });
-    const reslugged = await service.updateCategory(category.id, {
-      description: null,
-      name: `Renamed ${suffix}`,
-      slug: `  Renamed-${suffix.toUpperCase()}  `,
-      sortOrder: 3,
-    });
+    const reslugged = await service.updateCategory(
+      category.id,
+      {
+        description: null,
+        name: `Renamed ${suffix}`,
+        slug: `  Renamed-${suffix.toUpperCase()}  `,
+        sortOrder: 3,
+      },
+      actorUserId,
+    );
     expect(reslugged).toMatchObject({
       name: `Renamed ${suffix}`,
       slug: `renamed-${suffix}`,
     });
     await expect(
-      service.updateCategory(category.id, {
-        description: null,
-        name: `Renamed ${suffix}`,
-        slug: `active-${suffix}`,
-        sortOrder: 3,
-      }),
+      service.updateCategory(
+        category.id,
+        {
+          description: null,
+          name: `Renamed ${suffix}`,
+          slug: `active-${suffix}`,
+          sortOrder: 3,
+        },
+        actorUserId,
+      ),
     ).rejects.toMatchObject({
       response: { message: 'That category slug is already in use.' },
     });
@@ -204,30 +252,42 @@ describe('catalogue service against PostgreSQL', () => {
       specifications: [{ label: 'Material', value: 'Steel', sortOrder: 0 }],
     };
     await expect(
-      service.updateProduct(product.id, base),
+      service.updateProduct(product.id, base, actorUserId),
     ).resolves.toMatchObject({
       name: base.name,
       slug: product.slug,
     });
     await expect(
-      service.updateProduct(product.id, {
-        ...base,
-        slug: `  EDITED-PRODUCT-${suffix.toUpperCase()}  `,
-      }),
+      service.updateProduct(
+        product.id,
+        {
+          ...base,
+          slug: `  EDITED-PRODUCT-${suffix.toUpperCase()}  `,
+        },
+        actorUserId,
+      ),
     ).resolves.toMatchObject({ slug: `edited-product-${suffix}` });
     await expect(
-      service.updateProduct(product.id, {
-        ...base,
-        categoryId: category.id,
-        slug: `edited-product-${suffix}`,
-      }),
+      service.updateProduct(
+        product.id,
+        {
+          ...base,
+          categoryId: category.id,
+          slug: `edited-product-${suffix}`,
+        },
+        actorUserId,
+      ),
     ).resolves.toMatchObject({ categoryId: category.id });
     await expect(
-      service.updateProduct(product.id, {
-        ...base,
-        categoryId: category.id,
-        slug: `alpha-${suffix}`,
-      }),
+      service.updateProduct(
+        product.id,
+        {
+          ...base,
+          categoryId: category.id,
+          slug: `alpha-${suffix}`,
+        },
+        actorUserId,
+      ),
     ).rejects.toMatchObject({
       response: { message: 'That product slug is already in use.' },
     });
@@ -277,7 +337,11 @@ describe('catalogue service against PostgreSQL', () => {
       },
     });
     await expect(
-      service.deleteProduct(product.id, { confirmPermanentDelete: false }),
+      service.deleteProduct(
+        product.id,
+        { confirmPermanentDelete: false },
+        actorUserId,
+      ),
     ).rejects.toMatchObject({
       response: {
         code: 'PRODUCT_DELETE_CONFIRMATION_REQUIRED',
@@ -285,7 +349,11 @@ describe('catalogue service against PostgreSQL', () => {
       },
     });
     await expect(
-      service.deleteProduct(product.id, { confirmPermanentDelete: true }),
+      service.deleteProduct(
+        product.id,
+        { confirmPermanentDelete: true },
+        actorUserId,
+      ),
     ).resolves.toMatchObject({
       hardDeleted: true,
       preservedAsHistoricalTombstone: false,
@@ -304,7 +372,11 @@ describe('catalogue service against PostgreSQL', () => {
       service.getPublicProduct(`active-${suffix}`, product.slug),
     ).rejects.toMatchObject({ status: 404 });
     await expect(
-      service.deleteProduct(product.id, { confirmPermanentDelete: true }),
+      service.deleteProduct(
+        product.id,
+        { confirmPermanentDelete: true },
+        actorUserId,
+      ),
     ).rejects.toMatchObject({ status: 404 });
     expect(removeCommittedFiles).toHaveBeenCalledWith([
       `/media/products/hard-delete/${'c'.repeat(64)}.webp`,
@@ -316,7 +388,11 @@ describe('catalogue service against PostgreSQL', () => {
       data: { name: `Empty ${suffix}`, slug: `empty-${suffix}` },
     });
     await expect(
-      service.deleteCategory(empty.id, { confirmDeleteProducts: false }),
+      service.deleteCategory(
+        empty.id,
+        { confirmDeleteProducts: false },
+        actorUserId,
+      ),
     ).resolves.toMatchObject({
       categoryDeleted: true,
       productsRemovedFromCatalogue: 0,
@@ -344,16 +420,22 @@ describe('catalogue service against PostgreSQL', () => {
       },
     });
     await expect(
-      service.deleteCategory(category.id, { confirmDeleteProducts: false }),
+      service.deleteCategory(
+        category.id,
+        { confirmDeleteProducts: false },
+        actorUserId,
+      ),
     ).rejects.toMatchObject({
       response: {
         code: 'CATEGORY_DELETE_CONFIRMATION_REQUIRED',
         productCount: 1,
       },
     });
-    const deleted = await service.deleteCategory(category.id, {
-      confirmDeleteProducts: true,
-    });
+    const deleted = await service.deleteCategory(
+      category.id,
+      { confirmDeleteProducts: true },
+      actorUserId,
+    );
     expect(deleted).toMatchObject({
       hardDeletedProductCount: 1,
       productsRemovedFromCatalogue: 1,
@@ -471,13 +553,19 @@ describe('catalogue service against PostgreSQL', () => {
       return created;
     });
     await expect(
-      service.deleteProduct(product.id, { confirmPermanentDelete: false }),
+      service.deleteProduct(
+        product.id,
+        { confirmPermanentDelete: false },
+        actorUserId,
+      ),
     ).rejects.toMatchObject({
       response: { deletionMode: 'HISTORICAL_TOMBSTONE' },
     });
-    const deleted = await service.deleteProduct(product.id, {
-      confirmPermanentDelete: true,
-    });
+    const deleted = await service.deleteProduct(
+      product.id,
+      { confirmPermanentDelete: true },
+      actorUserId,
+    );
     expect(deleted).toMatchObject({
       hardDeleted: false,
       inventoryPreserved: true,
@@ -519,5 +607,24 @@ describe('catalogue service against PostgreSQL', () => {
         })
       ).items,
     ).toHaveLength(0);
+  });
+
+  it('rechecks the actor state inside catalogue mutation transactions', async () => {
+    await prisma.user.update({
+      where: { id: actorUserId },
+      data: { status: 'DISABLED' },
+    });
+    await expect(
+      service.updateCategory(
+        categoryIds[0]!,
+        {
+          description: null,
+          name: `Blocked ${suffix}`,
+          slug: `blocked-${suffix}`,
+          sortOrder: 0,
+        },
+        actorUserId,
+      ),
+    ).rejects.toMatchObject({ status: 403 });
   });
 });

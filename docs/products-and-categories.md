@@ -1,5 +1,15 @@
 # Products and Categories
 
+## Phase 16.4A category covers
+
+`CategoryCover` is an optional one-to-one presentation assignment. It references either existing `HomepageMedia` or a `ProductImage` from an active product in that same category, plus bounded alt text and focal position. The referenced file is not copied and product-image ownership, primary status, and order never change. Removing a cover removes only the assignment. A source image referenced by a cover or immutable homepage revision cannot be physically deleted.
+
+Public featured-category cards resolve an immutable homepage override first, a currently valid category cover second, the first eligible active product image third, and neutral theme-safe artwork last. Inactive or tombstoned records cannot be newly assigned. If a product supplying the current cover is later moved, deactivated, or tombstoned, the preserved assignment is ignored and the next safe fallback is used. No cover endpoint or public DTO exposes storage paths, hashes, inventory, availability, or staff data.
+
+## Phase 16.4 homepage selections
+
+Homepage featured selections reference active category/product records without changing them. Historical homepage references are deletion dependencies, so safe deletion retains the referenced row as a tombstone instead of causing a foreign-key failure. Public mapping omits inactive/tombstoned selections. Homepage media is not stored in `ProductImage`; existing product paths remain unchanged.
+
 Phase 4 implements descriptive catalogue data only. `Category` organizes `Product`; ordered `ProductImage` and `ProductSpecification` records hold media metadata and public specifications. Products have stable globally unique slugs, a category, short and long descriptions, a descriptive rental unit, active and featured flags, and timestamps. No price, quantity, availability, reservation, or inventory state exists in these models.
 
 Public URLs are `/rentals`, `/rentals/{categorySlug}`, and `/rentals/{categorySlug}/{productSlug}`. Slugs are lowercase ASCII words separated by single hyphens. Authorized staff may edit a category slug; input is trimmed, lowercased, validated, and kept globally unique. Renaming a category does not regenerate its slug. Changing a slug changes the public category and product URLs immediately; old URLs do not redirect because the platform has no redirect registry yet.

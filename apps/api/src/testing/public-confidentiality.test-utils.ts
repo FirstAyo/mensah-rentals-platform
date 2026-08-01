@@ -66,6 +66,13 @@ export const FORBIDDEN_PUBLIC_KEYS = [
   'serializedAssetId',
   'allocationId',
   'rentalOrderId',
+  'publishedByUserId',
+  'draftRevisionId',
+  'publishedRevisionId',
+  'googleApiKey',
+  'apiKey',
+  'placeId',
+  'rawResponse',
 ] as const;
 
 export function expectPublicDataSafe(value: unknown): void {

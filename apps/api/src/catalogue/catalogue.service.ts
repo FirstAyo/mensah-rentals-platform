@@ -1,9 +1,10 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import type { Prisma } from '@mensah-rentals/database';
+import { Prisma, UserStatus } from '@mensah-rentals/database';
 import type {
   AdminCategoryResponse,
   AdminProductResponse,
@@ -232,35 +233,51 @@ export class CatalogueService {
     return mapAdminCategory(category);
   }
 
-  async createCategory(input: CreateCategoryInput) {
+  async createCategory(input: CreateCategoryInput, actorUserId: string) {
     try {
-      const category = await this.repository.prisma.category.create({
-        select: categorySelect,
-        data: { ...input, slug: input.slug.trim().toLowerCase() },
+      const id = await this.repository.prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(${CATALOGUE_MUTATION_LOCK})`;
+        await this.requireActorPermission(tx, actorUserId, 'category.create');
+        const category = await tx.category.create({
+          data: { ...input, slug: input.slug.trim().toLowerCase() },
+        });
+        return category.id;
       });
-      return mapAdminCategory(category);
+      return this.getAdminCategory(id);
     } catch (error) {
       this.rethrowConflict(error, 'That category slug is already in use.');
     }
   }
 
-  async updateCategory(id: string, input: UpdateCategoryInput) {
-    await this.getAdminCategory(id);
+  async updateCategory(
+    id: string,
+    input: UpdateCategoryInput,
+    actorUserId: string,
+  ) {
     try {
-      const category = await this.repository.prisma.category.update({
-        select: categorySelect,
-        where: { id },
-        data: { ...input, slug: input.slug.trim().toLowerCase() },
+      await this.repository.prisma.$transaction(async (tx) => {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(${CATALOGUE_MUTATION_LOCK})`;
+        await this.requireActorPermission(tx, actorUserId, 'category.update');
+        const category = await tx.category.findFirst({
+          where: { id, deletedAt: null },
+          select: { id: true },
+        });
+        if (!category) throw new NotFoundException('Category not found');
+        await tx.category.update({
+          where: { id },
+          data: { ...input, slug: input.slug.trim().toLowerCase() },
+        });
       });
-      return mapAdminCategory(category);
+      return this.getAdminCategory(id);
     } catch (error) {
       this.rethrowConflict(error, 'That category slug is already in use.');
     }
   }
 
-  async deactivateCategory(id: string) {
+  async deactivateCategory(id: string, actorUserId: string) {
     await this.repository.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(${CATALOGUE_MUTATION_LOCK})`;
+      await this.requireActorPermission(tx, actorUserId, 'category.update');
       const category = await tx.category.findFirst({
         where: { id, deletedAt: null },
       });
@@ -280,12 +297,18 @@ export class CatalogueService {
   async deleteCategory(
     id: string,
     input: DeleteCategoryInput,
+    actorUserId: string,
   ): Promise<DeleteCategoryResponse> {
     const outcome = await this.repository.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(${CATALOGUE_MUTATION_LOCK})`;
+      await this.requireActorPermission(tx, actorUserId, 'category.delete');
       const category = await tx.category.findFirst({
         where: { id, deletedAt: null },
-        select: { id: true, name: true },
+        select: {
+          id: true,
+          name: true,
+          _count: { select: { homepageSelections: true } },
+        },
       });
       if (!category) throw new NotFoundException('Category not found');
 
@@ -294,7 +317,18 @@ export class CatalogueService {
         where: { categoryId: id, deletedAt: null },
         select: {
           id: true,
-          images: { select: { url: true } },
+          images: {
+            select: {
+              url: true,
+              _count: {
+                select: {
+                  homepagePlacements: true,
+                  homepageCategoryOverrides: true,
+                  categoryCovers: true,
+                },
+              },
+            },
+          },
           inventory: {
             select: {
               id: true,
@@ -312,6 +346,7 @@ export class CatalogueService {
               rentalChangeRequestItems: true,
               rentalRequestItems: true,
               rentalRequestRevisionItems: true,
+              homepageSelections: true,
             },
           },
         },
@@ -332,7 +367,14 @@ export class CatalogueService {
         const hasHistoricalProductReference =
           product._count.rentalRequestItems > 0 ||
           product._count.rentalRequestRevisionItems > 0 ||
-          product._count.rentalChangeRequestItems > 0;
+          product._count.rentalChangeRequestItems > 0 ||
+          product._count.homepageSelections > 0 ||
+          product.images.some(
+            (image) =>
+              image._count.homepagePlacements > 0 ||
+              image._count.homepageCategoryOverrides > 0 ||
+              image._count.categoryCovers > 0,
+          );
         const inventoryHasHistory = Boolean(
           product.inventory &&
             (product.inventory._count.items > 0 ||
@@ -354,7 +396,7 @@ export class CatalogueService {
         await tx.product.delete({ where: { id: product.id } });
         hardDeletedProductCount += 1;
       }
-      if (tombstonedProductCount > 0)
+      if (tombstonedProductCount > 0 || category._count.homepageSelections > 0)
         await tx.category.update({
           where: { id },
           data: { deletedAt: now, isActive: false },
@@ -375,14 +417,16 @@ export class CatalogueService {
     return outcome.response;
   }
 
-  async activateCategory(id: string) {
-    await this.repository.prisma.category
-      .update({ where: { id, deletedAt: null }, data: { isActive: true } })
-      .catch((error) => {
-        if (this.code(error) === 'P2025')
-          throw new NotFoundException('Category not found');
-        throw error;
+  async activateCategory(id: string, actorUserId: string) {
+    await this.repository.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${CATALOGUE_MUTATION_LOCK})`;
+      await this.requireActorPermission(tx, actorUserId, 'category.update');
+      const result = await tx.category.updateMany({
+        where: { id, deletedAt: null },
+        data: { isActive: true },
       });
+      if (!result.count) throw new NotFoundException('Category not found');
+    });
     return this.getAdminCategory(id);
   }
 
@@ -421,10 +465,11 @@ export class CatalogueService {
     return mapAdminProduct(product);
   }
 
-  async createProduct(input: CreateProductInput) {
+  async createProduct(input: CreateProductInput, actorUserId: string) {
     try {
       const id = await this.repository.prisma.$transaction(async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(${CATALOGUE_MUTATION_LOCK})`;
+        await this.requireActorPermission(tx, actorUserId, 'product.create');
         const category = await tx.category.findFirst({
           where: { id: input.categoryId, deletedAt: null },
         });
@@ -444,10 +489,15 @@ export class CatalogueService {
     }
   }
 
-  async updateProduct(id: string, input: UpdateProductInput) {
+  async updateProduct(
+    id: string,
+    input: UpdateProductInput,
+    actorUserId: string,
+  ) {
     try {
       await this.repository.prisma.$transaction(async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(${CATALOGUE_MUTATION_LOCK})`;
+        await this.requireActorPermission(tx, actorUserId, 'product.update');
         const current = await tx.product.findFirst({
           where: { id, deletedAt: null },
         });
@@ -475,16 +525,29 @@ export class CatalogueService {
   async deleteProduct(
     id: string,
     input: DeleteProductInput,
+    actorUserId: string,
   ): Promise<DeleteProductResponse> {
     const outcome = await this.repository.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(${CATALOGUE_MUTATION_LOCK})`;
+      await this.requireActorPermission(tx, actorUserId, 'product.delete');
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${id}))`;
       await tx.$queryRaw`SELECT id FROM "Product" WHERE id = ${id} AND "deletedAt" IS NULL FOR UPDATE`;
       const product = await tx.product.findFirst({
         where: { id, deletedAt: null },
         select: {
           id: true,
-          images: { select: { url: true } },
+          images: {
+            select: {
+              url: true,
+              _count: {
+                select: {
+                  homepagePlacements: true,
+                  homepageCategoryOverrides: true,
+                  categoryCovers: true,
+                },
+              },
+            },
+          },
           inventory: {
             select: {
               id: true,
@@ -502,6 +565,7 @@ export class CatalogueService {
               rentalChangeRequestItems: true,
               rentalRequestItems: true,
               rentalRequestRevisionItems: true,
+              homepageSelections: true,
             },
           },
         },
@@ -511,7 +575,14 @@ export class CatalogueService {
       const hasHistoricalReference =
         product._count.rentalRequestItems > 0 ||
         product._count.rentalRequestRevisionItems > 0 ||
-        product._count.rentalChangeRequestItems > 0;
+        product._count.rentalChangeRequestItems > 0 ||
+        product._count.homepageSelections > 0 ||
+        product.images.some(
+          (image) =>
+            image._count.homepagePlacements > 0 ||
+            image._count.homepageCategoryOverrides > 0 ||
+            image._count.categoryCovers > 0,
+        );
       const inventoryHasHistory = Boolean(
         product.inventory &&
           (product.inventory._count.items > 0 ||
@@ -571,12 +642,12 @@ export class CatalogueService {
     return outcome.response;
   }
 
-  async deactivateProduct(id: string) {
-    return this.setProductActive(id, false);
+  async deactivateProduct(id: string, actorUserId: string) {
+    return this.setProductActive(id, false, actorUserId);
   }
 
-  async activateProduct(id: string) {
-    return this.setProductActive(id, true);
+  async activateProduct(id: string, actorUserId: string) {
+    return this.setProductActive(id, true, actorUserId);
   }
 
   async listPublicCategories(
@@ -794,9 +865,14 @@ export class CatalogueService {
     };
   }
 
-  private async setProductActive(id: string, isActive: boolean) {
+  private async setProductActive(
+    id: string,
+    isActive: boolean,
+    actorUserId: string,
+  ) {
     await this.repository.prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(${CATALOGUE_MUTATION_LOCK})`;
+      await this.requireActorPermission(tx, actorUserId, 'product.update');
       const product = await tx.product.findFirst({
         include: { category: true },
         where: { id, deletedAt: null },
@@ -824,6 +900,28 @@ export class CatalogueService {
       items,
       meta: { page, pageSize, total, totalPages: Math.ceil(total / pageSize) },
     };
+  }
+
+  private async requireActorPermission(
+    tx: Prisma.TransactionClient,
+    actorUserId: string,
+    permission: string,
+  ) {
+    const actor = await tx.user.findFirst({
+      where: {
+        id: actorUserId,
+        status: UserStatus.ACTIVE,
+        roles: {
+          some: {
+            role: {
+              permissions: { some: { permission: { key: permission } } },
+            },
+          },
+        },
+      },
+      select: { id: true },
+    });
+    if (!actor) throw new ForbiddenException('Insufficient permissions');
   }
 
   private code(error: unknown): string | undefined {

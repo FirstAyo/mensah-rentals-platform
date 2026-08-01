@@ -20,6 +20,7 @@ export default defineConfig({
           '**/quotes.spec.ts',
           '**/orders.spec.ts',
           '**/amendments-isolated.spec.ts',
+          '**/homepage.spec.ts',
         ],
   timeout: 60_000,
   expect: { timeout: 30_000 },

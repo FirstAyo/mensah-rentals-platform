@@ -293,6 +293,19 @@ enum RentalOrderActivityType {
   ORDER_CUSTOMER_ACCESS_RESENT
 }
 
+enum HomepageRevisionKind {
+  DRAFT
+  PUBLISHED
+}
+
+enum HomepageActivityType {
+  DRAFT_CREATED
+  PUBLISHED
+  RESTORED
+  MEDIA_UPLOADED
+  MEDIA_REMOVED
+}
+
 model User {
   id                               String                          @id @default(cuid())
   email                            String                          @unique
@@ -339,6 +352,11 @@ model User {
   rentalIssuesCreated              RentalIssue[]                   @relation("RentalIssueCreator")
   rentalIssueResolutions           RentalIssueResolution[]         @relation("RentalIssueResolutionActor")
   returnActivities                 ReturnActivity[]                @relation("ReturnActivityActor")
+  homepageRevisionsCreated         HomepageRevision[]              @relation("HomepageRevisionCreator")
+  homepageRevisionsPublished       HomepageRevision[]              @relation("HomepageRevisionPublisher")
+  homepageActivities               HomepageActivity[]              @relation("HomepageActivityActor")
+  homepageMediaCreated             HomepageMedia[]                 @relation("HomepageMediaCreator")
+  categoryCoversUpdated            CategoryCover[]                 @relation("CategoryCoverUpdater")
 }
 
 model StaffSession {
@@ -409,6 +427,8 @@ model Category {
   updatedAt   DateTime  @updatedAt @db.Timestamptz(3)
   deletedAt   DateTime? @db.Timestamptz(3)
   products    Product[]
+  homepageSelections HomepageFeaturedCategory[]
+  cover              CategoryCover?
 
   @@index([isActive, sortOrder, name, id])
   @@index([deletedAt, sortOrder, name, id])
@@ -435,6 +455,7 @@ model Product {
   rentalRequestItems         RentalRequestItem[]
   rentalRequestRevisionItems RentalRequestRevisionItem[]
   rentalChangeRequestItems   RentalChangeRequestItem[]
+  homepageSelections         HomepageFeaturedProduct[]
 
   @@index([categoryId, isActive, name, id])
   @@index([isActive, isFeatured, updatedAt, id])
@@ -1710,6 +1731,9 @@ model ProductImage {
   isPrimary Boolean  @default(false)
   createdAt DateTime @default(now()) @db.Timestamptz(3)
   product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  homepagePlacements HomepageMediaPlacement[] @relation("HomepagePlacementProductImage")
+  homepageCategoryOverrides HomepageFeaturedCategory[] @relation("HomepageCategoryOverrideProductImage")
+  categoryCovers CategoryCover[] @relation("CategoryCoverProductImage")
 
   @@unique([productId, sortOrder])
   @@index([productId, sortOrder, id])
@@ -1725,4 +1749,154 @@ model ProductSpecification {
 
   @@unique([productId, sortOrder])
   @@index([productId, sortOrder, id])
+}
+
+model HomepageSite {
+  id                  String            @id
+  draftRevisionId     String?           @unique
+  publishedRevisionId String?           @unique
+  lockVersion         Int               @default(0)
+  createdAt           DateTime          @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime          @updatedAt @db.Timestamptz(3)
+  revisions           HomepageRevision[] @relation("HomepageRevisions")
+  draftRevision       HomepageRevision? @relation("HomepageDraftHead", fields: [draftRevisionId], references: [id], onDelete: Restrict)
+  publishedRevision   HomepageRevision? @relation("HomepagePublishedHead", fields: [publishedRevisionId], references: [id], onDelete: Restrict)
+  activities          HomepageActivity[]
+}
+
+model HomepageRevision {
+  id                     String                 @id @default(cuid())
+  homepageId             String
+  version                Int
+  kind                   HomepageRevisionKind
+  content                Json
+  basedOnRevisionId      String?
+  restoredFromRevisionId String?
+  operationId            String?                @unique
+  payloadHash            String?                @db.Char(64)
+  createdByUserId        String
+  publishedByUserId      String?
+  createdAt              DateTime               @default(now()) @db.Timestamptz(3)
+  publishedAt            DateTime?              @db.Timestamptz(3)
+  homepage               HomepageSite           @relation("HomepageRevisions", fields: [homepageId], references: [id], onDelete: Restrict)
+  basedOnRevision        HomepageRevision?      @relation("HomepageRevisionBasis", fields: [basedOnRevisionId], references: [id], onDelete: Restrict)
+  basedRevisions         HomepageRevision[]     @relation("HomepageRevisionBasis")
+  restoredFromRevision   HomepageRevision?      @relation("HomepageRevisionRestore", fields: [restoredFromRevisionId], references: [id], onDelete: Restrict)
+  restoredRevisions      HomepageRevision[]     @relation("HomepageRevisionRestore")
+  createdBy              User                   @relation("HomepageRevisionCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  publishedBy            User?                  @relation("HomepageRevisionPublisher", fields: [publishedByUserId], references: [id], onDelete: Restrict)
+  draftHeadOf            HomepageSite?          @relation("HomepageDraftHead")
+  publishedHeadOf        HomepageSite?          @relation("HomepagePublishedHead")
+  featuredCategories     HomepageFeaturedCategory[]
+  featuredProducts       HomepageFeaturedProduct[]
+  mediaPlacements        HomepageMediaPlacement[]
+  activities             HomepageActivity[]
+
+  @@unique([homepageId, version])
+  @@index([homepageId, kind, createdAt])
+  @@index([createdByUserId, createdAt])
+  @@index([publishedByUserId, publishedAt])
+}
+
+model HomepageFeaturedCategory {
+  revisionId           String
+  categoryId           String
+  sortOrder            Int
+  coverHomepageMediaId String?
+  coverProductImageId  String?
+  coverAltText         String? @db.VarChar(300)
+  coverFocalPoint      String? @db.VarChar(20)
+  revision             HomepageRevision @relation(fields: [revisionId], references: [id], onDelete: Restrict)
+  category             Category         @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  coverHomepageMedia   HomepageMedia?    @relation("HomepageCategoryOverrideMedia", fields: [coverHomepageMediaId], references: [id], onDelete: Restrict)
+  coverProductImage    ProductImage?     @relation("HomepageCategoryOverrideProductImage", fields: [coverProductImageId], references: [id], onDelete: Restrict)
+
+  @@id([revisionId, categoryId])
+  @@unique([revisionId, sortOrder])
+  @@index([categoryId])
+  @@index([coverHomepageMediaId])
+  @@index([coverProductImageId])
+}
+
+model HomepageFeaturedProduct {
+  revisionId String
+  productId  String
+  sortOrder  Int
+  revision   HomepageRevision @relation(fields: [revisionId], references: [id], onDelete: Restrict)
+  product    Product          @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@id([revisionId, productId])
+  @@unique([revisionId, sortOrder])
+  @@index([productId])
+}
+
+model HomepageMedia {
+  id               String                   @id @default(cuid())
+  contentHash      String                   @unique @db.Char(64)
+  url              String                   @db.Text
+  width            Int
+  height           Int
+  byteSize         Int
+  format           String
+  description      String
+  originalFilename String
+  createdByUserId  String
+  createdAt        DateTime                 @default(now()) @db.Timestamptz(3)
+  createdBy        User                     @relation("HomepageMediaCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  placements       HomepageMediaPlacement[]
+  homepageCategoryOverrides HomepageFeaturedCategory[] @relation("HomepageCategoryOverrideMedia")
+  categoryCovers CategoryCover[] @relation("CategoryCoverHomepageMedia")
+
+  @@index([createdByUserId, createdAt])
+}
+
+model HomepageMediaPlacement {
+  revisionId String
+  mediaId    String?
+  productImageId String?
+  slotKey    String
+  sortOrder  Int      @default(0)
+  revision   HomepageRevision @relation(fields: [revisionId], references: [id], onDelete: Restrict)
+  media      HomepageMedia?   @relation(fields: [mediaId], references: [id], onDelete: Restrict)
+  productImage ProductImage?  @relation("HomepagePlacementProductImage", fields: [productImageId], references: [id], onDelete: Restrict)
+
+  @@id([revisionId, slotKey])
+  @@index([mediaId])
+  @@index([productImageId])
+}
+
+model CategoryCover {
+  categoryId       String   @id
+  homepageMediaId  String?
+  productImageId   String?
+  altText          String   @db.VarChar(300)
+  focalPoint       String   @default("center") @db.VarChar(20)
+  updatedByUserId  String
+  createdAt        DateTime @default(now()) @db.Timestamptz(3)
+  updatedAt        DateTime @updatedAt @db.Timestamptz(3)
+  category         Category       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  homepageMedia    HomepageMedia? @relation("CategoryCoverHomepageMedia", fields: [homepageMediaId], references: [id], onDelete: Restrict)
+  productImage     ProductImage?  @relation("CategoryCoverProductImage", fields: [productImageId], references: [id], onDelete: Restrict)
+  updatedBy        User           @relation("CategoryCoverUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([homepageMediaId])
+  @@index([productImageId])
+  @@index([updatedByUserId, updatedAt])
+}
+
+model HomepageActivity {
+  id         String               @id @default(cuid())
+  homepageId String
+  revisionId String?
+  actorUserId String
+  type       HomepageActivityType
+  details    Json?
+  createdAt  DateTime             @default(now()) @db.Timestamptz(3)
+  homepage   HomepageSite         @relation(fields: [homepageId], references: [id], onDelete: Restrict)
+  revision   HomepageRevision?    @relation(fields: [revisionId], references: [id], onDelete: Restrict)
+  actor      User                 @relation("HomepageActivityActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([homepageId, createdAt, id])
+  @@index([revisionId, createdAt])
+  @@index([actorUserId, createdAt])
 }

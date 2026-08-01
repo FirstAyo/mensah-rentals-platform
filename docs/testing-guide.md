@@ -1,5 +1,57 @@
 # Testing Guide
 
+## Phase 16.4A homepage correction verification
+
+Run from PowerShell at the repository root:
+
+```powershell
+docker compose up -d postgres postgres-test
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm test:e2e:homepage
+pnpm test:e2e:homepage-admin
+pnpm test:e2e:homepage-media
+pnpm test:e2e:homepage-all
+git diff --check
+```
+
+Success means all 45 migrations apply from empty guarded test storage, RBAC verifies, static/build gates exit 0, and the automated suite proves ordered multi-slide serialization, disabled-slide exclusion, dual-source media reuse without copying/deletion, category-cover assignment/fallback, exact permissions, immutable history, and public confidentiality. Browser success proves three-image save/preview/publish, manual and autoplay controls, reusable product selection/search, category covers, fixed desktop navigation, mobile focus restoration, shared bottom actions, consistent 44/104-pixel controls, dark-theme persistence, no horizontal overflow, and zero serious/critical Axe violations.
+
+Never point the browser harness or automated fixtures at the development, staging, or production database. A failure saying ports are occupied means stop `pnpm dev` before retrying. A 409 in the editor means the revision lock changed; reload rather than overwriting newer content. A 403 means the staff account lacks one of the exact media/category permissions.
+
+## Phase 16.4 homepage verification
+
+```powershell
+docker compose up -d postgres postgres-test
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm test:e2e:homepage
+pnpm test:e2e:homepage-admin
+pnpm test:e2e:homepage-google-reviews
+pnpm test:e2e:homepage-all
+git diff --check
+```
+
+Success means 44 migrations are current, RBAC reports 4 roles and 79 permissions, every command exits 0, the homepage is usable at 320px and desktop in both themes, serious/critical Axe findings are zero, draft copy remains private until publication, and public responses contain no inventory, staff, draft, storage, or Google-secret data. Stop normal servers on ports 3000, 3001, and 4000 before the guarded browser commands.
+
 ## Phase 16.1 focused regression checks
 
 From the repository root in PowerShell, start both guarded PostgreSQL services,
