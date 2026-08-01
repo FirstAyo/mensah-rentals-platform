@@ -8,6 +8,7 @@ import type {
   AdminCategoryResponse,
   AdminProductResponse,
   DeleteCategoryResponse,
+  DeleteProductResponse,
   PaginatedResponse,
   PublicCategoryResponse,
   PublicProductDetailResponse,
@@ -18,6 +19,7 @@ import type {
   CreateCategoryInput,
   CreateProductInput,
   DeleteCategoryInput,
+  DeleteProductInput,
   ProductListQuery,
   PublicCategoryListQuery,
   PublicProductListQuery,
@@ -438,7 +440,7 @@ export class CatalogueService {
       });
       return this.getAdminProduct(id);
     } catch (error) {
-      this.rethrowConflict(error, 'Product slug already exists');
+      this.rethrowConflict(error, 'That product slug is already in use.');
     }
   }
 
@@ -466,11 +468,107 @@ export class CatalogueService {
       });
       return this.getAdminProduct(id);
     } catch (error) {
-      this.rethrowConflict(
-        error,
-        'Product update conflicts with existing catalogue data',
-      );
+      this.rethrowConflict(error, 'That product slug is already in use.');
     }
+  }
+
+  async deleteProduct(
+    id: string,
+    input: DeleteProductInput,
+  ): Promise<DeleteProductResponse> {
+    const outcome = await this.repository.prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(${CATALOGUE_MUTATION_LOCK})`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${id}))`;
+      await tx.$queryRaw`SELECT id FROM "Product" WHERE id = ${id} AND "deletedAt" IS NULL FOR UPDATE`;
+      const product = await tx.product.findFirst({
+        where: { id, deletedAt: null },
+        select: {
+          id: true,
+          images: { select: { url: true } },
+          inventory: {
+            select: {
+              id: true,
+              _count: {
+                select: {
+                  items: true,
+                  reservationItems: true,
+                  transactions: true,
+                },
+              },
+            },
+          },
+          _count: {
+            select: {
+              rentalChangeRequestItems: true,
+              rentalRequestItems: true,
+              rentalRequestRevisionItems: true,
+            },
+          },
+        },
+      });
+      if (!product) throw new NotFoundException('Product not found');
+
+      const hasHistoricalReference =
+        product._count.rentalRequestItems > 0 ||
+        product._count.rentalRequestRevisionItems > 0 ||
+        product._count.rentalChangeRequestItems > 0;
+      const inventoryHasHistory = Boolean(
+        product.inventory &&
+          (product.inventory._count.items > 0 ||
+            product.inventory._count.reservationItems > 0 ||
+            product.inventory._count.transactions > 0),
+      );
+      const preserveAsTombstone = hasHistoricalReference || inventoryHasHistory;
+      if (!input.confirmPermanentDelete)
+        throw new ConflictException({
+          code: 'PRODUCT_DELETE_CONFIRMATION_REQUIRED',
+          deletionMode: preserveAsTombstone
+            ? 'HISTORICAL_TOMBSTONE'
+            : 'HARD_DELETE',
+          message: preserveAsTombstone
+            ? 'This product is used by historical or operational records. Confirm removal from the catalogue to continue.'
+            : 'Confirm permanent product deletion to continue.',
+          statusCode: 409,
+        });
+
+      await tx.cartItem.deleteMany({ where: { productId: id } });
+      if (preserveAsTombstone) {
+        await tx.product.update({
+          where: { id },
+          data: { deletedAt: new Date(), isActive: false, isFeatured: false },
+        });
+        return {
+          mediaUrls: [] as string[],
+          response: {
+            hardDeleted: false,
+            inventoryPreserved: Boolean(product.inventory),
+            mediaCleanup: 'PRESERVED' as const,
+            preservedAsHistoricalTombstone: true,
+            productRemovedFromCatalogue: true as const,
+          },
+        };
+      }
+
+      if (product.inventory)
+        await tx.inventory.delete({ where: { id: product.inventory.id } });
+      const mediaUrls = product.images.map(({ url }) => url);
+      await tx.product.delete({ where: { id } });
+      return {
+        mediaUrls,
+        response: {
+          hardDeleted: true,
+          inventoryPreserved: false,
+          mediaCleanup:
+            mediaUrls.length > 0
+              ? ('ATTEMPTED_AFTER_COMMIT' as const)
+              : ('NOT_REQUIRED' as const),
+          preservedAsHistoricalTombstone: false,
+          productRemovedFromCatalogue: true as const,
+        },
+      };
+    });
+    await this.media.removeCommittedFiles(outcome.mediaUrls);
+    return outcome.response;
   }
 
   async deactivateProduct(id: string) {
@@ -691,6 +789,7 @@ export class CatalogueService {
       name: input.name,
       rentalUnit: input.rentalUnit,
       shortDescription: input.shortDescription,
+      slug: input.slug.trim().toLowerCase(),
       ...this.productChildren(input),
     };
   }

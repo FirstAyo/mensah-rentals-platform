@@ -18,7 +18,7 @@ import {
   type ColumnDef,
 } from '@tanstack/react-table';
 import Link from 'next/link';
-import { useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { AccessibleDialog } from './accessible-dialog';
 
 type Row = AdminCategoryResponse | AdminProductResponse;
@@ -36,6 +36,7 @@ function TableView({
   const [search, setSearch] = useState('');
   const [confirmation, setConfirmation] = useState<{
     action: 'deactivate' | 'delete';
+    deletionMode?: 'HARD_DELETE' | 'HISTORICAL_TOMBSTONE';
     row: Row;
   } | null>(null);
   const [mutationError, setMutationError] = useState<string | null>(null);
@@ -45,6 +46,43 @@ function TableView({
   const triggerRef = useRef<HTMLElement | null>(null);
   const queryClient = useQueryClient();
 
+  const prepareProductDeletion = useCallback(
+    async (row: Row) => {
+      if (submitting) return;
+      setSubmitting(true);
+      setMutationError(null);
+      const response = await fetch(`/api/catalogue/products/${row.id}`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ confirmPermanentDelete: false }),
+      });
+      const body = (await response.json().catch(() => null)) as {
+        deletionMode?: 'HARD_DELETE' | 'HISTORICAL_TOMBSTONE';
+        message?: string;
+      } | null;
+      if (
+        response.status === 409 &&
+        (body?.deletionMode === 'HARD_DELETE' ||
+          body?.deletionMode === 'HISTORICAL_TOMBSTONE')
+      )
+        setConfirmation({
+          action: 'delete',
+          deletionMode: body.deletionMode,
+          row,
+        });
+      else
+        setMutationError(
+          response.status === 403
+            ? 'You do not have permission to delete products.'
+            : response.status === 404
+              ? 'This product changed while you were viewing it. Refresh and try again.'
+              : (body?.message ?? 'This product could not be deleted safely.'),
+        );
+      setSubmitting(false);
+    },
+    [submitting],
+  );
+
   async function confirmMutation() {
     if (!confirmation || submitting) return;
     setSubmitting(true);
@@ -52,20 +90,22 @@ function TableView({
     const isCategory = resource === 'categories';
     const deleting = confirmation.action === 'delete';
     const url = deleting
-      ? `/api/catalogue/categories/${confirmation.row.id}`
-      : `/api/catalogue/${resource}/${confirmation.row.id}${isCategory ? '/deactivate' : ''}`;
+      ? `/api/catalogue/${resource}/${confirmation.row.id}`
+      : `/api/catalogue/${resource}/${confirmation.row.id}/deactivate`;
     const response = await fetch(url, {
-      method: deleting || !isCategory ? 'DELETE' : 'POST',
+      method: deleting ? 'DELETE' : 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: deleting
-        ? JSON.stringify({
-            confirmDeleteProducts:
-              'productCount' in confirmation.row &&
-              confirmation.row.productCount > 0,
-          })
-        : !isCategory
-          ? undefined
-          : '{}',
+        ? JSON.stringify(
+            isCategory
+              ? {
+                  confirmDeleteProducts:
+                    'productCount' in confirmation.row &&
+                    confirmation.row.productCount > 0,
+                }
+              : { confirmPermanentDelete: true },
+          )
+        : '{}',
     });
     if (!response.ok) {
       const body = (await response.json().catch(() => null)) as {
@@ -73,11 +113,12 @@ function TableView({
       } | null;
       setMutationError(
         response.status === 403
-          ? 'You do not have permission to delete categories.'
-          : response.status === 409
+          ? `You do not have permission to delete ${isCategory ? 'categories' : 'products'}.`
+          : response.status === 404 || response.status === 409
             ? (body?.message ??
-              'This category changed while you were viewing it. Refresh and try again.')
-            : (body?.message ?? 'This category could not be deleted.'),
+              `This ${isCategory ? 'category' : 'product'} changed while you were viewing it. Refresh and try again.`)
+            : (body?.message ??
+              `This ${isCategory ? 'category' : 'product'} could not be deleted safely.`),
       );
       setSubmitting(false);
       return;
@@ -146,11 +187,10 @@ function TableView({
                 Edit
               </Link>
             ) : null}
-            {((resource === 'categories' && canUpdate) ||
-              (resource === 'products' && canDelete)) &&
-            row.original.isActive ? (
+            {canUpdate && row.original.isActive ? (
               <button
                 className="rounded-md border border-border px-2.5 py-1.5 text-sm"
+                disabled={submitting}
                 onClick={(event) => {
                   triggerRef.current = event.currentTarget;
                   setMutationError(null);
@@ -161,13 +201,16 @@ function TableView({
                 Deactivate
               </button>
             ) : null}
-            {resource === 'categories' && canDelete ? (
+            {canDelete ? (
               <button
                 className="rounded-md border border-destructive/50 px-2.5 py-1.5 text-sm text-destructive"
+                disabled={submitting}
                 onClick={(event) => {
                   triggerRef.current = event.currentTarget;
                   setMutationError(null);
-                  setConfirmation({ action: 'delete', row: row.original });
+                  if (resource === 'products')
+                    void prepareProductDeletion(row.original);
+                  else setConfirmation({ action: 'delete', row: row.original });
                 }}
                 type="button"
               >
@@ -193,7 +236,14 @@ function TableView({
         ),
       },
     ],
-    [canDelete, canUpdate, queryClient, resource],
+    [
+      canDelete,
+      canUpdate,
+      prepareProductDeletion,
+      queryClient,
+      resource,
+      submitting,
+    ],
   );
   const table = useReactTable({
     data: query.data?.items ?? [],
@@ -208,6 +258,14 @@ function TableView({
       >
         {notice}
       </div>
+      {mutationError && !confirmation ? (
+        <p
+          className="mb-3 rounded-lg border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive"
+          role="alert"
+        >
+          {mutationError}
+        </p>
+      ) : null}
       <label className="sr-only" htmlFor={`${resource}-search`}>
         Search
       </label>
@@ -308,10 +366,14 @@ function TableView({
               id="catalogue-confirmation-title"
             >
               {confirmation.action === 'delete'
-                ? 'productCount' in confirmation.row &&
-                  confirmation.row.productCount > 0
-                  ? 'Delete category and products?'
-                  : 'Delete this category?'
+                ? resource === 'products'
+                  ? confirmation.deletionMode === 'HISTORICAL_TOMBSTONE'
+                    ? 'Delete product from catalogue?'
+                    : 'Delete this product?'
+                  : 'productCount' in confirmation.row &&
+                      confirmation.row.productCount > 0
+                    ? 'Delete category and products?'
+                    : 'Delete this category?'
                 : `Deactivate ${confirmation.row.name}?`}
             </h2>
             <div
@@ -319,8 +381,24 @@ function TableView({
               id="catalogue-confirmation-description"
             >
               {confirmation.action === 'delete' ? (
-                'productCount' in confirmation.row &&
-                confirmation.row.productCount > 0 ? (
+                resource === 'products' ? (
+                  confirmation.deletionMode === 'HISTORICAL_TOMBSTONE' ? (
+                    <>
+                      <p>
+                        This product is used by existing historical or
+                        operational records. It will be removed from the active
+                        catalogue, but required history will be preserved.
+                      </p>
+                      <p>This action cannot be undone.</p>
+                    </>
+                  ) : (
+                    <p>
+                      This action permanently removes the product from the
+                      catalogue and cannot be undone.
+                    </p>
+                  )
+                ) : 'productCount' in confirmation.row &&
+                  confirmation.row.productCount > 0 ? (
                   <>
                     <p>
                       <strong className="text-foreground">
@@ -384,7 +462,9 @@ function TableView({
                     ? 'productCount' in confirmation.row &&
                       confirmation.row.productCount > 0
                       ? 'Delete category and products'
-                      : 'Delete category'
+                      : resource === 'products'
+                        ? 'Delete product'
+                        : 'Delete category'
                     : 'Deactivate'}
               </button>
             </div>

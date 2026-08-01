@@ -29,7 +29,9 @@ describe('RBAC catalogue', () => {
     expect(DEFAULT_ROLE_PERMISSION_KEYS.EDITOR).not.toContain(
       'category.delete',
     );
+    expect(DEFAULT_ROLE_PERMISSION_KEYS.EDITOR).not.toContain('product.delete');
     expect(DEFAULT_ROLE_PERMISSION_KEYS.ADMIN).toContain('category.delete');
+    expect(DEFAULT_ROLE_PERMISSION_KEYS.ADMIN).toContain('product.delete');
   });
   it('keeps role management out of SALES_PERSON', () => {
     expect(DEFAULT_ROLE_PERMISSION_KEYS.SALES_PERSON).not.toContain(

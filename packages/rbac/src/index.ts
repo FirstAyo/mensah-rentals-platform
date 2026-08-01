@@ -190,7 +190,6 @@ const EDITOR_PERMISSIONS = [
   'product.view',
   'product.create',
   'product.update',
-  'product.delete',
   'category.view',
   'category.create',
   'category.update',

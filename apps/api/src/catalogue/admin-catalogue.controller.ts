@@ -15,6 +15,7 @@ import {
   createProductSchema,
   cuidParamSchema,
   deleteCategorySchema,
+  deleteProductSchema,
   productListQuerySchema,
   updateCategorySchema,
   updateProductSchema,
@@ -22,6 +23,7 @@ import {
   type CreateCategoryInput,
   type CreateProductInput,
   type DeleteCategoryInput,
+  type DeleteProductInput,
   type ProductListQuery,
   type UpdateCategoryInput,
   type UpdateProductInput,
@@ -131,6 +133,21 @@ export class AdminProductsController {
 
   @Delete(':id')
   @RequirePermissions('product.delete')
+  delete(
+    @Param('id', new ZodBodyPipe(cuidParamSchema)) id: string,
+    @Body(
+      new CatalogueZodPipe(
+        deleteProductSchema,
+        'Invalid product deletion request',
+      ),
+    )
+    input: DeleteProductInput,
+  ) {
+    return this.catalogue.deleteProduct(id, input);
+  }
+
+  @Post(':id/deactivate')
+  @RequirePermissions('product.update')
   deactivate(@Param('id', new ZodBodyPipe(cuidParamSchema)) id: string) {
     return this.catalogue.deactivateProduct(id);
   }

@@ -40,6 +40,8 @@ Authorization is permission-based. Roles collect permissions; users may have mul
 
 `category.update` permits editing and reversible activation/deactivation. `category.delete` is separate permanent catalogue-removal authority. Phase 16.2 grants permanent category deletion by default to `SUPER_ADMIN` and `ADMIN`; `EDITOR` and `SALES_PERSON` do not receive it. The Phase 16.2 migration removes the former broad `category.delete` assignment from the system `EDITOR` role while preserving custom-role mappings.
 
+`product.update` permits metadata/slug editing and reversible activation/deactivation. `product.delete` is separate irreversible catalogue-removal authority. Phase 16.3 grants it by default only to `SUPER_ADMIN` and `ADMIN`; `EDITOR` and `SALES_PERSON` do not receive it. Migration `20260731130000_phase16_3_product_deletion` removes only the system EDITOR mapping and preserves custom-role assignments.
+
 - Inventory: `inventory.view`, `inventory.quantity.view`, `inventory.adjust`, `inventory.transaction.view`
 - Rental requests: `rental_request.view`, `rental_request.assign`, `rental_request.update`, `rental_request.approve`, `rental_request.partially_approve`, `rental_request.reject`
 - Quotes: `quote.view`, `quote.create`, `quote.update`, `quote.send`, `quote.approve`

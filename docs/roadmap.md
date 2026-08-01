@@ -1,5 +1,7 @@
 # Development Roadmap
 
+- Phase 16.3 implemented: editable product slugs and separate permission-protected product deletion with safe hard-delete/tombstone retention and inventory non-mutation. Phase 17 remains unstarted.
+
 - Phase 15: fulfilment preparation, atomic handoff/checkout, reservation consumption, and active rentals (implemented).
 - Phase 16 implemented: append-only partial/full return intake, damage/missing/maintenance classification, issue resolution and recovery, reconciliation, explicit completion, staff PDFs, and customer-safe status. Payments remain separate.
 - Recommended Phase 17: advanced maintenance work orders and inspection scheduling, without combining maintenance operations with return history or payment processing.

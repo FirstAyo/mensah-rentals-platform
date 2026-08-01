@@ -1,5 +1,9 @@
 # Inventory Foundation
 
+## Phase 16.3 product deletion boundary
+
+Catalogue deletion is never an inventory adjustment. A product with serialized assets, reservation items, inventory transactions, or any non-empty operational inventory graph cannot be hard-deleted; it is retained as an inactive, non-featured catalogue tombstone. The transaction does not change bulk totals, asset states, reservations, fulfilment, active rentals, return reconciliation, issues, or ledger rows. Only a truly empty inventory configuration may be removed immediately before an otherwise unreferenced product is hard-deleted.
+
 ## Phase 15 checkout movement
 
 Bulk checkout appends a movement from `RENTABLE` to `RENTED`; serialized checkout moves the exact allocated asset to `RENTED`. Transactions reference the fulfilment operation. Physical total is unchanged. Expected return does not alter inventory.

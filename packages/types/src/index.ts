@@ -83,6 +83,14 @@ export interface DeleteCategoryResponse {
   tombstonedProductCount: number;
 }
 
+export interface DeleteProductResponse {
+  hardDeleted: boolean;
+  inventoryPreserved: boolean;
+  mediaCleanup: 'ATTEMPTED_AFTER_COMMIT' | 'NOT_REQUIRED' | 'PRESERVED';
+  preservedAsHistoricalTombstone: boolean;
+  productRemovedFromCatalogue: true;
+}
+
 export interface AdminProductImageResponse {
   altText: string;
   createdAt: string;

@@ -397,3 +397,5 @@ The return module owns return intake, reconciliation, issues, recovery, and expl
 ## Phase 16.2 category-retention boundary
 
 Reversible category deactivation is separate from permanent catalogue deletion. A transaction-level catalogue lock plus product row locks protects dependency recalculation. Safe, unreferenced records are hard-deleted; historically or operationally referenced products and their category receive a private `deletedAt` tombstone. No restrictive request or inventory relationship is weakened. Product media filesystem cleanup runs only after the database transaction commits.
+
+Phase 16.3 extends this retention boundary to direct product deletion. The product-delete transaction obtains the catalogue lock, the same per-product lock used by media mutations, and a row lock before recalculating references. Empty, unreferenced identity is hard-deleted; any immutable request reference or non-empty operational inventory graph produces a private tombstone. Product deactivation remains a separate `product.update` operation. Deletion cannot act as an inventory, reservation, fulfilment, return, or issue mutation.

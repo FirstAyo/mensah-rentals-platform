@@ -4,6 +4,8 @@ Phase 16 adds protected partial/full return intake, condition reconciliation, mi
 
 Phase 16.2 corrects category slug editing and separates reversible deactivation from permission-gated permanent catalogue deletion. Referenced products use private historical tombstones; unreferenced records and committed media are safely removed. See [Products and categories](docs/products-and-categories.md).
 
+Phase 16.3 corrects product slug editing and separates reversible product deactivation from history-preserving permanent catalogue removal. Product deletion never acts as an inventory mutation. See [Products and categories](docs/products-and-categories.md).
+
 ## Phase 14: internal inventory reservations
 
 Authorised staff can now commit bulk quantities and selected serialized assets

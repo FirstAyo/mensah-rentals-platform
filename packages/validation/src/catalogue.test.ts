@@ -4,8 +4,8 @@ import {
   createProductSchema,
   productListQuerySchema,
   publicProductListQuerySchema,
-  updateProductSchema,
   updateCategorySchema,
+  updateProductSchema,
 } from './index';
 
 describe('catalogue validation', () => {
@@ -36,6 +36,37 @@ describe('catalogue validation', () => {
     if (!invalidSlug.success)
       expect(invalidSlug.error.issues[0]?.message).toBe(
         'Please enter a valid category slug.',
+      );
+  });
+
+  it('normalizes product edits and returns friendly name and slug messages', () => {
+    const base = {
+      categoryId: 'cm00000000000000000000000',
+      description: null,
+      isFeatured: false,
+      name: '  Folding Chair  ',
+      rentalUnit: 'each',
+      shortDescription: 'A folding chair.',
+      slug: '  FOLDING-CHAIR  ',
+      specifications: [],
+    };
+    expect(updateProductSchema.parse(base)).toMatchObject({
+      name: 'Folding Chair',
+      slug: 'folding-chair',
+    });
+    for (const slug of ['   ', 'not a slug!']) {
+      const result = updateProductSchema.safeParse({ ...base, slug });
+      expect(result.success).toBe(false);
+      if (!result.success)
+        expect(result.error.issues[0]?.message).toBe(
+          'Please enter a valid product slug.',
+        );
+    }
+    const name = updateProductSchema.safeParse({ ...base, name: '   ' });
+    expect(name.success).toBe(false);
+    if (!name.success)
+      expect(name.error.issues[0]?.message).toBe(
+        'Please enter a product name.',
       );
   });
   it('accepts safe product metadata without media mutations', () => {

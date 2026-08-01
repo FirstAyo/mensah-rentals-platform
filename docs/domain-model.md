@@ -203,3 +203,5 @@ reservation.
 ## Phase 16.2 catalogue tombstones
 
 `Category.deletedAt` and `Product.deletedAt` are private retention markers, not publication fields. Null means the record remains in catalogue management; a timestamp means confirmed permanent removal from active catalogue surfaces while minimum identity remains for restrictive historical or operational references. `isActive` remains the reversible publication switch. This distinction permits true deletion of unreferenced records without weakening immutable rental or inventory history.
+
+Direct product removal uses the same `Product.deletedAt` marker. Hard deletion is permitted only when the product has no immutable request/change reference and its optional inventory configuration has no items, reservations, or transactions. Otherwise product identity remains as a tombstone so restrictive relationships and downstream snapshots stay readable. A tombstone is not an inventory state and does not alter an inventory aggregate.

@@ -1,4 +1,4 @@
-import type { INestApplication } from '@nestjs/common';
+import { ConflictException, type INestApplication } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import type { StaffUserResponse } from '@mensah-rentals/types';
@@ -52,6 +52,24 @@ describe('catalogue HTTP visibility and authorization', () => {
       productsRemovedFromCatalogue: 0,
       tombstonedProductCount: 0,
     })),
+    deleteProduct: vi.fn(
+      async (_id: string, input: { confirmPermanentDelete: boolean }) => {
+        if (!input.confirmPermanentDelete)
+          throw new ConflictException({
+            code: 'PRODUCT_DELETE_CONFIRMATION_REQUIRED',
+            deletionMode: 'HARD_DELETE',
+            message: 'Confirm permanent product deletion to continue.',
+            statusCode: 409,
+          });
+        return {
+          hardDeleted: true,
+          inventoryPreserved: false,
+          mediaCleanup: 'NOT_REQUIRED',
+          preservedAsHistoricalTombstone: false,
+          productRemovedFromCatalogue: true,
+        };
+      },
+    ),
   };
   beforeAll(async () => {
     const module = await Test.createTestingModule({
@@ -186,5 +204,34 @@ describe('catalogue HTTP visibility and authorization', () => {
         expect(JSON.stringify(body)).not.toContain('Zod');
       });
     await sendDelete().send({ confirmDeleteProducts: true }).expect(200);
+  });
+
+  it('protects permanent product deletion and validates confirmation safely', async () => {
+    const id = 'cm00000000000000000000000';
+    const sendDelete = () =>
+      request(app.getHttpServer())
+        .delete(`/admin/products/${id}`)
+        .set('Cookie', 'mensah_staff_session=x')
+        .set('Origin', 'http://localhost:3001')
+        .set('Content-Type', 'application/json');
+    current = null;
+    await sendDelete().send({ confirmPermanentDelete: false }).expect(401);
+    current = { ...user, permissionKeys: ['product.update'] };
+    await sendDelete().send({ confirmPermanentDelete: false }).expect(403);
+    current = { ...user, permissionKeys: ['product.delete'] };
+    await sendDelete()
+      .send({ confirmPermanentDelete: false })
+      .expect(409)
+      .expect(({ body }) => {
+        expect(body.deletionMode).toBe('HARD_DELETE');
+      });
+    await sendDelete()
+      .send({ confirmPermanentDelete: 'yes' })
+      .expect(422)
+      .expect(({ body }) => {
+        expect(body.message).toBe('Invalid product deletion request');
+        expect(JSON.stringify(body)).not.toContain('Zod');
+      });
+    await sendDelete().send({ confirmPermanentDelete: true }).expect(200);
   });
 });

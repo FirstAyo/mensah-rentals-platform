@@ -325,20 +325,25 @@ export const apiEnvironmentSchema = z
 
 export type ApiEnvironment = z.infer<typeof apiEnvironmentSchema>;
 
-export const catalogueSlugSchema = z
-  .string()
-  .trim()
-  .transform((value) => value.toLowerCase())
-  .pipe(
-    z
-      .string()
-      .min(1, 'Please enter a valid category slug.')
-      .max(120, 'Please enter a valid category slug.')
-      .regex(
-        /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
-        'Please enter a valid category slug.',
-      ),
-  );
+const normalizedSlugSchema = (message: string) =>
+  z
+    .string()
+    .trim()
+    .transform((value) => value.toLowerCase())
+    .pipe(
+      z
+        .string()
+        .min(1, message)
+        .max(120, message)
+        .regex(/^[a-z0-9]+(?:-[a-z0-9]+)*$/, message),
+    );
+
+export const catalogueSlugSchema = normalizedSlugSchema(
+  'Please enter a valid category slug.',
+);
+export const productSlugSchema = normalizedSlugSchema(
+  'Please enter a valid product slug.',
+);
 
 const boundedPage = z.preprocess(
   (value) => (value === undefined ? 1 : value),
@@ -460,20 +465,27 @@ const productMutableFields = {
   categoryId: cuidParamSchema,
   description: z.string().trim().max(20_000).nullable().optional(),
   isFeatured: z.boolean().default(false),
-  name: z.string().trim().min(1).max(160),
+  name: z
+    .string()
+    .trim()
+    .min(1, 'Please enter a product name.')
+    .max(160, 'Please enter a product name.'),
   rentalUnit: z.string().trim().min(1).max(50).default('each'),
   shortDescription: z.string().trim().min(1).max(300),
+  slug: productSlugSchema,
   specifications: z.array(productSpecificationInputSchema).max(50).default([]),
 };
 
 export const createProductSchema = z
   .object({
     ...productMutableFields,
-    slug: catalogueSlugSchema,
     isActive: z.boolean().default(true),
   })
   .strict();
 export const updateProductSchema = z.object(productMutableFields).strict();
+export const deleteProductSchema = z
+  .object({ confirmPermanentDelete: z.boolean().default(false) })
+  .strict();
 
 export type CategoryListQuery = z.infer<typeof categoryListQuerySchema>;
 export type ProductListQuery = z.infer<typeof productListQuerySchema>;
@@ -868,6 +880,7 @@ export type UpdateCategoryInput = z.infer<typeof updateCategorySchema>;
 export type DeleteCategoryInput = z.infer<typeof deleteCategorySchema>;
 export type CreateProductInput = z.infer<typeof createProductSchema>;
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;
+export type DeleteProductInput = z.infer<typeof deleteProductSchema>;
 
 export const inventoryTrackingModeSchema = z.enum(['BULK', 'SERIALIZED']);
 export const inventoryStateSchema = z.enum([

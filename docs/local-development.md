@@ -43,6 +43,12 @@ pnpm rbac:verify
 
 Sign in at `http://localhost:3001/login`, then open **Categories**. **Deactivate** is reversible and requires category update authority. **Delete** is permanent catalogue removal and requires `category.delete`; non-empty categories show a stronger product-count warning. Run the isolated responsive workflow with `pnpm test:e2e:categories`. Changing a category slug changes its public URL; old URLs are not redirected.
 
+## Phase 16.3 product deletion and slug editing
+
+Apply migration `20260731130000_phase16_3_product_deletion`, regenerate Prisma, and refresh default roles with `pnpm db:migrate`, `pnpm db:generate`, `pnpm rbac:seed`, and `pnpm rbac:verify`. Sign in at `http://localhost:3001/login`, open **Products**, and use **Edit** to change the product name, slug, category, descriptions, rental unit, specifications, and featured state. Slugs are normalized to lowercase; changing one changes the public URL and the old URL does not redirect.
+
+**Deactivate** is reversible and uses `product.update`. **Delete** requires `product.delete`; its confirmation explains whether the product can be hard-deleted or must be retained as a historical tombstone. Run `pnpm test:e2e:products` to exercise both paths against only the guarded test database.
+
 ## Phase 16 returns on Windows
 
 After pulling the Phase 16 work, open PowerShell in the repository and run:

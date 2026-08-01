@@ -29,6 +29,7 @@
     "test:e2e": "pnpm --filter @mensah-rentals/web test:e2e",
     "test:e2e:catalogue": "pnpm --filter @mensah-rentals/web test:e2e:catalogue",
     "test:e2e:categories": "pnpm --filter @mensah-rentals/web test:e2e:categories",
+    "test:e2e:products": "pnpm --filter @mensah-rentals/web test:e2e:products",
     "test:e2e:cart": "pnpm --filter @mensah-rentals/web test:e2e:cart",
     "test:e2e:requests": "pnpm --filter @mensah-rentals/web test:e2e:requests",
     "test:e2e:admin": "pnpm --filter @mensah-rentals/web test:e2e:admin",

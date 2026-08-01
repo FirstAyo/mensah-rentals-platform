@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 
 import { prisma } from '@mensah-rentals/database';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { CatalogueRepository } from './catalogue.repository';
 import { CatalogueService } from './catalogue.service';
@@ -34,7 +34,7 @@ describe('catalogue service against PostgreSQL', () => {
           categoryId: active.id,
           name: `Alpha ${suffix}`,
           slug: `alpha-${suffix}`,
-          shortDescription: 'Search needle',
+          shortDescription: `Search needle ${suffix}`,
         },
         {
           categoryId: active.id,
@@ -59,13 +59,6 @@ describe('catalogue service against PostgreSQL', () => {
     });
   });
 
-  afterAll(async () => {
-    await prisma.product.deleteMany({
-      where: { categoryId: { in: categoryIds } },
-    });
-    await prisma.category.deleteMany({ where: { id: { in: categoryIds } } });
-  });
-
   it('applies real server-side search and pagination', async () => {
     const page = await service.listAdminProducts({
       page: 1,
@@ -79,7 +72,7 @@ describe('catalogue service against PostgreSQL', () => {
     const search = await service.listAdminProducts({
       page: 1,
       pageSize: 20,
-      search: 'needle',
+      search: `needle ${suffix}`,
       sortBy: 'name',
       sortDirection: 'asc',
     });
@@ -90,7 +83,7 @@ describe('catalogue service against PostgreSQL', () => {
     const page = await service.listPublicProducts({
       page: 1,
       pageSize: 100,
-      search: 'needle',
+      search: `needle ${suffix}`,
       sort: 'name-asc',
     });
     expect(page.items.map(({ name }) => name)).toEqual([`Alpha ${suffix}`]);
@@ -169,6 +162,155 @@ describe('catalogue service against PostgreSQL', () => {
     await prisma.category.delete({ where: { id: category.id } });
   });
 
+  it('edits product identity and category without breaking media or inventory links', async () => {
+    const category = await prisma.category.create({
+      data: {
+        name: `Product target ${suffix}`,
+        slug: `product-target-${suffix}`,
+      },
+    });
+    const product = await prisma.product.create({
+      data: {
+        categoryId: categoryIds[0]!,
+        name: `Editable product ${suffix}`,
+        slug: `editable-product-${suffix}`,
+        shortDescription: 'Editable product',
+        images: {
+          create: {
+            altText: 'Editable product',
+            isPrimary: true,
+            url: `/media/products/editable/${'b'.repeat(64)}.webp`,
+          },
+        },
+        inventory: {
+          create: {
+            creationOperationId: randomUUID(),
+            creationReason: 'Edit retention test',
+            initialState: 'RENTABLE',
+            trackingMode: 'BULK',
+          },
+        },
+      },
+      include: { inventory: true },
+    });
+    const base = {
+      categoryId: categoryIds[0]!,
+      description: null,
+      isFeatured: true,
+      name: `Renamed product ${suffix}`,
+      rentalUnit: 'item',
+      shortDescription: 'Updated product',
+      slug: product.slug,
+      specifications: [{ label: 'Material', value: 'Steel', sortOrder: 0 }],
+    };
+    await expect(
+      service.updateProduct(product.id, base),
+    ).resolves.toMatchObject({
+      name: base.name,
+      slug: product.slug,
+    });
+    await expect(
+      service.updateProduct(product.id, {
+        ...base,
+        slug: `  EDITED-PRODUCT-${suffix.toUpperCase()}  `,
+      }),
+    ).resolves.toMatchObject({ slug: `edited-product-${suffix}` });
+    await expect(
+      service.updateProduct(product.id, {
+        ...base,
+        categoryId: category.id,
+        slug: `edited-product-${suffix}`,
+      }),
+    ).resolves.toMatchObject({ categoryId: category.id });
+    await expect(
+      service.updateProduct(product.id, {
+        ...base,
+        categoryId: category.id,
+        slug: `alpha-${suffix}`,
+      }),
+    ).rejects.toMatchObject({
+      response: { message: 'That product slug is already in use.' },
+    });
+    expect(
+      await prisma.productImage.count({ where: { productId: product.id } }),
+    ).toBe(1);
+    expect(
+      await prisma.inventory.findUnique({ where: { productId: product.id } }),
+    ).toMatchObject({ id: product.inventory!.id });
+    await prisma.inventory.delete({ where: { productId: product.id } });
+    await prisma.product.delete({ where: { id: product.id } });
+    await prisma.category.delete({ where: { id: category.id } });
+  });
+
+  it('hard-deletes an unreferenced product only after confirmation', async () => {
+    const product = await prisma.product.create({
+      data: {
+        categoryId: categoryIds[0]!,
+        name: `Hard delete product ${suffix}`,
+        slug: `hard-delete-product-${suffix}`,
+        shortDescription: 'Disposable product',
+        images: {
+          create: {
+            altText: 'Disposable product',
+            isPrimary: true,
+            url: `/media/products/hard-delete/${'c'.repeat(64)}.webp`,
+          },
+        },
+        inventory: {
+          create: {
+            creationOperationId: randomUUID(),
+            creationReason: 'Empty disposable configuration',
+            initialState: 'RENTABLE',
+            trackingMode: 'BULK',
+          },
+        },
+      },
+      include: { inventory: true },
+    });
+    const cart = await prisma.cart.create({
+      data: {
+        expiresAt: new Date(Date.now() + 60_000),
+        tokenHash: suffix.repeat(2),
+        items: {
+          create: { desiredQuantity: 2, productId: product.id },
+        },
+      },
+    });
+    await expect(
+      service.deleteProduct(product.id, { confirmPermanentDelete: false }),
+    ).rejects.toMatchObject({
+      response: {
+        code: 'PRODUCT_DELETE_CONFIRMATION_REQUIRED',
+        deletionMode: 'HARD_DELETE',
+      },
+    });
+    await expect(
+      service.deleteProduct(product.id, { confirmPermanentDelete: true }),
+    ).resolves.toMatchObject({
+      hardDeleted: true,
+      preservedAsHistoricalTombstone: false,
+      productRemovedFromCatalogue: true,
+    });
+    expect(
+      await prisma.product.findUnique({ where: { id: product.id } }),
+    ).toBeNull();
+    expect(
+      await prisma.inventory.findUnique({
+        where: { id: product.inventory!.id },
+      }),
+    ).toBeNull();
+    expect(await prisma.cartItem.count({ where: { cartId: cart.id } })).toBe(0);
+    await expect(
+      service.getPublicProduct(`active-${suffix}`, product.slug),
+    ).rejects.toMatchObject({ status: 404 });
+    await expect(
+      service.deleteProduct(product.id, { confirmPermanentDelete: true }),
+    ).rejects.toMatchObject({ status: 404 });
+    expect(removeCommittedFiles).toHaveBeenCalledWith([
+      `/media/products/hard-delete/${'c'.repeat(64)}.webp`,
+    ]);
+  });
+
   it('hard-deletes empty and unreferenced catalogue records after confirmation', async () => {
     const empty = await prisma.category.create({
       data: { name: `Empty ${suffix}`, slug: `empty-${suffix}` },
@@ -223,7 +365,7 @@ describe('catalogue service against PostgreSQL', () => {
     expect(removeCommittedFiles).toHaveBeenCalled();
   });
 
-  it('tombstones referenced products while preserving immutable request history', async () => {
+  it('tombstones a referenced product while preserving request and serialized inventory history', async () => {
     const category = await prisma.category.create({
       data: { name: `History ${suffix}`, slug: `history-${suffix}` },
     });
@@ -233,6 +375,24 @@ describe('catalogue service against PostgreSQL', () => {
         name: `History product ${suffix}`,
         slug: `history-product-${suffix}`,
         shortDescription: 'Referenced product',
+        images: {
+          create: {
+            altText: 'Historical product',
+            isPrimary: true,
+            url: `/media/products/history/${'d'.repeat(64)}.webp`,
+          },
+        },
+        inventory: {
+          create: {
+            creationOperationId: randomUUID(),
+            creationReason: 'Historical inventory',
+            initialState: 'RENTABLE',
+            trackingMode: 'SERIALIZED',
+            items: {
+              create: { assetNumber: `ASSET-${suffix.toUpperCase()}` },
+            },
+          },
+        },
       },
     });
     const request = await prisma.$transaction(async (tx) => {
@@ -310,12 +470,18 @@ describe('catalogue service against PostgreSQL', () => {
       });
       return created;
     });
-    const deleted = await service.deleteCategory(category.id, {
-      confirmDeleteProducts: true,
+    await expect(
+      service.deleteProduct(product.id, { confirmPermanentDelete: false }),
+    ).rejects.toMatchObject({
+      response: { deletionMode: 'HISTORICAL_TOMBSTONE' },
+    });
+    const deleted = await service.deleteProduct(product.id, {
+      confirmPermanentDelete: true,
     });
     expect(deleted).toMatchObject({
-      hardDeletedProductCount: 0,
-      tombstonedProductCount: 1,
+      hardDeleted: false,
+      inventoryPreserved: true,
+      preservedAsHistoricalTombstone: true,
     });
     expect(
       await prisma.product.findUnique({ where: { id: product.id } }),
@@ -332,8 +498,19 @@ describe('catalogue service against PostgreSQL', () => {
       requestedQuantity: 2,
     });
     expect(
+      await prisma.inventoryItem.findFirst({
+        where: { inventory: { productId: product.id } },
+      }),
+    ).toMatchObject({
+      assetNumber: `ASSET-${suffix.toUpperCase()}`,
+      status: 'RENTABLE',
+    });
+    expect(
+      await prisma.productImage.count({ where: { productId: product.id } }),
+    ).toBe(1);
+    expect(
       (
-        await service.listAdminCategories({
+        await service.listAdminProducts({
           page: 1,
           pageSize: 100,
           search: `History ${suffix}`,

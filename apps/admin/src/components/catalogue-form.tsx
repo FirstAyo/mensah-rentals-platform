@@ -207,11 +207,7 @@ function FormBody({
           </label>
           <label className="space-y-2">
             <span>Slug</span>
-            <input
-              className={field}
-              readOnly={Boolean(id) && resource === 'products'}
-              {...register('slug')}
-            />
+            <input className={field} {...register('slug')} />
           </label>
         </div>
         {resource === 'categories' ? (
