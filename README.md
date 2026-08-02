@@ -1,5 +1,7 @@
 # Mensah Rentals Platform
 
+Phase 16.4.1 adds optional live Google Places API (New) ratings and reviews to the premium homepage. The integration is server-only, no-store, explicitly attributed to Google Maps, and falls back truthfully when disabled or unavailable. Protected staff diagnostics reveal only configuration booleans and a safe connection summary. No Google review content is persisted. See [Live Google Reviews integration](docs/google-reviews-integration.md), [Windows setup](docs/local-development.md), and [testing](docs/testing-guide.md).
+
 Phase 16.4 adds a published guest homepage and permission-protected homepage content manager. The platform remains request-based: customers select desired quantities, staff review supply, and authorized staff prepare custom quotes. It is not an automatic-price e-commerce checkout.
 
 Phase 16.4 references: [homepage content management](docs/homepage-content-management.md) and [Google Reviews integration](docs/google-reviews-integration.md).

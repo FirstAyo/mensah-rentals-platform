@@ -26,6 +26,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   return [
     { url: origin },
     { url: `${origin}/rentals` },
+    { url: `${origin}/privacy` },
+    { url: `${origin}/terms` },
     ...categories.map((category) => ({
       url: `${origin}/rentals/${category.slug}`,
     })),

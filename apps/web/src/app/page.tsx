@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
+import { Suspense } from 'react';
 import {
   ArrowRight,
   BadgeCheck,
@@ -15,6 +16,10 @@ import {
   Warehouse,
 } from 'lucide-react';
 import { HomepageHero } from '@/components/homepage-hero';
+import {
+  HomepageGoogleReviews,
+  HomepageGoogleReviewsFallback,
+} from '@/components/homepage-google-reviews';
 import { ProductCard } from '@/components/product-card';
 import { getPublicHomepage } from '@/lib/public-homepage';
 
@@ -245,38 +250,19 @@ export default async function HomePage() {
       ) : null}
 
       {content.reviews.enabled ? (
-        <section className="border-y border-border bg-muted/45">
-          <div className="mx-auto grid max-w-[1760px] gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[1fr_auto] lg:items-center lg:px-8 lg:py-20">
-            <Heading block={content.reviews} />{' '}
-            <div className="flex flex-col gap-3 sm:flex-row">
-              {googleReviews.reviewsUrl ? (
-                <a
-                  className="inline-flex min-h-12 items-center justify-center rounded-lg bg-primary px-5 font-semibold text-primary-foreground"
-                  href={googleReviews.reviewsUrl}
-                  rel="noopener noreferrer"
-                  target="_blank"
-                >
-                  Read reviews on Google
-                </a>
-              ) : (
-                <p className="max-w-sm text-sm text-muted-foreground">
-                  Google review links will appear here after they are configured
-                  by Mensah Rentals.
-                </p>
-              )}
-              {googleReviews.writeReviewUrl ? (
-                <a
-                  className="inline-flex min-h-12 items-center justify-center rounded-lg border border-border bg-card px-5 font-semibold"
-                  href={googleReviews.writeReviewUrl}
-                  rel="noopener noreferrer"
-                  target="_blank"
-                >
-                  Write a Google review
-                </a>
-              ) : null}
-            </div>
-          </div>
-        </section>
+        <Suspense
+          fallback={
+            <HomepageGoogleReviewsFallback
+              links={googleReviews}
+              section={content.reviews}
+            />
+          }
+        >
+          <HomepageGoogleReviews
+            links={googleReviews}
+            section={content.reviews}
+          />
+        </Suspense>
       ) : null}
 
       {content.pickupDelivery.enabled ? (

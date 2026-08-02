@@ -3,9 +3,11 @@ import {
   Controller,
   Get,
   Header,
+  HttpCode,
   Inject,
   Param,
   Post,
+  UseGuards,
 } from '@nestjs/common';
 import {
   cuidParamSchema,
@@ -21,11 +23,15 @@ import { Public } from '../auth/public.decorator';
 import { ZodBodyPipe } from '../auth/zod-body.pipe';
 import { RequirePermissions } from '../authorization/require-permissions.decorator';
 import { HomepageService } from './homepage.service';
+import { GooglePlacesReviewsService } from './google-places-reviews.service';
+import { PublicGoogleReviewsRateLimitGuard } from './public-google-reviews-rate-limit.guard';
 
 @Controller('public/homepage')
 export class PublicHomepageController {
   constructor(
     @Inject(HomepageService) private readonly homepage: HomepageService,
+    @Inject(GooglePlacesReviewsService)
+    private readonly googleReviews: GooglePlacesReviewsService,
   ) {}
 
   @Public()
@@ -34,12 +40,23 @@ export class PublicHomepageController {
   get(): Promise<unknown> {
     return this.homepage.getPublicHomepage();
   }
+
+  @Public()
+  @Get('google-reviews')
+  @UseGuards(PublicGoogleReviewsRateLimitGuard)
+  @Header('Cache-Control', 'private, no-store, max-age=0')
+  @Header('X-Robots-Tag', 'noindex, nofollow, noarchive')
+  reviews(): Promise<unknown> {
+    return this.googleReviews.publicResponse();
+  }
 }
 
 @Controller('admin/homepage')
 export class AdminHomepageController {
   constructor(
     @Inject(HomepageService) private readonly homepage: HomepageService,
+    @Inject(GooglePlacesReviewsService)
+    private readonly googleReviews: GooglePlacesReviewsService,
   ) {}
 
   @Get()
@@ -90,7 +107,16 @@ export class AdminHomepageController {
 
   @Get('google-reviews/status')
   @RequirePermissions('homepage.google_reviews.view_status')
+  @Header('Cache-Control', 'private, no-store')
   status() {
-    return this.homepage.googleReviewsStatus();
+    return this.googleReviews.status();
+  }
+
+  @Post('google-reviews/test')
+  @HttpCode(200)
+  @RequirePermissions('homepage.google_reviews.view_status')
+  @Header('Cache-Control', 'private, no-store')
+  testGoogleReviews() {
+    return this.googleReviews.testConnection();
   }
 }

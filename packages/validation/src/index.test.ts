@@ -145,6 +145,35 @@ describe('authentication environment validation', () => {
     ).toBe(true);
   });
 
+  it('accepts safe optional Google Places server configuration and defaults', () => {
+    const parsed = apiEnvironmentSchema.parse({
+      DATABASE_URL: 'postgresql://example.invalid/database',
+      GOOGLE_REVIEWS_LIVE_ENABLED: 'true',
+      GOOGLE_PLACES_API_KEY: 'server-only-placeholder',
+      GOOGLE_BUSINESS_PLACE_ID: 'ChIJSafePlace123',
+      GOOGLE_PLACES_LANGUAGE_CODE: 'en-CA',
+      GOOGLE_PLACES_REGION_CODE: 'CA',
+      GOOGLE_PLACES_TIMEOUT_MS: '4000',
+    });
+    expect(parsed).toMatchObject({
+      GOOGLE_REVIEWS_LIVE_ENABLED: true,
+      GOOGLE_PLACES_LANGUAGE_CODE: 'en-CA',
+      GOOGLE_PLACES_REGION_CODE: 'CA',
+      GOOGLE_PLACES_TIMEOUT_MS: 4000,
+    });
+  });
+
+  it('rejects unsafe Google locale and timeout configuration', () => {
+    expect(
+      apiEnvironmentSchema.safeParse({
+        DATABASE_URL: 'postgresql://example.invalid/database',
+        GOOGLE_PLACES_LANGUAGE_CODE: '../secret',
+        GOOGLE_PLACES_REGION_CODE: 'canada',
+        GOOGLE_PLACES_TIMEOUT_MS: '60000',
+      }).success,
+    ).toBe(false);
+  });
+
   it.each([undefined, 'production', 'test'])(
     'rejects bootstrap when NODE_ENV is %s',
     (nodeEnvironment) => {

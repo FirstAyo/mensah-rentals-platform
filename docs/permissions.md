@@ -1,5 +1,9 @@
 # Permissions and Roles
 
+## Phase 16.4.1 Google Reviews diagnostics
+
+`homepage.google_reviews.view_status` grants access to both configuration status and the explicit Google connection test. SUPER_ADMIN, ADMIN, and EDITOR retain this seeded permission; SALES_PERSON does not. `homepage.view` alone does not reveal diagnostic controls. Backend staff-session validation and the permission guard are authoritative on every status/test request, so disabled users and revoked permissions take effect immediately.
+
 ## Phase 16.4A media and category-cover enforcement
 
 Reusable media listing requires both `homepage.view` and `product.view`. Homepage upload/removal still requires `homepage.media.manage`; editing placements requires `homepage.edit`; preview and publish remain independent. Category-cover assignment/removal requires both `category.update` and `homepage.media.manage`, including a live active-user permission check inside the serializable mutation transaction. `homepage.view` alone is genuinely read-only. SALES_PERSON receives none of these media-management rights.

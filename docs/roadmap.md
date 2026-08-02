@@ -1,7 +1,9 @@
 # Development Roadmap
 
+- Phase 16.4.1 implemented: server-only live Google Places reviews, compliant author/source attribution, no-store public delivery, safe fallback, protected connection diagnostics, public policy disclosures, and mocked regression coverage. Phase 17 remains deferred.
+
 - Phase 16.4 implemented: premium guest homepage, immutable homepage revisions, protected staff CMS, isolated optimized homepage media, secure preview/publish/restore, featured catalogue selections, SEO metadata, and a policy-compliant Google Reviews link fallback.
-- Phase 16.4A correction implemented: reliable three-slide placements, inline reusable media picking, category covers and deterministic card fallbacks, safe hero overlays, fixed desktop/mobile navigation behavior, shared top/bottom actions, and standardized CMS controls. Phase 16.4.1 live Google Reviews and Phase 17 remain unstarted.
+- Phase 16.4A correction implemented: reliable three-slide placements, inline reusable media picking, category covers and deterministic card fallbacks, safe hero overlays, fixed desktop/mobile navigation behavior, shared top/bottom actions, and standardized CMS controls. Phase 17 remains unstarted.
 
 - Phase 16.3 implemented: editable product slugs and separate permission-protected product deletion with safe hard-delete/tombstone retention and inventory non-mutation. Phase 17 remains unstarted.
 

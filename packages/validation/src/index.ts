@@ -5,6 +5,7 @@ export * from './order';
 export * from './fulfilment';
 export * from './returns';
 export * from './homepage';
+export * from './google-reviews';
 
 const environmentBoolean = z
   .enum(['true', 'false'])
@@ -93,8 +94,37 @@ export const apiEnvironmentSchema = z
       .default(60),
     DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
     MEDIA_STORAGE_ROOT: z.string().trim().min(1).default('storage/media'),
+    GOOGLE_REVIEWS_LIVE_ENABLED: environmentBoolean.default('false'),
     GOOGLE_PLACES_API_KEY: optionalEnvironmentString,
     GOOGLE_BUSINESS_PLACE_ID: optionalEnvironmentString,
+    GOOGLE_PLACES_LANGUAGE_CODE: z
+      .string()
+      .trim()
+      .regex(/^[A-Za-z]{2,3}(?:-[A-Za-z]{2})?$/)
+      .default('en-CA'),
+    GOOGLE_PLACES_REGION_CODE: z
+      .string()
+      .trim()
+      .regex(/^[A-Z]{2}$/)
+      .default('CA'),
+    GOOGLE_PLACES_TIMEOUT_MS: z.coerce
+      .number()
+      .int()
+      .min(250)
+      .max(10_000)
+      .default(4000),
+    PUBLIC_GOOGLE_REVIEWS_RATE_LIMIT: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(10_000)
+      .default(120),
+    PUBLIC_GOOGLE_REVIEWS_RATE_WINDOW_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(3600)
+      .default(60),
     GOOGLE_REVIEWS_URL: optionalEnvironmentUrl,
     GOOGLE_WRITE_REVIEW_URL: optionalEnvironmentUrl,
     NODE_ENV: z

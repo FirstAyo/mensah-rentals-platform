@@ -74,4 +74,38 @@ describe('fixed homepage BFF proxy', () => {
       'mensah_staff_session=opaque',
     );
   });
+
+  it('allows only the fixed JSON connection-test route with admin origin', async () => {
+    const fetcher = vi.fn(async () =>
+      Response.json({ status: 'DISABLED', message: 'Disabled' }),
+    );
+    const response = await proxyHomepage(
+      new Request(
+        'http://localhost:3001/api/homepage/google-reviews/test?url=https://evil.example',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Origin: 'http://localhost:3001',
+            Cookie: 'mensah_staff_session=opaque',
+          },
+          body: '{}',
+        },
+      ),
+      ['google-reviews', 'test'],
+      fetcher,
+    );
+    expect(response.status).toBe(200);
+    const [url, init] = fetcher.mock.calls[0] as unknown as [
+      string,
+      RequestInit,
+    ];
+    expect(url).toBe(
+      'http://localhost:4000/admin/homepage/google-reviews/test',
+    );
+    expect(new Headers(init.headers).get('Cookie')).toBe(
+      'mensah_staff_session=opaque',
+    );
+    expect(String(url)).not.toContain('evil.example');
+  });
 });

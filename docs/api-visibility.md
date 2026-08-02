@@ -1,5 +1,13 @@
 # API Data Visibility
 
+## Phase 16.4.1 Google Reviews visibility
+
+`GET /public/homepage/google-reviews` is a separate no-store public DTO. A live response contains only business display name, rating, review count, Google Maps profile URI, up to three ordered review presentations, an ordering notice, and safe read/write links. Review presentations contain only the returned rating/text/date, required author attribution, source/report links, translation state/original text, and visit month/year where supplied.
+
+It excludes API keys, Place IDs, request headers, raw Google payloads, technical failures, diagnostics, environment data, staff/RBAC, homepage drafts, persistence identifiers, inventory, reservations, and rental operations. Fallback responses contain only a truthful message and safe Google links. Exact Zod schemas reject unknown output keys.
+
+Administrative status/test DTOs expose configuration booleans and safe classifications, never configuration values, review text, authors, raw provider errors, or credentials.
+
 ## Phase 16.4A media-library and category-image visibility
 
 Administrative media-library responses are allowlisted to a media reference, managed URL, safe label/description, dimensions/size where known, source type, product display name where relevant, and aggregate saved-reference count. They never contain filesystem paths, content hashes, creators, permissions, or raw storage metadata. Category-cover administration returns only its assignment and resolved presentation source.

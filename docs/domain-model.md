@@ -1,5 +1,9 @@
 # Planned Domain Model
 
+## Phase 16.4.1 external Google content
+
+Google review data is deliberately not a persisted domain model. There is no `GoogleReview`, `GoogleReviewCache`, homepage-revision review snapshot, or provider-payload table. The Place ID remains environment configuration. Runtime review summaries are external presentation data valid only for the active request; homepage-authored review headings/fallback links remain normal immutable homepage content.
+
 ## Phase 16.4A media-reference additions
 
 `HomepageMediaPlacement` now has an exclusive `mediaId`/`productImageId` source pair and a semantic `slotKey` unique within its immutable revision. `HomepageFeaturedCategory` may snapshot one exclusive homepage/product image override plus alt text and focal position. `CategoryCover` is the category's current exclusive media assignment and records its updater and timestamps. Database checks require valid exclusive sources; foreign keys to media are restrictive. Category deletion may cascade only the cover assignment, never the source media. These models contain no inventory, availability, reservation, price, or rental-workflow state.

@@ -1,5 +1,11 @@
 # Architecture
 
+## Phase 16.4.1 server-only Google Reviews boundary
+
+The NestJS homepage module owns `GooglePlacesReviewsService`. It uses a fixed Places API (New) endpoint, explicit field mask, strict schema, bounded body reader, timeout, safe error classifications, Google-owned HTTPS URL validation, and transient in-flight deduplication. It has no Prisma dependency and writes no Places content to PostgreSQL, Redis, files, build output, or logs.
+
+The public homepage receives review data from `GET /public/homepage/google-reviews` in an isolated streamed Server Component with `no-store`. The stable CMS fallback is rendered immediately while the review boundary resolves. Admin diagnostics traverse a fixed same-origin BFF allowlist, then repeat authentication, active-user resolution, permission enforcement, Origin/content-type validation, and no-store response handling in the API.
+
 ## Phase 16.4A presentation-media references
 
 Homepage media placement is a dual-source reference: exactly one of `HomepageMedia` or `ProductImage` is selected for each immutable semantic slot. This additive design reuses validated product files without inventing a risky universal media table. Restrictive foreign keys and service-level usage checks prevent source deletion; removing placement never mutates the owner. Revision copies preserve both source identity and ordered slot keys.

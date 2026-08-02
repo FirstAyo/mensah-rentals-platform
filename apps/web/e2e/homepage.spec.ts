@@ -346,7 +346,7 @@ test('@homepage-media reuses product media, assigns a category cover, and preser
   );
 });
 
-test('@homepage-google shows a truthful fallback without fake reviews or ratings', async ({
+test('@homepage @homepage-google-fallback shows a truthful fallback without fake reviews or ratings', async ({
   page,
 }) => {
   await page.goto('/');
@@ -359,4 +359,90 @@ test('@homepage-google shows a truthful fallback without fake reviews or ratings
   expect(await page.content()).not.toMatch(
     /aggregateRating|reviewRating|five-star/i,
   );
+});
+
+test('@homepage-google-live renders live Google reviews, attribution and accessible responsive cards', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await expect(page.getByText('4.8', { exact: true })).toBeVisible();
+  await expect(page.getByText(/42 Google Maps reviews/i)).toBeVisible();
+  await expect(
+    page
+      .getByRole('region', { name: 'Google Maps customer reviews' })
+      .getByRole('article'),
+  ).toHaveCount(3);
+  await expect(page.getByText('Test-owned Google review 1')).toBeVisible();
+  await expect(page.getByText('Test Reviewer 1')).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: /View this review on Google Maps/i }),
+  ).toHaveCount(3);
+  await expect(page.getByLabel('Google Maps attribution')).toBeVisible();
+  await expect(
+    page.getByText(/selected and ordered by Google Maps based on relevance/i),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+    ),
+  ).toBe(true);
+  await page.evaluate(() => localStorage.setItem('theme', 'dark'));
+  await page.reload();
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  await expect(page.getByText('Test-owned Google review 1')).toBeVisible();
+  await expectNoSeriousAxeViolations(page);
+  const html = await page.content();
+  expect(html).not.toMatch(
+    /test-owned-server-key|ChIJE2EGoogleReviews|inventoryQuantity|reservation|staffSession/i,
+  );
+});
+
+test('@homepage-google-live lets authorized staff inspect and test the connection without exposing secrets', async ({
+  page,
+}) => {
+  await page.goto('http://localhost:3001/login');
+  await page.getByLabel(/email/i).fill(process.env.STAFF_BOOTSTRAP_EMAIL!);
+  await page
+    .getByLabel(/password/i)
+    .fill(process.env.STAFF_BOOTSTRAP_PASSWORD!);
+  await page.getByRole('button', { name: /sign in/i }).click();
+  await expect(page).toHaveURL('http://localhost:3001/');
+  await page.goto('http://localhost:3001/website/homepage');
+  await expect(
+    page.getByRole('heading', { name: 'Google Reviews connection' }),
+  ).toBeVisible();
+  await expect(page.getByText('Configuration status: READY')).toBeVisible();
+  await page.getByRole('button', { name: 'Test connection' }).click();
+  await expect(
+    page.getByText('Google Places connection succeeded.'),
+  ).toBeVisible();
+  await expect(
+    page
+      .getByLabel('Google Reviews connection')
+      .getByText('Mensah Rentals', { exact: true }),
+  ).toBeVisible();
+  const html = await page.content();
+  expect(html).not.toMatch(/test-owned-server-key|ChIJE2EGoogleReviews/);
+});
+
+test('@homepage-google-timeout preserves the truthful fallback after timeout', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await expect(
+    page.getByRole('heading', { name: /See what customers share on Google/i }),
+  ).toBeVisible();
+  await expect(page.getByText(/Open our Google profile/i)).toBeVisible();
+  expect(await page.content()).not.toMatch(/out of 5|Test Reviewer/);
+});
+
+test('@homepage-google-quota preserves the truthful fallback after quota response', async ({
+  page,
+}) => {
+  await page.goto('/');
+  await expect(
+    page.getByRole('heading', { name: /See what customers share on Google/i }),
+  ).toBeVisible();
+  await expect(page.getByText(/Open our Google profile/i)).toBeVisible();
+  expect(await page.content()).not.toMatch(/out of 5|Test Reviewer/);
 });

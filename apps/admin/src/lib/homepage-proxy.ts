@@ -20,6 +20,7 @@ const routes = [
     methods: ['GET'],
   },
   { pattern: /^google-reviews\/status$/, methods: ['GET'] },
+  { pattern: /^google-reviews\/test$/, methods: ['POST'] },
 ] as const;
 
 function sessionCookie(request: Request) {

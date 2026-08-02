@@ -1,5 +1,11 @@
 # Homepage Content Management
 
+## Phase 16.4.1 live Google Reviews
+
+The published reviews section can now render current Google Places API (New) data through a separate server-only, no-store boundary. CMS fields continue to own only the enabled state, eyebrow, heading, truthful fallback message, and Google read/write links. Staff cannot edit or publish ratings, counts, authors, review copy, dates, or source links, and no Google content is added to an immutable homepage revision.
+
+Staff with `homepage.google_reviews.view_status` see a configuration panel and explicit connection-test control. A status read makes no Google request; a test performs one bounded request and keeps its safe summary only in component state. Read-only homepage access alone does not reveal the panel or test control. See [Live Google Reviews integration](google-reviews-integration.md).
+
 ## Phase 16.4A media assignment and editor corrections
 
 Each image field now owns an inline media control. **Choose image** opens an accessible library of reusable homepage media and eligible active product images; search is server-side and bounded. **Upload new image** normalizes a new homepage-owned file but does not silently assign it. Staff must choose **Use this image**, after which the editor shows both the selected thumbnail/source and a section-specific confirmation. Removing an assignment removes only the placement—never the source file.

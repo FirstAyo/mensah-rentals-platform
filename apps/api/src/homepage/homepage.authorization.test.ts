@@ -12,6 +12,7 @@ import { ProductMediaService } from '../media/product-media.service';
 import { HomepageModule } from './homepage.module';
 import { HomepageService } from './homepage.service';
 import { HomepageMediaService } from './homepage-media.service';
+import { GooglePlacesReviewsService } from './google-places-reviews.service';
 
 const baseUser: StaffUserResponse = {
   id: 'staff-id',
@@ -42,9 +43,33 @@ describe('homepage authorization and public visibility', () => {
       draft: null,
       published: null,
     })),
-    googleReviewsStatus: vi.fn(() => ({
+  };
+  const googleReviews = {
+    status: vi.fn(() => ({
+      status: 'DISABLED',
       liveReviewsEnabled: false,
+      apiKeyConfigured: false,
+      placeIdConfigured: false,
       reviewsUrlConfigured: false,
+      writeReviewUrlConfigured: false,
+      languageCode: 'en-CA',
+      regionCode: 'CA',
+      timeoutMs: 4000,
+    })),
+    publicResponse: vi.fn(async () => ({
+      status: 'NOT_CONFIGURED',
+      fallbackMessage: 'Read reviews on Google Maps.',
+      reviewsUrl: null,
+      writeReviewUrl: null,
+    })),
+    testConnection: vi.fn(async () => ({
+      status: 'DISABLED',
+      message: 'Live Google reviews are disabled.',
+      businessName: null,
+      rating: null,
+      reviewCount: null,
+      reviewsReturned: 0,
+      attributionComplete: false,
     })),
   };
   beforeAll(async () => {
@@ -73,6 +98,8 @@ describe('homepage authorization and public visibility', () => {
       })
       .overrideProvider(HomepageService)
       .useValue(homepage)
+      .overrideProvider(GooglePlacesReviewsService)
+      .useValue(googleReviews)
       .overrideProvider(HomepageMediaService)
       .useValue({
         list: vi.fn(async () => []),
@@ -100,6 +127,17 @@ describe('homepage authorization and public visibility', () => {
     expect(response.body.content.hero.heading).toBe('Safe homepage');
     expect(JSON.stringify(response.body)).not.toMatch(
       /inventory|password|permission|draft|apiKey|placeId/i,
+    );
+  });
+
+  it('serves a no-store public Google Reviews DTO without secrets', async () => {
+    const response = await request(app.getHttpServer())
+      .get('/public/homepage/google-reviews')
+      .expect(200);
+    expect(response.headers['cache-control']).toContain('no-store');
+    expect(response.body.status).toBe('NOT_CONFIGURED');
+    expect(JSON.stringify(response.body)).not.toMatch(
+      /server-secret|ChIJSafe|configuredValue|credentialValue/i,
     );
   });
 
@@ -131,7 +169,16 @@ describe('homepage authorization and public visibility', () => {
       .get('/admin/homepage/google-reviews/status')
       .set('Cookie', 'mensah_staff_session=x')
       .expect(200);
-    expect(JSON.stringify(response.body)).not.toMatch(/apiKey|placeId|secret/i);
+    expect(JSON.stringify(response.body)).not.toMatch(
+      /server-secret|ChIJSafe|configuredValue|credentialValue/i,
+    );
+    await request(app.getHttpServer())
+      .post('/admin/homepage/google-reviews/test')
+      .set('Cookie', 'mensah_staff_session=x')
+      .set('Origin', 'http://localhost:3001')
+      .set('Content-Type', 'application/json')
+      .send({})
+      .expect(200);
   });
 
   it('requires both homepage and product visibility for reusable media selection', async () => {

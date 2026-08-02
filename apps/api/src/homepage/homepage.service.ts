@@ -347,21 +347,6 @@ export class HomepageService {
     return this.getRevision(revisionId);
   }
 
-  googleReviewsStatus() {
-    return {
-      liveReviewsEnabled: false,
-      provider: null,
-      reason:
-        'Live review cards are disabled until a compliant Google provider and credential path is approved.',
-      reviewsUrlConfigured: Boolean(
-        safeGoogleUrl(process.env.GOOGLE_REVIEWS_URL),
-      ),
-      writeReviewUrlConfigured: Boolean(
-        safeGoogleUrl(process.env.GOOGLE_WRITE_REVIEW_URL),
-      ),
-    };
-  }
-
   private async publishCopy(
     revisionId: string,
     input: HomepageMutationInput,

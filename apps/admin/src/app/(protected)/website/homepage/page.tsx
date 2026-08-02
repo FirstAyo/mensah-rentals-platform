@@ -14,6 +14,9 @@ export default async function HomepageContentPage() {
         canManageMedia={user.permissionKeys.includes('homepage.media.manage')}
         canPreview={user.permissionKeys.includes('homepage.preview')}
         canPublish={user.permissionKeys.includes('homepage.publish')}
+        canViewGoogleReviewsStatus={user.permissionKeys.includes(
+          'homepage.google_reviews.view_status',
+        )}
       />
     </div>
   );

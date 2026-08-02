@@ -95,6 +95,12 @@ export function PublicShell({ children }: { children: ReactNode }) {
             <Link className={navLink} href="/track-request">
               Track request
             </Link>
+            <Link className={navLink} href="/privacy">
+              Privacy
+            </Link>
+            <Link className={navLink} href="/terms">
+              Terms
+            </Link>
           </nav>
         </div>
       </footer>

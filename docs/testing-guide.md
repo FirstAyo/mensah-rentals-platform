@@ -1,5 +1,40 @@
 # Testing Guide
 
+## Phase 16.4.1 Google Reviews verification
+
+All automated Google calls are mocked and use only the guarded `_test` database. Stop any processes already using ports 3000, 3001, or 4000 before browser tests.
+
+```powershell
+docker compose up -d postgres postgres-test
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm test:e2e:homepage-google-reviews
+pnpm test:e2e:homepage-all
+git diff --check
+```
+
+Success means:
+
+- schema validation/generation succeed and Prisma reports all migrations applied;
+- RBAC reports the seeded roles/permissions including `homepage.google_reviews.view_status`;
+- formatting, lint, type checking, unit/integration tests, and production builds exit with code 0;
+- the focused browser command runs separate mocked live, timeout, and quota scenarios;
+- live tests show rating/count, three ordered cards, authors/avatars, individual source links, Google Maps attribution, dark mode, 320px/1440px layouts, and zero serious/critical Axe violations;
+- timeout/quota tests show the truthful fallback with no invented rating or review;
+- admin tests show configuration status and a safe connection result without credentials;
+- no browser test contacts Google or the development database.
+
+Common failures include occupied ports, Docker Desktop not running, a missing guarded test database, or stale generated workspace output. Resolve those conditions and rerun; do not reset the development database. A real credential connection is optional and must be performed manually through the admin status panel. Never print or paste the key or raw response into test output.
+
 ## Phase 16.4A homepage correction verification
 
 Run from PowerShell at the repository root:

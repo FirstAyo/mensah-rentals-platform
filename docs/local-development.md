@@ -1,5 +1,67 @@
 # Local Development on Windows
 
+## Phase 16.4.1 live Google Reviews setup
+
+Phase 16.4.1 has no database migration and must not reset or reseed the development database. Open PowerShell in the repository root.
+
+1. Confirm Docker Desktop is open, then start both databases:
+
+   ```powershell
+   docker compose up -d postgres postgres-test
+   docker compose ps
+   ```
+
+   Both rows should show `healthy`.
+
+2. Install dependencies and verify the existing schema:
+
+   ```powershell
+   pnpm install
+   pnpm db:validate
+   pnpm db:generate
+   pnpm db:migrate
+   pnpm db:status
+   ```
+
+   Do not run `pnpm db:reset`, `prisma migrate reset`, or `docker compose down -v` against manually maintained development data.
+
+3. If `.env` does not exist, create it once:
+
+   ```powershell
+   Copy-Item .env.example .env
+   ```
+
+   If it already exists, edit it in place. Never replace it with `.env.example`.
+
+4. In Google Cloud Console, enable Places API (New), enable billing when required, and create a dedicated server API key. Restrict the key to Places API (New) and restrict server use to the production VPS public IP/CIDR where practical. Monitor quota/billing and never reuse this key in a browser or mobile app.
+
+5. Add the following to the ignored `.env` without sharing the actual values:
+
+   ```text
+   GOOGLE_REVIEWS_LIVE_ENABLED=false
+   GOOGLE_PLACES_API_KEY=your-server-key
+   GOOGLE_BUSINESS_PLACE_ID=your-verified-place-id
+   GOOGLE_REVIEWS_URL=https://www.google.com/...
+   GOOGLE_WRITE_REVIEW_URL=https://www.google.com/...
+   GOOGLE_PLACES_LANGUAGE_CODE=en-CA
+   GOOGLE_PLACES_REGION_CODE=CA
+   GOOGLE_PLACES_TIMEOUT_MS=4000
+   PUBLIC_GOOGLE_REVIEWS_RATE_LIMIT=120
+   PUBLIC_GOOGLE_REVIEWS_RATE_WINDOW_SECONDS=60
+   ```
+
+6. Start the platform:
+
+   ```powershell
+   pnpm dev
+   ```
+
+7. Sign in at `http://localhost:3001/login`, open `http://localhost:3001/website/homepage`, find **Google Reviews connection**, and select **Test connection**. A successful safe result shows `LIVE`, the business name, rating/count presence, returned-review count, and attribution completeness. It never shows the key, Place ID, authors, or review text.
+
+8. After a successful test, set `GOOGLE_REVIEWS_LIVE_ENABLED=true`, restart `pnpm dev`, and open `http://localhost:3000/`. If credentials are absent or Google is unavailable, the truthful Google-link fallback is expected.
+
+The public policy pages are `http://localhost:3000/privacy` and `http://localhost:3000/terms`. They require owner/legal review before production. See [Live Google Reviews integration](google-reviews-integration.md).
+
 ## Phase 16.4A local homepage-media workflow
 
 From PowerShell in the repository root, preserve a development database containing manual work before migration. Do not run `pnpm db:reset`; that command is only used by the guarded test harness.

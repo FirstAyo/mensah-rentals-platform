@@ -40,6 +40,9 @@ const modes = new Set([
   'homepage-admin',
   'homepage-media',
   'homepage-google-reviews',
+  'homepage-google-live',
+  'homepage-google-timeout',
+  'homepage-google-quota',
   'homepage-all',
 ]);
 if (!modes.has(mode)) throw new Error(`Unknown decision browser mode: ${mode}`);
@@ -112,6 +115,28 @@ const browserEnvironment = {
   STAFF_BOOTSTRAP_LAST_NAME: 'Browser',
   STAFF_BOOTSTRAP_PASSWORD: `${randomBytes(24).toString('base64url')}Aa1!`,
 };
+if (mode.startsWith('homepage-google-')) {
+  browserEnvironment.GOOGLE_REVIEWS_LIVE_ENABLED = 'true';
+  browserEnvironment.GOOGLE_PLACES_API_KEY = 'test-owned-server-key';
+  browserEnvironment.GOOGLE_BUSINESS_PLACE_ID = 'ChIJE2EGoogleReviews';
+  browserEnvironment.GOOGLE_PLACES_LANGUAGE_CODE = 'en-CA';
+  browserEnvironment.GOOGLE_PLACES_REGION_CODE = 'CA';
+  browserEnvironment.GOOGLE_PLACES_TIMEOUT_MS = '250';
+  browserEnvironment.GOOGLE_REVIEWS_URL =
+    'https://www.google.com/maps/place/mensah-test';
+  browserEnvironment.GOOGLE_WRITE_REVIEW_URL =
+    'https://www.google.com/maps/reviews/write-test';
+  browserEnvironment.GOOGLE_PLACES_E2E_SCENARIO = mode.endsWith('-timeout')
+    ? 'TIMEOUT'
+    : mode.endsWith('-quota')
+      ? 'QUOTA'
+      : 'LIVE';
+  browserEnvironment.NODE_OPTIONS =
+    `${browserEnvironment.NODE_OPTIONS ?? ''} --require="${resolve(
+      repositoryRoot,
+      'scripts/google-places-e2e-fetch-mock.cjs',
+    ).replaceAll('\\', '/')}"`.trim();
+}
 process.env.DATABASE_URL = browserEnvironment.DATABASE_URL;
 process.env.NODE_ENV = 'test';
 
@@ -832,11 +857,17 @@ try {
             ? '@homepage-admin'
             : mode === 'homepage-media'
               ? '@homepage-media'
-              : mode === 'homepage-google-reviews'
-                ? '@homepage-google'
-                : mode === 'homepage-all'
-                  ? '@homepage'
-                  : '@homepage-public'
+              : mode === 'homepage-google-live'
+                ? '@homepage-google-live'
+                : mode === 'homepage-google-timeout'
+                  ? '@homepage-google-timeout'
+                  : mode === 'homepage-google-quota'
+                    ? '@homepage-google-quota'
+                    : mode === 'homepage-google-reviews'
+                      ? '@homepage-google-live'
+                      : mode === 'homepage-all'
+                        ? '@homepage'
+                        : '@homepage-public'
           : returnMode
             ? mode === 'returns-all'
               ? '@returns'
@@ -921,9 +952,13 @@ try {
       mode === 'homepage-media' ||
       mode === 'homepage-all'
         ? ['--project=mobile-320', '--project=wide-1440']
-        : mode === 'homepage-google-reviews'
-          ? ['--project=wide-1440']
-          : []),
+        : mode === 'homepage-google-live'
+          ? ['--project=mobile-320', '--project=wide-1440']
+          : mode === 'homepage-google-timeout' ||
+              mode === 'homepage-google-quota' ||
+              mode === 'homepage-google-reviews'
+            ? ['--project=wide-1440']
+            : []),
     ],
     browserEnvironment,
   );

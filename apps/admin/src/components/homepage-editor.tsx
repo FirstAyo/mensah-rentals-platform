@@ -10,10 +10,14 @@ import {
 } from 'react';
 import {
   DEFAULT_HOMEPAGE_CONTENT,
+  googleReviewsAdminStatusSchema,
+  googleReviewsAdminTestSchema,
   homepageContentSchema,
+  type GoogleReviewsAdminStatus,
+  type GoogleReviewsAdminTest,
   type HomepageContent,
 } from '@mensah-rentals/validation';
-import { ExternalLink, RotateCcw, Save, Send } from 'lucide-react';
+import { ExternalLink, RefreshCw, RotateCcw, Save, Send } from 'lucide-react';
 import {
   MediaAssignmentField,
   type MediaLibraryItem,
@@ -88,11 +92,13 @@ export function HomepageEditor({
   canPublish,
   canManageMedia,
   canPreview,
+  canViewGoogleReviewsStatus,
 }: {
   canEdit: boolean;
   canPublish: boolean;
   canManageMedia: boolean;
   canPreview: boolean;
+  canViewGoogleReviewsStatus: boolean;
 }) {
   const [state, setState] = useState<State | null>(null);
   const [content, setContent] = useState<HomepageContent>(
@@ -111,6 +117,12 @@ export function HomepageEditor({
   const [media, setMedia] = useState<Media[]>([]);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
+  const [googleStatus, setGoogleStatus] =
+    useState<GoogleReviewsAdminStatus | null>(null);
+  const [googleTest, setGoogleTest] = useState<GoogleReviewsAdminTest | null>(
+    null,
+  );
+  const [googleBusy, setGoogleBusy] = useState(false);
   const [confirmation, setConfirmation] = useState<
     { kind: 'publish' } | { kind: 'restore'; id: string } | null
   >(null);
@@ -164,6 +176,18 @@ export function HomepageEditor({
       ),
     );
   }, []);
+
+  useEffect(() => {
+    if (!canViewGoogleReviewsStatus) return;
+    void fetch('/api/homepage/google-reviews/status', { cache: 'no-store' })
+      .then(async (response) => {
+        if (!response.ok) throw new Error('Status is unavailable.');
+        setGoogleStatus(
+          googleReviewsAdminStatusSchema.parse(await response.json()),
+        );
+      })
+      .catch(() => setGoogleStatus(null));
+  }, [canViewGoogleReviewsStatus]);
 
   useEffect(() => {
     if (!categoryIds.length) return;
@@ -333,6 +357,33 @@ export function HomepageEditor({
     }
   }
 
+  async function testGoogleConnection() {
+    if (!canViewGoogleReviewsStatus || googleBusy) return;
+    setGoogleBusy(true);
+    setGoogleTest(null);
+    try {
+      const response = await fetch('/api/homepage/google-reviews/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: '{}',
+      });
+      if (!response.ok) throw new Error('Connection test failed.');
+      setGoogleTest(googleReviewsAdminTestSchema.parse(await response.json()));
+    } catch {
+      setGoogleTest({
+        status: 'UPSTREAM_UNAVAILABLE',
+        message: 'The connection test could not be completed.',
+        businessName: null,
+        rating: null,
+        reviewCount: null,
+        reviewsReturned: 0,
+        attributionComplete: false,
+      });
+    } finally {
+      setGoogleBusy(false);
+    }
+  }
+
   if (!state)
     return (
       <div className="rounded-xl border border-border p-8">
@@ -370,6 +421,15 @@ export function HomepageEditor({
         >
           {message}
         </div>
+      ) : null}
+
+      {canViewGoogleReviewsStatus ? (
+        <GoogleReviewsStatusPanel
+          busy={googleBusy}
+          onTest={() => void testGoogleConnection()}
+          status={googleStatus}
+          test={googleTest}
+        />
       ) : null}
 
       {!canEdit ? (
@@ -1233,6 +1293,118 @@ export function HomepageEditor({
         </div>
       </AccessibleDialog>
     </div>
+  );
+}
+
+function GoogleReviewsStatusPanel({
+  status,
+  test,
+  busy,
+  onTest,
+}: {
+  status: GoogleReviewsAdminStatus | null;
+  test: GoogleReviewsAdminTest | null;
+  busy: boolean;
+  onTest: () => void;
+}) {
+  const checks = status
+    ? ([
+        ['Live reviews', status.liveReviewsEnabled],
+        ['Server API key', status.apiKeyConfigured],
+        ['Business Place ID', status.placeIdConfigured],
+        ['Read-reviews link', status.reviewsUrlConfigured],
+        ['Write-review link', status.writeReviewUrlConfigured],
+      ] as const)
+    : [];
+  return (
+    <section
+      aria-labelledby="google-reviews-status-heading"
+      className="rounded-2xl border border-border bg-card p-5 shadow-sm"
+    >
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">
+            Server-only integration
+          </p>
+          <h2
+            className="mt-1 text-lg font-semibold"
+            id="google-reviews-status-heading"
+          >
+            Google Reviews connection
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Credentials stay in the API environment. Connection-test results are
+            temporary and are not saved with homepage content.
+          </p>
+        </div>
+        <button
+          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg border border-border bg-background px-4 text-sm font-semibold outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+          disabled={busy || !status}
+          onClick={onTest}
+          type="button"
+        >
+          <RefreshCw
+            aria-hidden="true"
+            className={`h-4 w-4 ${busy ? 'animate-spin' : ''}`}
+          />
+          {busy ? 'Testing…' : 'Test connection'}
+        </button>
+      </div>
+      {status ? (
+        <>
+          <p className="mt-5 text-sm font-medium">
+            Configuration status: {status.status.replaceAll('_', ' ')}
+          </p>
+          <dl className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
+            {checks.map(([label, configured]) => (
+              <div className="rounded-lg bg-muted px-3 py-2" key={label}>
+                <dt className="text-xs text-muted-foreground">{label}</dt>
+                <dd className="mt-1 text-sm font-semibold">
+                  {configured ? 'Yes' : 'No'}
+                </dd>
+              </div>
+            ))}
+          </dl>
+          <p className="mt-3 text-xs text-muted-foreground">
+            {status.languageCode} · {status.regionCode} · {status.timeoutMs} ms
+            timeout
+          </p>
+        </>
+      ) : (
+        <p className="mt-5 text-sm text-muted-foreground">
+          Configuration status is unavailable.
+        </p>
+      )}
+      {test ? (
+        <div
+          aria-live="polite"
+          className="mt-5 rounded-xl border border-border bg-muted p-4"
+        >
+          <p className="font-semibold">{test.status.replaceAll('_', ' ')}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{test.message}</p>
+          {test.status === 'LIVE' ? (
+            <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <dt className="text-muted-foreground">Business</dt>
+                <dd>{test.businessName}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Rating</dt>
+                <dd>{test.rating}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Review count</dt>
+                <dd>{test.reviewCount}</dd>
+              </div>
+              <div>
+                <dt className="text-muted-foreground">Reviews returned</dt>
+                <dd>{test.reviewsReturned}</dd>
+              </div>
+            </dl>
+          ) : null}
+        </div>
+      ) : null}
+    </section>
   );
 }
 
