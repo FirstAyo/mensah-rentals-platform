@@ -26,6 +26,44 @@ async function expectNoSeriousAxeViolations(page: Page) {
   ).toEqual([]);
 }
 
+async function expectNoDocumentOverflow(page: Page) {
+  const overflow = await page.evaluate(() => {
+    const reviews = document.querySelector<HTMLElement>(
+      '[aria-label="Google Maps customer reviews"]',
+    );
+    return {
+      bodyWidth: document.body.scrollWidth,
+      rootOverflowX: getComputedStyle(document.documentElement).overflowX,
+      reviewClientWidth: reviews?.clientWidth ?? null,
+      reviewScrollLeft: reviews
+        ? (() => {
+            const initial = reviews.scrollLeft;
+            reviews.scrollLeft = reviews.scrollWidth;
+            const scrolled = reviews.scrollLeft;
+            reviews.scrollLeft = initial;
+            return scrolled;
+          })()
+        : null,
+      reviewScrollWidth: reviews?.scrollWidth ?? null,
+      viewportWidth: window.innerWidth,
+    };
+  });
+  expect(overflow, JSON.stringify(overflow, null, 2)).toMatchObject({
+    bodyWidth: overflow.viewportWidth,
+    rootOverflowX: 'clip',
+  });
+  if (overflow.reviewClientWidth !== null)
+    expect(overflow.reviewClientWidth).toBeLessThanOrEqual(
+      overflow.viewportWidth,
+    );
+  if (overflow.viewportWidth === 320 && overflow.reviewClientWidth !== null) {
+    expect(overflow.reviewScrollWidth).toBeGreaterThan(
+      overflow.reviewClientWidth,
+    );
+    expect(overflow.reviewScrollLeft).toBeGreaterThan(0);
+  }
+}
+
 function assignment(page: Page, label: string) {
   return page
     .getByText(label, { exact: true })
@@ -100,11 +138,7 @@ test('@homepage-public renders premium request-based content at 320px with dark-
     page.getByRole('link', { name: 'View rental cart' }),
   ).toHaveAttribute('href', '/cart');
   await expect(page.getByText('Staff-reviewed quotes')).toBeVisible();
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
-    ),
-  ).toBe(true);
+  await expectNoDocumentOverflow(page);
   await expectNoSeriousAxeViolations(page);
   await page.evaluate(() => localStorage.setItem('theme', 'dark'));
   await page.reload();
@@ -381,11 +415,7 @@ test('@homepage-google-live renders live Google reviews, attribution and accessi
   await expect(
     page.getByText(/selected and ordered by Google Maps based on relevance/i),
   ).toBeVisible();
-  expect(
-    await page.evaluate(
-      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
-    ),
-  ).toBe(true);
+  await expectNoDocumentOverflow(page);
   await page.evaluate(() => localStorage.setItem('theme', 'dark'));
   await page.reload();
   await expect(page.locator('html')).toHaveClass(/dark/);

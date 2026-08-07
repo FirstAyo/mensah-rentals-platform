@@ -948,6 +948,14 @@ try {
                 ]),
       '--grep',
       grepArgument,
+      ...(mode === 'homepage-all'
+        ? [
+            '--grep-invert',
+            process.platform === 'win32'
+              ? '"@homepage-google-(live|timeout|quota)"'
+              : '@homepage-google-(live|timeout|quota)',
+          ]
+        : []),
       ...(mode === 'homepage-admin' ||
       mode === 'homepage-media' ||
       mode === 'homepage-all'

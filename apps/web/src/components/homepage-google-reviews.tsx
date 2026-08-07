@@ -28,12 +28,12 @@ export async function HomepageGoogleReviews({
   return (
     <section
       aria-labelledby="google-reviews-heading"
-      className="border-y border-border bg-muted/45"
+      className="overflow-x-hidden border-y border-border bg-muted/45"
     >
       <div className="mx-auto max-w-[1760px] px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
-        <div className="grid gap-8 lg:grid-cols-[minmax(16rem,.65fr)_minmax(0,1.7fr)] lg:items-end">
+        <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(16rem,.65fr)_minmax(0,1.7fr)] lg:items-end">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-accent-foreground">
               {section.eyebrow}
             </p>
             <h2
@@ -57,15 +57,17 @@ export async function HomepageGoogleReviews({
               </p>
             </div>
           </div>
-          <div
-            aria-label="Google Maps customer reviews"
-            className="flex w-full min-w-0 max-w-full snap-x snap-mandatory gap-4 overflow-x-auto pb-3 lg:grid lg:grid-cols-3 lg:overflow-visible lg:pb-0"
-            role="region"
-            tabIndex={0}
-          >
-            {response.reviews.map((review) => (
-              <ReviewCard key={review.googleMapsUri} review={review} />
-            ))}
+          <div className="min-w-0 max-w-full overflow-x-hidden lg:overflow-visible">
+            <div
+              aria-label="Google Maps customer reviews"
+              className="flex w-full min-w-0 max-w-full snap-x snap-mandatory gap-4 overflow-x-auto pb-3 lg:grid lg:grid-cols-3 lg:overflow-visible lg:pb-0"
+              role="region"
+              tabIndex={0}
+            >
+              {response.reviews.map((review) => (
+                <ReviewCard key={review.googleMapsUri} review={review} />
+              ))}
+            </div>
           </div>
         </div>
         <div className="mt-7 flex flex-col gap-5 border-t border-border pt-6 lg:flex-row lg:items-center lg:justify-between">
@@ -114,7 +116,7 @@ export function HomepageGoogleReviewsFallback({
     >
       <div className="mx-auto grid min-h-72 max-w-[1760px] gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[1fr_auto] lg:items-center lg:px-8 lg:py-20">
         <div>
-          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">
+          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-accent-foreground">
             {section.eyebrow}
           </p>
           <h2

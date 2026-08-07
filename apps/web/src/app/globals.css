@@ -6,6 +6,10 @@
   box-sizing: border-box;
 }
 
+html {
+  overflow-x: clip;
+}
+
 :root {
   --background: 40 33% 98%;
   --foreground: 222 35% 12%;
