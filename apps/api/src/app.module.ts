@@ -19,6 +19,7 @@ import { WorkSummaryModule } from './work-summary/work-summary.module';
 import { FulfilmentModule } from './fulfilment/fulfilment.module';
 import { ReturnModule } from './returns/return.module';
 import { HomepageModule } from './homepage/homepage.module';
+import { MaintenanceModule } from './maintenance/maintenance.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { HomepageModule } from './homepage/homepage.module';
     FulfilmentModule,
     ReturnModule,
     HomepageModule,
+    MaintenanceModule,
   ],
   controllers: [HealthController],
   providers: [DatabaseService, HealthService],

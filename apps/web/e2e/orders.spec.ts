@@ -19,9 +19,26 @@ function future(days: number) {
 }
 
 async function axe(page: Page) {
-  const result = await new AxeBuilder({ page })
-    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
-    .analyze();
+  let result: Awaited<ReturnType<AxeBuilder['analyze']>> | undefined;
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    try {
+      result = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+        .analyze();
+      break;
+    } catch (error) {
+      if (
+        attempt === 0 &&
+        error instanceof Error &&
+        error.message.includes('Execution context was destroyed')
+      ) {
+        await page.waitForLoadState('networkidle');
+        continue;
+      }
+      throw error;
+    }
+  }
+  if (!result) throw new Error('Accessibility scan did not complete.');
   expect(
     result.violations.filter((entry) =>
       ['critical', 'serious'].includes(entry.impact ?? ''),
@@ -215,6 +232,29 @@ function reservationPanel(page: Page) {
   return page.locator('section[aria-labelledby="reservation-heading"]');
 }
 
+async function startPreparation(page: Page) {
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    await page.getByRole('button', { name: 'Start preparation' }).click();
+    try {
+      await expect(page.getByText('PREPARING', { exact: true })).toBeVisible({
+        timeout: 10_000,
+      });
+      return;
+    } catch {
+      const stale = page.getByRole('alert').filter({
+        hasText: 'This fulfilment changed',
+      });
+      if (attempt === 0 && (await stale.isVisible())) {
+        await page.reload();
+        continue;
+      }
+      throw new Error(
+        'Preparation did not start after refreshing stale state.',
+      );
+    }
+  }
+}
+
 async function reserveCurrentOrderInFull(page: Page) {
   const panel = reservationPanel(page);
   await panel
@@ -259,7 +299,7 @@ async function createActiveBulkRental(
   const created = await createOrder(page, 0, quantity, 'DELIVERY', productName);
   await reserveCurrentOrderInFull(page);
   await page.reload();
-  await page.getByRole('button', { name: 'Start preparation' }).click();
+  await startPreparation(page);
   await page.getByLabel('Prepared total').fill(String(quantity));
   await page.getByRole('button', { name: 'Save preparation' }).click();
   await page.getByRole('button', { name: 'Mark ready' }).click();
@@ -294,7 +334,7 @@ async function createActiveSerializedRental(page: Page) {
   await page.getByLabel(new RegExp(assetNumber!)).first().check();
   await reserveCurrentOrderInFull(page);
   await page.reload();
-  await page.getByRole('button', { name: 'Start preparation' }).click();
+  await startPreparation(page);
   const fulfilment = page.locator(
     'section[aria-labelledby="fulfilment-heading"]',
   );
@@ -577,7 +617,7 @@ test('@fulfilment @admin-fulfilment @active-rentals prepares, checks out partial
   test.skip(info.project.name !== 'mobile-320');
   const { customerLink, orderId, orderNumber } =
     await createPartiallyReservedOrder(page, 0);
-  await page.getByRole('button', { name: 'Start preparation' }).click();
+  await startPreparation(page);
   await expect(page.getByText('PREPARING', { exact: true })).toBeVisible({
     timeout: 30_000,
   });
@@ -646,7 +686,7 @@ test('@fulfilment @admin-fulfilment @active-rentals fully checks out a delivery 
   );
   await reserveCurrentOrderInFull(page);
   await page.reload();
-  await page.getByRole('button', { name: 'Start preparation' }).click();
+  await startPreparation(page);
   await page.getByLabel('Prepared total').fill('2');
   await page.getByRole('button', { name: 'Save preparation' }).click();
   await expect(page.getByLabel('Prepared quantity')).toHaveText('2');
@@ -712,7 +752,7 @@ test('@fulfilment @admin-fulfilment checks out the exact prepared serialized ass
   await page.getByLabel(new RegExp(assetNumber!)).first().check();
   await reserveCurrentOrderInFull(page);
   await page.reload();
-  await page.getByRole('button', { name: 'Start preparation' }).click();
+  await startPreparation(page);
   const fulfilmentPanel = page.locator(
     'section[aria-labelledby="fulfilment-heading"]',
   );

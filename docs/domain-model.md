@@ -1,5 +1,14 @@
 # Planned Domain Model
 
+## Phase 17 maintenance and inspection models
+
+- `MaintenanceWorkOrder` is a versioned operational projection with one immutable bulk or serialized target, immutable source, display snapshots, lifecycle, assignment, schedule, and explicit completion outcome.
+- `MaintenanceOperation` is the append-only global idempotency/audit registry for work-order and inspection commands. It owns the UUID operation ID, canonical payload hash, actor, action, aggregate/version context, and safe summary.
+- `MaintenanceNote` stores append-only internal plain text with author and time.
+- `EquipmentInspection` is a versioned one-time routine or post-maintenance inspection with the same exact target shape, schedule, assignee, terminal structured result, and optional source work order.
+
+These models reference but never rewrite `Inventory`, `InventoryItem`, `InventoryTransaction`, `RentalReturnItem`, `RentalIssue`, or `RentalIssueResolution`. A completed work order cannot remain in maintenance; it returns equipment to service or records it as damaged. See [Maintenance workflow](maintenance-workflow.md).
+
 ## Phase 16.4.1 external Google content
 
 Google review data is deliberately not a persisted domain model. There is no `GoogleReview`, `GoogleReviewCache`, homepage-revision review snapshot, or provider-payload table. The Place ID remains environment configuration. Runtime review summaries are external presentation data valid only for the active request; homepage-authored review headings/fallback links remain normal immutable homepage content.

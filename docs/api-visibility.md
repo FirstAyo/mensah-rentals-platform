@@ -1,5 +1,11 @@
 # API Data Visibility
 
+## Phase 17 maintenance confidentiality
+
+Maintenance work orders and equipment inspections are administrative-only. Authorized DTOs may contain internal target quantities, serialized identity, source links, schedule, priority, assignment, notes, results, and audit history according to exact permissions.
+
+Public and customer responses contain none of: maintenance/inspection numbers or IDs, maintenance status, priority, target quantity, asset/serial identity, repair or condition notes, inspection results, assignment/staff identity, activity, operation IDs/hashes, maintenance cost, or internal source links. The public catalogue and customer order/return mappers remain separate allowlists and do not select maintenance relations. Recursive confidentiality tests reject these keys at every depth.
+
 ## Phase 16.4.1 Google Reviews visibility
 
 `GET /public/homepage/google-reviews` is a separate no-store public DTO. A live response contains only business display name, rating, review count, Google Maps profile URI, up to three ordered review presentations, an ordering notice, and safe read/write links. Review presentations contain only the returned rating/text/date, required author attribution, source/report links, translation state/original text, and visit month/year where supplied.

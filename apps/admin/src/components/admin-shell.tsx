@@ -13,6 +13,7 @@ import {
   RotateCcw,
   TriangleAlert,
   PanelsTopLeft,
+  Wrench,
 } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -83,6 +84,12 @@ const links = [
     permission: 'rental_issue.view',
   },
   {
+    href: '/maintenance/work-orders',
+    icon: Wrench,
+    label: 'Maintenance',
+    permission: 'maintenance.view',
+  },
+  {
     href: '/categories',
     icon: FolderTree,
     label: 'Categories',
@@ -145,6 +152,9 @@ export function AdminShell({
                 ) : null}
                 {href === '/issues' ? (
                   <ActionableWorkBadge kind="issues" />
+                ) : null}
+                {href === '/maintenance/work-orders' ? (
+                  <ActionableWorkBadge kind="maintenance" />
                 ) : null}
               </Link>
             ))}

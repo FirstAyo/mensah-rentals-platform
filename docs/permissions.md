@@ -1,5 +1,22 @@
 # Permissions and Roles
 
+## Phase 17 maintenance permissions
+
+- `maintenance.view`
+- `maintenance.create`
+- `maintenance.assign`
+- `maintenance.update`
+- `maintenance.complete`
+- `maintenance.cancel`
+- `maintenance.note`
+- `maintenance.inventory_transition`
+- `inspection.view`
+- `inspection.create`
+- `inspection.perform`
+- `inspection.cancel`
+
+`SUPER_ADMIN` and `ADMIN` receive all twelve seeded permissions. `EDITOR` and `SALES_PERSON` receive none by default. A custom role with only a view permission receives a read-only interface. The inventory-transition permission is additionally required when a command physically moves stock. The backend and transactional live-permission check are authoritative.
+
 ## Phase 16.4.1 Google Reviews diagnostics
 
 `homepage.google_reviews.view_status` grants access to both configuration status and the explicit Google connection test. SUPER_ADMIN, ADMIN, and EDITOR retain this seeded permission; SALES_PERSON does not. `homepage.view` alone does not reveal diagnostic controls. Backend staff-session validation and the permission guard are authoritative on every status/test request, so disabled users and revoked permissions take effect immediately.

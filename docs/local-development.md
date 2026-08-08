@@ -1,5 +1,57 @@
 # Local Development on Windows
 
+## Phase 17 maintenance setup and local workflow
+
+Phase 17 uses the existing local PostgreSQL database and two additive migrations: `20260808090000_phase17_maintenance_inspections` and the corrective `20260808093000_phase17_maintenance_history_trigger_fix`. Never run `pnpm db:reset`, `prisma migrate reset`, `db push --force-reset`, or `docker compose down -v` against development. Open PowerShell in the repository root and run:
+
+```powershell
+docker compose up -d postgres postgres-test
+pnpm install
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+```
+
+The migrations bring the repository to 47 committed migrations. They add empty maintenance/inspection tables and correct the new history trigger without rewriting existing categories, products, inventory, rentals, returns, issues, or homepage data. The idempotent RBAC seed grants Phase 17 permissions to `SUPER_ADMIN` and `ADMIN` only.
+
+Start the platform:
+
+```powershell
+pnpm dev
+```
+
+Sign in at `http://localhost:3001/login`, then open:
+
+- `http://localhost:3001/maintenance/work-orders`
+- `http://localhost:3001/maintenance/inspections`
+
+To test preventive bulk maintenance, create a work order from currently rentable bulk inventory, assign active staff, start work, mark it ready, schedule/start/pass a post-maintenance inspection, then complete it with **Return to service**. The maintenance balance should increase once on creation and decrease once on completion; rentable should do the inverse and total physical quantity must remain constant.
+
+To test a return-linked repair, first use the existing return flow to classify equipment as `DAMAGED` or `MAINTENANCE`. Create a work order from the return issue/action. The old return and issue must remain unchanged, an already-maintenance disposition must not move twice, and issue resolution must remain a separate explicit choice.
+
+To test serialized equipment, choose the exact asset. A conflicting active work order for the same asset must fail. After successful inspection/completion, the same asset identity—not merely another unit of the product—must return to service.
+
+Stop normal development servers before browser automation because the guarded harness owns ports 3000, 3001, and 4000. Run:
+
+```powershell
+pnpm test:e2e:maintenance
+pnpm test:e2e:inspections
+pnpm test:e2e:maintenance-all
+```
+
+These commands may reset only the distinct local database named by `TEST_DATABASE_URL`, whose name must end in `_test`. They must never point at development, staging, or production. Common errors:
+
+- `403`: the active staff user lacks the exact maintenance/inspection permission.
+- `409`: stale version, invalid lifecycle transition, conflicting active claim, or conflicting operation-ID reuse; refresh before retrying.
+- `422`: impossible quantity/physical state, inactive assignee, invalid source, or reservation/preparation commitment conflict.
+- Ports occupied: stop `pnpm dev` and retry.
+- Docker unavailable: open Docker Desktop and wait for the engine before running Compose.
+
+Maintenance and inspection times are stored in UTC. `WAITING_FOR_PARTS` is workflow state only; there is no parts catalogue or purchasing module.
+
 ## Phase 16.4.1 live Google Reviews setup
 
 Phase 16.4.1 has no database migration and must not reset or reseed the development database. Open PowerShell in the repository root.

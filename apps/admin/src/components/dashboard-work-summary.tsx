@@ -13,10 +13,56 @@ import {
   ShoppingBag,
   Truck,
   Clock3,
+  Wrench,
+  ClipboardCheck,
 } from 'lucide-react';
 import { useWorkSummary } from '@/lib/work-summary';
 
 const cards = [
+  {
+    key: 'maintenance-open',
+    label: 'Open maintenance work orders',
+    permissions: ['maintenance.view'],
+    icon: Wrench,
+    value: (data: AdminWorkSummaryResponse) => data.maintenance?.open,
+  },
+  {
+    key: 'maintenance-overdue',
+    label: 'Overdue maintenance work orders',
+    permissions: ['maintenance.view'],
+    icon: AlertTriangle,
+    value: (data: AdminWorkSummaryResponse) => data.maintenance?.overdue,
+  },
+  {
+    key: 'maintenance-parts',
+    label: 'Waiting for parts',
+    permissions: ['maintenance.view'],
+    icon: Wrench,
+    value: (data: AdminWorkSummaryResponse) =>
+      data.maintenance?.waitingForParts,
+  },
+  {
+    key: 'maintenance-inspection',
+    label: 'Ready for inspection',
+    permissions: ['maintenance.view'],
+    icon: ClipboardCheck,
+    value: (data: AdminWorkSummaryResponse) =>
+      data.maintenance?.readyForInspection,
+  },
+  {
+    key: 'inspection-upcoming',
+    label: 'Upcoming inspections',
+    permissions: ['inspection.view'],
+    icon: ClipboardCheck,
+    value: (data: AdminWorkSummaryResponse) => data.inspections?.upcoming,
+  },
+  {
+    key: 'inspection-overdue',
+    label: 'Overdue inspections',
+    permissions: ['inspection.view'],
+    icon: AlertTriangle,
+    value: (data: AdminWorkSummaryResponse) => data.inspections?.overdue,
+  },
   {
     key: 'submitted',
     label: 'Submitted awaiting review',

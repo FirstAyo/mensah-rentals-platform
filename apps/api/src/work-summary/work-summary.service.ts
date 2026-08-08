@@ -264,6 +264,96 @@ export class WorkSummaryService {
       response.returnIssues = { damaged, missing, unresolved };
     }
 
+    if (permissions.has('maintenance.view')) {
+      const tomorrowUtc = new Date(todayUtc);
+      tomorrowUtc.setUTCDate(tomorrowUtc.getUTCDate() + 1);
+      const activeStatuses = [
+        'OPEN',
+        'ASSIGNED',
+        'IN_PROGRESS',
+        'WAITING_FOR_PARTS',
+        'READY_FOR_INSPECTION',
+      ] as const;
+      const [
+        open,
+        unassigned,
+        dueToday,
+        overdue,
+        waitingForParts,
+        readyForInspection,
+        equipmentRows,
+      ] = await Promise.all([
+        prisma.maintenanceWorkOrder.count({
+          where: { status: { in: [...activeStatuses] } },
+        }),
+        prisma.maintenanceWorkOrder.count({
+          where: {
+            assignedStaffUserId: null,
+            status: { in: [...activeStatuses] },
+          },
+        }),
+        prisma.maintenanceWorkOrder.count({
+          where: {
+            dueAt: { gte: todayUtc, lt: tomorrowUtc },
+            status: { in: [...activeStatuses] },
+          },
+        }),
+        prisma.maintenanceWorkOrder.count({
+          where: {
+            dueAt: { lt: now },
+            status: { in: [...activeStatuses] },
+          },
+        }),
+        prisma.maintenanceWorkOrder.count({
+          where: { status: 'WAITING_FOR_PARTS' },
+        }),
+        prisma.maintenanceWorkOrder.count({
+          where: { status: 'READY_FOR_INSPECTION' },
+        }),
+        prisma.$queryRaw<Array<{ quantity: number }>>`
+          SELECT COALESCE(SUM(
+            CASE
+              WHEN "toState" = 'MAINTENANCE' THEN "quantity"
+              WHEN "fromState" = 'MAINTENANCE' THEN -"quantity"
+              ELSE 0
+            END
+          ), 0)::int AS "quantity"
+          FROM "InventoryTransaction"`,
+      ]);
+      response.maintenance = {
+        dueToday,
+        equipmentInMaintenance: equipmentRows[0]?.quantity ?? 0,
+        open,
+        overdue,
+        readyForInspection,
+        unassigned,
+        waitingForParts,
+      };
+    }
+
+    if (permissions.has('inspection.view')) {
+      const upcomingBoundary = new Date(now);
+      upcomingBoundary.setUTCDate(upcomingBoundary.getUTCDate() + 7);
+      const [upcoming, overdue, failedRequiringAction] = await Promise.all([
+        prisma.equipmentInspection.count({
+          where: {
+            status: 'SCHEDULED',
+            scheduledFor: { gte: now, lte: upcomingBoundary },
+          },
+        }),
+        prisma.equipmentInspection.count({
+          where: {
+            status: { in: ['SCHEDULED', 'IN_PROGRESS'] },
+            scheduledFor: { lt: now },
+          },
+        }),
+        prisma.equipmentInspection.count({
+          where: { status: 'FAILED', generatedWorkOrder: { is: null } },
+        }),
+      ]);
+      response.inspections = { failedRequiringAction, overdue, upcoming };
+    }
+
     return response;
   }
 }

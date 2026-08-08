@@ -7,7 +7,13 @@ export function ActionableWorkBadge({
   kind = 'requests',
 }: {
   compact?: boolean;
-  kind?: 'requests' | 'reservations' | 'fulfilment' | 'returns' | 'issues';
+  kind?:
+    | 'requests'
+    | 'reservations'
+    | 'fulfilment'
+    | 'returns'
+    | 'issues'
+    | 'maintenance';
 }) {
   const { data } = useWorkSummary();
   const count =
@@ -26,7 +32,10 @@ export function ActionableWorkBadge({
             ? (data?.returns?.partiallyReturned ?? 0) +
               (data?.returns?.awaitingReconciliation ?? 0) +
               (data?.returns?.readyToComplete ?? 0)
-            : (data?.returnIssues?.unresolved ?? 0);
+            : kind === 'issues'
+              ? (data?.returnIssues?.unresolved ?? 0)
+              : (data?.maintenance?.open ?? 0) +
+                (data?.inspections?.overdue ?? 0);
   if (count === 0) return null;
   const display = count > 99 ? '99+' : String(count);
   const label =
@@ -38,7 +47,9 @@ export function ActionableWorkBadge({
           ? `${count} rental ${count === 1 ? 'order requires' : 'orders require'} fulfilment work`
           : kind === 'returns'
             ? `${count} ${count === 1 ? 'return requires' : 'returns require'} reconciliation work`
-            : `${count} unresolved return ${count === 1 ? 'issue' : 'issues'}`;
+            : kind === 'issues'
+              ? `${count} unresolved return ${count === 1 ? 'issue' : 'issues'}`
+              : `${count} maintenance ${count === 1 ? 'item requires' : 'items require'} attention`;
   return (
     <span
       aria-label={label}

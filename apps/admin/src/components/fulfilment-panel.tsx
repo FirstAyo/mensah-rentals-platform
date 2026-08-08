@@ -1,6 +1,9 @@
 'use client';
 
-import type { AdminFulfilmentResponse } from '@mensah-rentals/types';
+import type {
+  AdminFulfilmentResponse,
+  AdminInventoryReservationResponse,
+} from '@mensah-rentals/types';
 import { FileDown, PackageCheck, Play, Truck } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 
@@ -15,11 +18,9 @@ type Permissions = {
 
 export function FulfilmentPanel({
   orderId,
-  orderReservationVersion,
   permissions,
 }: {
   orderId: string;
-  orderReservationVersion: number;
   permissions: Permissions;
 }) {
   const [data, setData] = useState<AdminFulfilmentResponse | null>(null);
@@ -123,6 +124,51 @@ export function FulfilmentPanel({
     }
   }
 
+  async function startPreparation() {
+    if (pending) return;
+    setPending(true);
+    setError(null);
+    try {
+      // Reservation controls update independently on this page. Read the live
+      // version immediately before the guarded command instead of trusting the
+      // server-rendered order snapshot.
+      const reservationResponse = await fetch(
+        `/api/orders/${orderId}/reservation`,
+        { cache: 'no-store' },
+      );
+      if (!reservationResponse.ok)
+        throw new Error('The active reservation could not be refreshed.');
+      const reservation =
+        (await reservationResponse.json()) as AdminInventoryReservationResponse;
+      const response = await fetch(
+        `/api/orders/${orderId}/fulfilment/start-preparation`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            operationId: crypto.randomUUID(),
+            expectedReservationVersion: reservation.version,
+          }),
+        },
+      );
+      if (!response.ok)
+        throw new Error(
+          response.status === 409
+            ? 'This fulfilment changed. Refresh and review it before trying again.'
+            : 'Fulfilment could not be updated.',
+        );
+      await load();
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : 'Fulfilment could not be updated.',
+      );
+    } finally {
+      setPending(false);
+    }
+  }
+
   if (!permissions.canView) return null;
   return (
     <section
@@ -159,11 +205,7 @@ export function FulfilmentPanel({
             <button
               className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-4 font-semibold text-primary-foreground disabled:opacity-50"
               disabled={pending}
-              onClick={() =>
-                void mutate('start-preparation', 'POST', {
-                  expectedReservationVersion: orderReservationVersion,
-                })
-              }
+              onClick={() => void startPreparation()}
               type="button"
             >
               <Play className="h-4 w-4" aria-hidden="true" /> Start preparation

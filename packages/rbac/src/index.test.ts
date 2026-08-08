@@ -12,7 +12,7 @@ describe('RBAC catalogue', () => {
     expect(new Set(SYSTEM_ROLES.map(({ name }) => name)).size).toBe(
       SYSTEM_ROLES.length,
     );
-    expect(PERMISSION_CATALOGUE).toHaveLength(79);
+    expect(PERMISSION_CATALOGUE).toHaveLength(91);
   });
   it('grants SUPER_ADMIN every seeded permission', () => {
     expect(DEFAULT_ROLE_PERMISSION_KEYS.SUPER_ADMIN).toEqual(
@@ -78,6 +78,30 @@ describe('RBAC catalogue', () => {
       'rental_issue.view',
     );
     expect(DEFAULT_ROLE_PERMISSION_KEYS.EDITOR).not.toContain('return.view');
+  });
+  it('grants maintenance operations only to administrative roles', () => {
+    const maintenancePermissions = [
+      'maintenance.view',
+      'maintenance.create',
+      'maintenance.assign',
+      'maintenance.update',
+      'maintenance.complete',
+      'maintenance.cancel',
+      'maintenance.note',
+      'maintenance.inventory_transition',
+      'inspection.view',
+      'inspection.create',
+      'inspection.perform',
+      'inspection.cancel',
+    ] as const;
+    for (const permission of maintenancePermissions) {
+      expect(DEFAULT_ROLE_PERMISSION_KEYS.ADMIN).toContain(permission);
+      expect(DEFAULT_ROLE_PERMISSION_KEYS.SUPER_ADMIN).toContain(permission);
+      expect(DEFAULT_ROLE_PERMISSION_KEYS.EDITOR).not.toContain(permission);
+      expect(DEFAULT_ROLE_PERMISSION_KEYS.SALES_PERSON).not.toContain(
+        permission,
+      );
+    }
   });
   it('grants homepage content authority without exposing it to sales', () => {
     for (const role of ['SUPER_ADMIN', 'ADMIN', 'EDITOR'] as const) {

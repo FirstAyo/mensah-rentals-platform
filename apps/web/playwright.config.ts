@@ -19,6 +19,7 @@ export default defineConfig({
           '**/admin-decisions.spec.ts',
           '**/quotes.spec.ts',
           '**/orders.spec.ts',
+          '**/maintenance.spec.ts',
           '**/amendments-isolated.spec.ts',
           '**/homepage.spec.ts',
         ],

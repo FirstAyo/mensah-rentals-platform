@@ -1,5 +1,73 @@
 # Testing Guide
 
+## Phase 17 maintenance and inspection verification
+
+All destructive fixtures must use the guarded local `_test` PostgreSQL database. Stop ordinary applications on ports 3000, 3001, and 4000, then run from PowerShell:
+
+```powershell
+docker compose up -d postgres postgres-test
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm test:e2e:maintenance
+pnpm test:e2e:inspections
+pnpm test:e2e:maintenance-all
+pnpm test:e2e:admin-reservations
+pnpm test:e2e:admin-fulfilment
+pnpm test:e2e:returns
+pnpm test:e2e:catalogue
+pnpm test:e2e:products
+pnpm test:e2e:categories
+pnpm test:e2e:cart
+pnpm test:e2e:homepage-all
+git diff --check
+```
+
+Successful database/static results mean every command exits with code zero, Prisma reports every additive migration applied, RBAC seeding/verification is idempotent, TypeScript has no errors, lint has no warnings, all tests pass, and all three production applications build.
+
+The focused API/database suite directly proves permission routing, inventory
+conservation, idempotent creation, concurrent bulk exclusion, explicit manual
+source-state selection, active-inspection ownership exclusion,
+post-maintenance pass/fail behavior, and public DTO confidentiality. The
+following is the complete release checklist; items not represented by a named
+automated case must also be performed manually and recorded before deployment:
+
+- exact 401/403/authorized permission behavior and immediate disable/revocation;
+- globally idempotent operation replay and conflicting reuse rejection;
+- legal work-order/inspection state machines and terminal immutability;
+- active bulk claims cannot exceed live state and serialized assets cannot own conflicting active work;
+- return/issue sources remain immutable and an existing maintenance disposition does not move twice;
+- every physical movement has one linked inventory transaction and physical total is conserved;
+- reservation/preparation commitments prevent unsafe preventive withdrawal;
+- post-maintenance failure returns work to progress without making equipment rentable;
+- pass plus explicit completion returns equipment to service exactly once;
+- linked issue resolution is explicit and immutable;
+- product/category removal retains maintenance history through tombstoning;
+- recursive public/customer DTOs contain no maintenance, inspection, staff, asset, operation, note, condition, priority, or inventory information.
+
+The focused Phase 17 browser suite automates manual preventive bulk work, exact
+serialized concurrency, post-maintenance inspection/completion, a failed
+inspection followed by rework and a second passing inspection, read-only and
+Sales permission boundaries, disabled-user rejection, dashboard workload
+visibility, keyboard dismissal/focus restoration, dark-theme persistence,
+320px and 1440px layouts, no page-level horizontal overflow, and
+serious/critical Axe checks. The API/database suites cover canonical operation
+replay/conflict handling, while the service enforces immutable return/issue
+source rules. Before
+deployment, manually verify the complete returned-damage-to-explicit-issue-
+resolution walkthrough and repeated physical pointer double-clicks; do not
+infer those two manual observations from the focused browser command alone.
+
+Manual conservation check: capture the target's `RENTABLE`, `MAINTENANCE`, and `DAMAGED` balances before creation and after completion. State buckets may move, but their sum and the exact serialized asset ID must not change. Existing development/demo records and all media hashes must match the pre-phase preservation baseline after verification. The ignored `.env.phase17-backups/20260808-phase17/post-verification.txt` records the completed before/after database and media comparison for this implementation run.
+
 ## Phase 16.4.1 Google Reviews verification
 
 All automated Google calls are mocked and use only the guarded `_test` database. Stop any processes already using ports 3000, 3001, or 4000 before browser tests.

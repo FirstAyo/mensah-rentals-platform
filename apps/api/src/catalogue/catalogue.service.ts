@@ -335,6 +335,8 @@ export class CatalogueService {
               _count: {
                 select: {
                   items: true,
+                  maintenanceWorkOrders: true,
+                  equipmentInspections: true,
                   reservationItems: true,
                   transactions: true,
                 },
@@ -378,6 +380,8 @@ export class CatalogueService {
         const inventoryHasHistory = Boolean(
           product.inventory &&
             (product.inventory._count.items > 0 ||
+              product.inventory._count.maintenanceWorkOrders > 0 ||
+              product.inventory._count.equipmentInspections > 0 ||
               product.inventory._count.reservationItems > 0 ||
               product.inventory._count.transactions > 0),
         );
@@ -554,6 +558,8 @@ export class CatalogueService {
               _count: {
                 select: {
                   items: true,
+                  maintenanceWorkOrders: true,
+                  equipmentInspections: true,
                   reservationItems: true,
                   transactions: true,
                 },
@@ -586,6 +592,8 @@ export class CatalogueService {
       const inventoryHasHistory = Boolean(
         product.inventory &&
           (product.inventory._count.items > 0 ||
+            product.inventory._count.maintenanceWorkOrders > 0 ||
+            product.inventory._count.equipmentInspections > 0 ||
             product.inventory._count.reservationItems > 0 ||
             product.inventory._count.transactions > 0),
       );

@@ -1,5 +1,13 @@
 # Architecture
 
+## Phase 17 maintenance boundary
+
+The NestJS maintenance module is the sole maintenance and inspection authority. Work orders, inspections, append-only notes, and globally unique mutation operations are independent downstream aggregates; they never replace returns, issues, fulfilment, reservations, or inventory history. Bulk targets use serializable inventory-root locking and active-claim accounting. Serialized targets retain exact asset identity and database-enforced active-work exclusivity.
+
+Physical movements use explicit ledger actions and maintenance-operation references. A source already in `MAINTENANCE` is claimed without a second movement; a work-order-owned ingress is the only movement cancellation may reverse. Post-maintenance inspection failure returns work to `IN_PROGRESS` while leaving equipment unavailable. Passing makes explicit completion eligible; completion performs one exact `MAINTENANCE -> RENTABLE` or `MAINTENANCE -> DAMAGED` transition.
+
+Administrative routes require staff authentication, exact permissions, live transactional permission rechecks, private/no-store DTOs, and a fixed same-origin Next.js BFF allowlist. There is no public maintenance controller. See [Maintenance workflow](maintenance-workflow.md).
+
 ## Phase 16.4.1 server-only Google Reviews boundary
 
 The NestJS homepage module owns `GooglePlacesReviewsService`. It uses a fixed Places API (New) endpoint, explicit field mask, strict schema, bounded body reader, timeout, safe error classifications, Google-owned HTTPS URL validation, and transient in-flight deduplication. It has no Prisma dependency and writes no Places content to PostgreSQL, Redis, files, build output, or logs.

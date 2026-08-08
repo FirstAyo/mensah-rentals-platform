@@ -178,11 +178,7 @@ export function RentalOrderDetail({
         orderReservationStatus={order.reservationStatus ?? 'NOT_RESERVED'}
         permissions={reservationPermissions}
       />
-      <FulfilmentPanel
-        orderId={id}
-        orderReservationVersion={order.reservationVersion}
-        permissions={fulfilmentPermissions}
-      />
+      <FulfilmentPanel orderId={id} permissions={fulfilmentPermissions} />
 
       <section className="rounded-xl border border-border bg-card p-5">
         <div className="flex flex-wrap items-start justify-between gap-4">

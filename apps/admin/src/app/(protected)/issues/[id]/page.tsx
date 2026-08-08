@@ -6,6 +6,11 @@ export default async function IssuePage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireStaffPermission('rental_issue.view');
-  return <IssueDetail id={(await params).id} />;
+  const user = await requireStaffPermission('rental_issue.view');
+  return (
+    <IssueDetail
+      id={(await params).id}
+      canCreateMaintenance={user.permissionKeys.includes('maintenance.create')}
+    />
+  );
 }

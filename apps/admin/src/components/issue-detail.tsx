@@ -4,7 +4,13 @@ import type { AdminRentalIssueResponse } from '@mensah-rentals/types';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
-export function IssueDetail({ id }: { id: string }) {
+export function IssueDetail({
+  canCreateMaintenance = false,
+  id,
+}: {
+  canCreateMaintenance?: boolean;
+  id: string;
+}) {
   const [data, setData] = useState<AdminRentalIssueResponse | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [internalReason, setInternalReason] = useState('');
@@ -145,6 +151,16 @@ export function IssueDetail({ id }: { id: string }) {
         </label>
       </div>
       <div className="flex flex-wrap gap-2">
+        {canCreateMaintenance &&
+        data.status !== 'RESOLVED' &&
+        ['DAMAGED', 'MAINTENANCE_REQUIRED'].includes(data.type) ? (
+          <Link
+            className="inline-flex min-h-11 items-center rounded-md bg-primary px-4 py-2 text-sm font-semibold text-primary-foreground"
+            href={`/maintenance/work-orders/new?sourceRentalIssueId=${encodeURIComponent(data.id)}`}
+          >
+            Create maintenance work order
+          </Link>
+        ) : null}
         {(data.type === 'MISSING'
           ? (['ITEM_RETURNED', 'WRITTEN_OFF', 'PAID', 'WAIVED'] as const)
           : ['DAMAGED', 'MAINTENANCE_REQUIRED'].includes(data.type)

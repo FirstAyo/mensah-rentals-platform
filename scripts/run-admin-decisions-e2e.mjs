@@ -32,6 +32,9 @@ const modes = new Set([
   'returns-issues',
   'returns-concurrency',
   'returns-all',
+  'maintenance',
+  'inspections',
+  'maintenance-all',
   'categories',
   'products',
   'catalogue',
@@ -108,6 +111,7 @@ await ensurePortsAreFree();
 const { environment } = loadTestEnvironment();
 const browserEnvironment = {
   ...environment,
+  AUTH_LOGIN_RATE_LIMIT: '100',
   MENSAH_ISOLATED_E2E: 'verified-local-test-database',
   MEDIA_STORAGE_ROOT: 'storage/test-media',
   STAFF_BOOTSTRAP_EMAIL: 'phase10-browser@example.test',
@@ -209,7 +213,10 @@ if (
 if (
   mode.startsWith('reservations-') ||
   mode.startsWith('fulfilment-') ||
-  mode.startsWith('returns-')
+  mode.startsWith('returns-') ||
+  mode === 'maintenance' ||
+  mode === 'inspections' ||
+  mode === 'maintenance-all'
 ) {
   const products = await prisma.product.findMany({
     where: { isActive: true },
@@ -346,6 +353,169 @@ if (
     browserEnvironment.PHASE15_SERIALIZED_PRODUCT_NAME = serializedProductName;
     browserEnvironment.PHASE15_SERIALIZED_ASSET_NUMBER = assetNumber;
   }
+}
+if (
+  mode === 'maintenance' ||
+  mode === 'inspections' ||
+  mode === 'maintenance-all'
+) {
+  const marker = randomUUID().replaceAll('-', '');
+  const viewPassword = `${randomBytes(24).toString('base64url')}Aa1!`;
+  const salesPassword = `${randomBytes(24).toString('base64url')}Aa1!`;
+  const disabledPassword = `${randomBytes(24).toString('base64url')}Aa1!`;
+  const maintenanceView = await prisma.permission.findUniqueOrThrow({
+    where: { key: 'maintenance.view' },
+  });
+  const viewRole = await prisma.role.create({
+    data: {
+      name: `P17_VIEW_${marker.slice(0, 8).toUpperCase()}`,
+      displayName: 'Phase 17 maintenance viewer',
+      permissions: {
+        create: { permissionId: maintenanceView.id },
+      },
+    },
+  });
+  const salesRole = await prisma.role.findUniqueOrThrow({
+    where: { name: 'SALES_PERSON' },
+  });
+  const viewUser = await prisma.user.create({
+    data: {
+      email: `phase17-view-${marker}@example.test`,
+      firstName: 'Maintenance',
+      lastName: 'Viewer',
+      passwordHash: await hashPassword(viewPassword),
+      roles: { create: { roleId: viewRole.id } },
+      status: 'ACTIVE',
+    },
+  });
+  const salesUser = await prisma.user.create({
+    data: {
+      email: `phase17-sales-${marker}@example.test`,
+      firstName: 'Phase',
+      lastName: 'Sales',
+      passwordHash: await hashPassword(salesPassword),
+      roles: { create: { roleId: salesRole.id } },
+      status: 'ACTIVE',
+    },
+  });
+  const disabledRole = await prisma.role.findUniqueOrThrow({
+    where: { name: 'SUPER_ADMIN' },
+  });
+  const disabledUser = await prisma.user.create({
+    data: {
+      email: `phase17-disabled-${marker}@example.test`,
+      firstName: 'Disabled',
+      lastName: 'Maintainer',
+      passwordHash: await hashPassword(disabledPassword),
+      roles: { create: { roleId: disabledRole.id } },
+      status: 'DISABLED',
+    },
+  });
+  browserEnvironment.PHASE17_VIEW_EMAIL = viewUser.email;
+  browserEnvironment.PHASE17_VIEW_PASSWORD = viewPassword;
+  browserEnvironment.PHASE17_SALES_EMAIL = salesUser.email;
+  browserEnvironment.PHASE17_SALES_PASSWORD = salesPassword;
+  browserEnvironment.PHASE17_DISABLED_EMAIL = disabledUser.email;
+  browserEnvironment.PHASE17_DISABLED_PASSWORD = disabledPassword;
+
+  const source = await prisma.product.findFirstOrThrow({
+    where: { isActive: true },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+  });
+  const createBulkFixture = async (name, initialState, quantity) => {
+    const product = await prisma.product.create({
+      data: {
+        categoryId: source.categoryId,
+        name,
+        shortDescription: 'Test-owned Phase 17 maintenance fixture',
+        slug: `phase-17-${randomUUID()}`,
+      },
+    });
+    const inventory = await prisma.inventory.create({
+      data: {
+        creationOperationId: randomUUID(),
+        creationReason: 'Test-owned Phase 17 maintenance fixture',
+        initialState,
+        productId: product.id,
+        trackingMode: 'BULK',
+      },
+    });
+    await prisma.inventoryTransaction.create({
+      data: {
+        actorUserId: fixture.id,
+        inventoryId: inventory.id,
+        kind: 'INITIAL_STOCK',
+        operationId: randomUUID(),
+        quantity,
+        reason: 'Test-owned Phase 17 maintenance fixture',
+        toState: initialState,
+      },
+    });
+    return { inventory, product };
+  };
+  const preventive = await createBulkFixture(
+    'Phase 17 Preventive Bulk Equipment',
+    'RENTABLE',
+    4,
+  );
+  const damaged = await createBulkFixture(
+    'Phase 17 Damaged Bulk Equipment',
+    'DAMAGED',
+    3,
+  );
+  const permissionTarget = await createBulkFixture(
+    'Phase 17 Permission Boundary Equipment',
+    'RENTABLE',
+    1,
+  );
+  const serializedProduct = await prisma.product.create({
+    data: {
+      categoryId: source.categoryId,
+      name: 'Phase 17 Serialized Equipment',
+      shortDescription: 'Test-owned Phase 17 serialized fixture',
+      slug: `phase-17-serialized-${randomUUID()}`,
+    },
+  });
+  const serializedInventory = await prisma.inventory.create({
+    data: {
+      creationOperationId: randomUUID(),
+      creationReason: 'Test-owned Phase 17 serialized fixture',
+      initialState: 'RENTABLE',
+      productId: serializedProduct.id,
+      trackingMode: 'SERIALIZED',
+    },
+  });
+  const assetNumber = `P17-E2E-${randomUUID().slice(0, 8).toUpperCase()}`;
+  const serializedItem = await prisma.inventoryItem.create({
+    data: {
+      assetNumber,
+      inventoryId: serializedInventory.id,
+      serialNumber: `P17-SERIAL-${randomUUID().slice(0, 8).toUpperCase()}`,
+      status: 'RENTABLE',
+    },
+  });
+  await prisma.inventoryTransaction.create({
+    data: {
+      actorUserId: fixture.id,
+      inventoryId: serializedInventory.id,
+      inventoryItemId: serializedItem.id,
+      kind: 'SERIALIZED_ITEM_CREATED',
+      operationId: randomUUID(),
+      quantity: 1,
+      reason: 'Test-owned Phase 17 serialized fixture',
+      toState: 'RENTABLE',
+    },
+  });
+  browserEnvironment.PHASE17_PREVENTIVE_PRODUCT_NAME = preventive.product.name;
+  browserEnvironment.PHASE17_PREVENTIVE_INVENTORY_ID = preventive.inventory.id;
+  browserEnvironment.PHASE17_DAMAGED_PRODUCT_NAME = damaged.product.name;
+  browserEnvironment.PHASE17_DAMAGED_INVENTORY_ID = damaged.inventory.id;
+  browserEnvironment.PHASE17_PERMISSION_INVENTORY_ID =
+    permissionTarget.inventory.id;
+  browserEnvironment.PHASE17_SERIALIZED_PRODUCT_NAME = serializedProduct.name;
+  browserEnvironment.PHASE17_SERIALIZED_INVENTORY_ID = serializedInventory.id;
+  browserEnvironment.PHASE17_SERIALIZED_ITEM_ID = serializedItem.id;
+  browserEnvironment.PHASE17_SERIALIZED_ASSET_NUMBER = assetNumber;
 }
 if (mode === 'phase12-1-layout') {
   const product = await prisma.product.findFirstOrThrow({
@@ -765,6 +935,10 @@ const productMode = mode === 'products';
 const reservationMode = mode.startsWith('reservations-');
 const fulfilmentMode = mode.startsWith('fulfilment-');
 const returnMode = mode.startsWith('returns-');
+const maintenanceMode =
+  mode === 'maintenance' ||
+  mode === 'inspections' ||
+  mode === 'maintenance-all';
 const homepageMode = mode.startsWith('homepage');
 const publicRegressionMode = mode === 'catalogue' || mode === 'cart';
 const productionPublicRegressionMode = mode === 'catalogue';
@@ -775,6 +949,7 @@ if (
   reservationMode ||
   fulfilmentMode ||
   returnMode ||
+  maintenanceMode ||
   homepageMode ||
   publicRegressionMode
 )
@@ -807,7 +982,8 @@ const servers = [
       productMode ||
       homepageMode ||
       productionPublicRegressionMode ||
-      ((fulfilmentMode || returnMode) && workspace !== '@mensah-rentals/web')
+      ((fulfilmentMode || returnMode || maintenanceMode) &&
+        workspace !== '@mensah-rentals/web')
         ? 'start'
         : 'dev',
     ],
@@ -825,17 +1001,23 @@ try {
     waitFor(
       'http://localhost:3000/rentals',
       'Customer website',
-      reservationMode || fulfilmentMode || returnMode ? 180_000 : 90_000,
+      reservationMode || fulfilmentMode || returnMode || maintenanceMode
+        ? 180_000
+        : 90_000,
     ),
     waitFor(
       'http://localhost:3001/login',
       'Admin application',
-      reservationMode || fulfilmentMode || returnMode ? 180_000 : 90_000,
+      reservationMode || fulfilmentMode || returnMode || maintenanceMode
+        ? 180_000
+        : 90_000,
     ),
     waitFor(
       'http://localhost:4000/health/database',
       'API database health',
-      reservationMode || fulfilmentMode || returnMode ? 180_000 : 90_000,
+      reservationMode || fulfilmentMode || returnMode || maintenanceMode
+        ? 180_000
+        : 90_000,
     ),
   ]);
   const isPhase121 = phase121Mode;
@@ -868,45 +1050,51 @@ try {
                       : mode === 'homepage-all'
                         ? '@homepage'
                         : '@homepage-public'
-          : returnMode
-            ? mode === 'returns-all'
-              ? '@returns'
-              : mode === 'returns-concurrency'
-                ? '@return-concurrency'
-                : mode === 'returns-issues'
-                  ? '@return-issues'
-                  : '@admin-returns'
-            : fulfilmentMode
-              ? mode === 'fulfilment-all'
-                ? '@fulfilment'
-                : mode === 'fulfilment-concurrency'
-                  ? '@fulfilment-concurrency'
-                  : mode === 'fulfilment-active-rentals'
-                    ? '@active-rentals'
-                    : '@admin-fulfilment'
-              : reservationMode
-                ? mode === 'reservations-all'
-                  ? '@reservations'
-                  : mode === 'reservations-concurrency'
-                    ? '@reservation-concurrency'
-                    : '@admin-reservations'
-                : isPhase121
-                  ? '@phase12-1'
-                  : isOrderMode
-                    ? mode === 'orders-all'
-                      ? '@orders'
-                      : mode === 'orders-admin'
-                        ? '@admin-orders'
-                        : '@customer-orders'
-                    : isQuoteMode
-                      ? mode === 'quotes-all'
-                        ? '@quotes'
-                        : mode === 'quotes-admin'
-                          ? '@admin-quotes'
-                          : '@customer-quotes'
-                      : mode === 'all'
-                        ? '@admin-decisions'
-                        : `@admin-decisions-${mode}`;
+          : maintenanceMode
+            ? mode === 'inspections'
+              ? '@inspections'
+              : mode === 'maintenance-all'
+                ? '@maintenance|@inspections'
+                : '@maintenance'
+            : returnMode
+              ? mode === 'returns-all'
+                ? '@returns'
+                : mode === 'returns-concurrency'
+                  ? '@return-concurrency'
+                  : mode === 'returns-issues'
+                    ? '@return-issues'
+                    : '@admin-returns'
+              : fulfilmentMode
+                ? mode === 'fulfilment-all'
+                  ? '@fulfilment'
+                  : mode === 'fulfilment-concurrency'
+                    ? '@fulfilment-concurrency'
+                    : mode === 'fulfilment-active-rentals'
+                      ? '@active-rentals'
+                      : '@admin-fulfilment'
+                : reservationMode
+                  ? mode === 'reservations-all'
+                    ? '@reservations'
+                    : mode === 'reservations-concurrency'
+                      ? '@reservation-concurrency'
+                      : '@admin-reservations'
+                  : isPhase121
+                    ? '@phase12-1'
+                    : isOrderMode
+                      ? mode === 'orders-all'
+                        ? '@orders'
+                        : mode === 'orders-admin'
+                          ? '@admin-orders'
+                          : '@customer-orders'
+                      : isQuoteMode
+                        ? mode === 'quotes-all'
+                          ? '@quotes'
+                          : mode === 'quotes-admin'
+                            ? '@admin-quotes'
+                            : '@customer-quotes'
+                        : mode === 'all'
+                          ? '@admin-decisions'
+                          : `@admin-decisions-${mode}`;
   const grepArgument =
     process.platform === 'win32' && grep.includes('|') ? `"${grep}"` : grep;
   run(
@@ -931,23 +1119,28 @@ try {
           ? ['e2e/homepage.spec.ts']
           : reservationMode || fulfilmentMode || returnMode
             ? ['e2e/orders.spec.ts']
-            : isPhase121
-              ? [
-                  isPhase121Layout
-                    ? 'e2e/phase12-1.spec.ts'
-                    : isPhase121Quote
-                      ? 'e2e/quotes.spec.ts'
-                      : 'e2e/orders.spec.ts',
-                ]
-              : [
-                  isOrderMode
-                    ? 'e2e/orders.spec.ts'
-                    : isQuoteMode
-                      ? 'e2e/quotes.spec.ts'
-                      : 'e2e/admin-decisions.spec.ts',
-                ]),
+            : maintenanceMode
+              ? ['e2e/maintenance.spec.ts']
+              : isPhase121
+                ? [
+                    isPhase121Layout
+                      ? 'e2e/phase12-1.spec.ts'
+                      : isPhase121Quote
+                        ? 'e2e/quotes.spec.ts'
+                        : 'e2e/orders.spec.ts',
+                  ]
+                : [
+                    isOrderMode
+                      ? 'e2e/orders.spec.ts'
+                      : isQuoteMode
+                        ? 'e2e/quotes.spec.ts'
+                        : 'e2e/admin-decisions.spec.ts',
+                  ]),
       '--grep',
       grepArgument,
+      ...(maintenanceMode
+        ? ['--project=mobile-320', '--project=wide-1440']
+        : []),
       ...(mode === 'homepage-all'
         ? [
             '--grep-invert',

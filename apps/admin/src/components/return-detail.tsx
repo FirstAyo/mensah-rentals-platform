@@ -4,7 +4,13 @@ import type { AdminRentalReturnResponse } from '@mensah-rentals/types';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
-export function ReturnDetail({ id }: { id: string }) {
+export function ReturnDetail({
+  canCreateMaintenance = false,
+  id,
+}: {
+  canCreateMaintenance?: boolean;
+  id: string;
+}) {
   const [data, setData] = useState<AdminRentalReturnResponse | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -94,6 +100,14 @@ export function ReturnDetail({ id }: { id: string }) {
                 {item.maintenanceQuantity} · missing {item.missingQuantity} ·
                 outstanding {item.outstandingQuantity}
               </p>
+              {canCreateMaintenance && item.maintenanceQuantity > 0 ? (
+                <Link
+                  className="mt-3 inline-flex min-h-11 items-center rounded-lg border px-4 py-2 text-sm font-semibold"
+                  href={`/maintenance/work-orders/new?sourceRentalReturnItemId=${encodeURIComponent(item.id)}`}
+                >
+                  Create maintenance work order
+                </Link>
+              ) : null}
             </article>
           ))}
         </div>

@@ -17,6 +17,9 @@ export default async function InventoryDetailPage({
         user.permissionKeys.includes('inventory.quantity.view')
       }
       canViewQuantity={user.permissionKeys.includes('inventory.quantity.view')}
+      canCreateMaintenance={user.permissionKeys.includes('maintenance.create')}
+      canViewMaintenance={user.permissionKeys.includes('maintenance.view')}
+      canViewInspections={user.permissionKeys.includes('inspection.view')}
     />
   );
 }

@@ -23,7 +23,25 @@ function isSummary(value: unknown): value is AdminWorkSummaryResponse {
   const activeRentals = record.activeRentals as
     | Record<string, unknown>
     | undefined;
+  const maintenance = record.maintenance as Record<string, unknown> | undefined;
+  const inspections = record.inspections as Record<string, unknown> | undefined;
+  const returns = record.returns as Record<string, unknown> | undefined;
+  const returnIssues = record.returnIssues as
+    | Record<string, unknown>
+    | undefined;
   return (
+    (!maintenance ||
+      (count(maintenance.dueToday) &&
+        count(maintenance.equipmentInMaintenance) &&
+        count(maintenance.open) &&
+        count(maintenance.overdue) &&
+        count(maintenance.readyForInspection) &&
+        count(maintenance.unassigned) &&
+        count(maintenance.waitingForParts))) &&
+    (!inspections ||
+      (count(inspections.failedRequiringAction) &&
+        count(inspections.overdue) &&
+        count(inspections.upcoming))) &&
     (!requests ||
       (count(requests.submittedAwaitingReview) &&
         count(requests.underReview) &&
@@ -52,7 +70,15 @@ function isSummary(value: unknown): value is AdminWorkSummaryResponse {
     (!activeRentals ||
       (count(activeRentals.active) &&
         count(activeRentals.expectedReturnsToday) &&
-        count(activeRentals.overdue)))
+        count(activeRentals.overdue))) &&
+    (!returns ||
+      (count(returns.partiallyReturned) &&
+        count(returns.awaitingReconciliation) &&
+        count(returns.readyToComplete))) &&
+    (!returnIssues ||
+      (count(returnIssues.missing) &&
+        count(returnIssues.damaged) &&
+        count(returnIssues.unresolved)))
   );
 }
 

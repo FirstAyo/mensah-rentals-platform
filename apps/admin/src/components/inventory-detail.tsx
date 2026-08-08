@@ -14,6 +14,7 @@ import {
   useQuery,
 } from '@tanstack/react-query';
 import { useState } from 'react';
+import { InventoryMaintenanceLinks } from './inventory-maintenance-links';
 
 const states: InventoryStateResponse[] = [
   'RENTABLE',
@@ -28,11 +29,17 @@ const field = 'w-full rounded-lg border border-border bg-background px-3 py-2';
 function DetailBody({
   id,
   canAdjust,
+  canCreateMaintenance,
+  canViewMaintenance,
+  canViewInspections,
   canViewHistory,
   canViewQuantity,
 }: {
   id: string;
   canAdjust: boolean;
+  canCreateMaintenance: boolean;
+  canViewMaintenance: boolean;
+  canViewInspections: boolean;
   canViewHistory: boolean;
   canViewQuantity: boolean;
 }) {
@@ -150,6 +157,14 @@ function DetailBody({
         <p className="mt-1 text-muted-foreground">
           Operational information on this page is confidential.
         </p>
+        {canCreateMaintenance ? (
+          <a
+            className="mt-4 inline-flex min-h-11 items-center rounded-lg border border-border px-4 py-2 text-sm font-semibold"
+            href={`/maintenance/work-orders/new?inventoryId=${encodeURIComponent(id)}`}
+          >
+            Create maintenance work order
+          </a>
+        ) : null}
       </div>
       {canViewQuantity && quantities.data ? (
         <section>
@@ -301,6 +316,11 @@ function DetailBody({
           </div>
         </section>
       ) : null}
+      <InventoryMaintenanceLinks
+        canViewInspections={canViewInspections}
+        canViewMaintenance={canViewMaintenance}
+        inventoryId={id}
+      />
       {history.data ? (
         <section>
           <h2 className="text-xl font-semibold">Append-only history</h2>
@@ -331,6 +351,9 @@ function DetailBody({
 export function InventoryDetail(props: {
   id: string;
   canAdjust: boolean;
+  canCreateMaintenance: boolean;
+  canViewMaintenance: boolean;
+  canViewInspections: boolean;
   canViewHistory: boolean;
   canViewQuantity: boolean;
 }) {

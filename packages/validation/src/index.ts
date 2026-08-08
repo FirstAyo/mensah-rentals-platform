@@ -6,6 +6,7 @@ export * from './fulfilment';
 export * from './returns';
 export * from './homepage';
 export * from './google-reviews';
+export * from './maintenance';
 
 const environmentBoolean = z
   .enum(['true', 'false'])

@@ -85,7 +85,7 @@ export function CustomerOrder() {
             {order.companyName ? ` · ${order.companyName}` : ''}
           </p>
         </div>
-        <span className="inline-flex min-h-10 items-center gap-2 self-start rounded-full bg-primary/10 px-4 py-2 text-sm font-semibold text-primary">
+        <span className="inline-flex min-h-10 items-center gap-2 self-start rounded-full bg-primary/10 px-4 py-2 text-sm font-semibold text-foreground">
           <CheckCircle2 className="h-4 w-4" aria-hidden="true" />
           {order.customerFulfilmentStatus?.label ?? 'Confirmed'}
         </span>

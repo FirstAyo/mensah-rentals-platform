@@ -6,6 +6,11 @@ export default async function ReturnPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireStaffPermission('return.view');
-  return <ReturnDetail id={(await params).id} />;
+  const user = await requireStaffPermission('return.view');
+  return (
+    <ReturnDetail
+      id={(await params).id}
+      canCreateMaintenance={user.permissionKeys.includes('maintenance.create')}
+    />
+  );
 }

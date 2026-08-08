@@ -778,6 +778,20 @@ export interface PublicRentalOrderResponse extends QuoteMoneyResponse {
 
 export interface AdminWorkSummaryResponse {
   generatedAt: string;
+  maintenance?: {
+    dueToday: number;
+    equipmentInMaintenance: number;
+    open: number;
+    overdue: number;
+    readyForInspection: number;
+    unassigned: number;
+    waitingForParts: number;
+  };
+  inspections?: {
+    failedRequiringAction: number;
+    overdue: number;
+    upcoming: number;
+  };
   rentalRequests?: {
     approvedAwaitingQuote?: number;
     submittedAwaitingReview: number;
@@ -1214,3 +1228,155 @@ export interface AdminRentalIssueResponse {
   createdAt: string;
   updatedAt: string;
 }
+
+export type MaintenanceWorkOrderSourceResponse =
+  | 'MANUAL'
+  | 'RETURN_ISSUE'
+  | 'RETURN_DISPOSITION'
+  | 'FAILED_INSPECTION';
+export type MaintenanceWorkOrderTypeResponse =
+  | 'CORRECTIVE'
+  | 'PREVENTIVE'
+  | 'INSPECTION_FOLLOWUP';
+export type MaintenanceWorkOrderStatusResponse =
+  | 'OPEN'
+  | 'ASSIGNED'
+  | 'IN_PROGRESS'
+  | 'WAITING_FOR_PARTS'
+  | 'READY_FOR_INSPECTION'
+  | 'COMPLETED'
+  | 'CANCELLED';
+export type MaintenancePriorityResponse = 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+export type MaintenanceCompletionOutcomeResponse =
+  | 'RETURN_TO_SERVICE'
+  | 'REMAINS_DAMAGED';
+export type EquipmentInspectionTypeResponse = 'ROUTINE' | 'POST_MAINTENANCE';
+export type EquipmentInspectionStatusResponse =
+  | 'SCHEDULED'
+  | 'IN_PROGRESS'
+  | 'PASSED'
+  | 'FAILED'
+  | 'CANCELLED';
+export type EquipmentInspectionResultResponse = 'PASSED' | 'FAILED';
+
+export interface AdminMaintenanceStaffSummary {
+  firstName: string;
+  id: string;
+  lastName: string;
+  status: StaffUserStatus;
+}
+
+export interface AdminMaintenanceOperationResponse {
+  actor: AdminMaintenanceStaffSummary;
+  createdAt: string;
+  id: string;
+  summary: string;
+  type:
+    | 'CREATED'
+    | 'ASSIGNED'
+    | 'UNASSIGNED'
+    | 'PRIORITY_CHANGED'
+    | 'SCHEDULE_CHANGED'
+    | 'STARTED'
+    | 'WAITING_FOR_PARTS'
+    | 'WORK_RESUMED'
+    | 'READY_FOR_INSPECTION'
+    | 'COMPLETED'
+    | 'CANCELLED'
+    | 'NOTE_ADDED'
+    | 'INVENTORY_MOVED'
+    | 'INSPECTION_SCHEDULED'
+    | 'INSPECTION_STARTED'
+    | 'INSPECTION_PASSED'
+    | 'INSPECTION_FAILED'
+    | 'INSPECTION_CANCELLED'
+    | 'ISSUE_RESOLVED';
+}
+
+export interface AdminMaintenanceNoteResponse {
+  author: AdminMaintenanceStaffSummary;
+  body: string;
+  createdAt: string;
+  id: string;
+}
+
+export interface AdminMaintenanceWorkOrderSummaryResponse {
+  assetNumber: string | null;
+  assignedStaff: AdminMaintenanceStaffSummary | null;
+  createdAt: string;
+  dueAt: string | null;
+  id: string;
+  inventoryId: string;
+  inventoryItemId: string | null;
+  overdue: boolean;
+  priority: MaintenancePriorityResponse;
+  productName: string;
+  quantity: number;
+  scheduledFor: string | null;
+  source: MaintenanceWorkOrderSourceResponse;
+  status: MaintenanceWorkOrderStatusResponse;
+  title: string;
+  type: MaintenanceWorkOrderTypeResponse;
+  updatedAt: string;
+  version: number;
+  workOrderNumber: string;
+}
+
+export interface AdminMaintenanceWorkOrderResponse
+  extends AdminMaintenanceWorkOrderSummaryResponse {
+  cancellationReason: string | null;
+  cancelledAt: string | null;
+  completedAt: string | null;
+  completedBy: AdminMaintenanceStaffSummary | null;
+  completionOutcome: MaintenanceCompletionOutcomeResponse | null;
+  completionSummary: string | null;
+  description: string;
+  inspections: AdminEquipmentInspectionSummaryResponse[];
+  notes: AdminMaintenanceNoteResponse[];
+  operations: AdminMaintenanceOperationResponse[];
+  readyForInspectionAt: string | null;
+  serialNumber: string | null;
+  sourceInspectionId: string | null;
+  sourceRentalIssueId: string | null;
+  sourceRentalReturnItemId: string | null;
+  startedAt: string | null;
+}
+
+export type AdminMaintenanceWorkOrderListResponse =
+  PaginatedResponse<AdminMaintenanceWorkOrderSummaryResponse>;
+
+export interface AdminEquipmentInspectionSummaryResponse {
+  assetNumber: string | null;
+  assignedStaff: AdminMaintenanceStaffSummary | null;
+  completedAt: string | null;
+  createdAt: string;
+  id: string;
+  inspectionNumber: string;
+  inventoryId: string;
+  inventoryItemId: string | null;
+  overdue: boolean;
+  productName: string;
+  quantity: number;
+  result: EquipmentInspectionResultResponse | null;
+  scheduledFor: string;
+  sourceWorkOrderId: string | null;
+  status: EquipmentInspectionStatusResponse;
+  type: EquipmentInspectionTypeResponse;
+  updatedAt: string;
+  version: number;
+}
+
+export interface AdminEquipmentInspectionResponse
+  extends AdminEquipmentInspectionSummaryResponse {
+  cancelledAt: string | null;
+  completedBy: AdminMaintenanceStaffSummary | null;
+  generatedWorkOrderId: string | null;
+  ingressMoved: boolean;
+  operations: AdminMaintenanceOperationResponse[];
+  serialNumber: string | null;
+  startedAt: string | null;
+  summary: string | null;
+}
+
+export type AdminEquipmentInspectionListResponse =
+  PaginatedResponse<AdminEquipmentInspectionSummaryResponse>;
