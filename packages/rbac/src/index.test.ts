@@ -12,7 +12,7 @@ describe('RBAC catalogue', () => {
     expect(new Set(SYSTEM_ROLES.map(({ name }) => name)).size).toBe(
       SYSTEM_ROLES.length,
     );
-    expect(PERMISSION_CATALOGUE).toHaveLength(91);
+    expect(PERMISSION_CATALOGUE).toHaveLength(95);
   });
   it('grants SUPER_ADMIN every seeded permission', () => {
     expect(DEFAULT_ROLE_PERMISSION_KEYS.SUPER_ADMIN).toEqual(
@@ -95,6 +95,24 @@ describe('RBAC catalogue', () => {
       'inspection.cancel',
     ] as const;
     for (const permission of maintenancePermissions) {
+      expect(DEFAULT_ROLE_PERMISSION_KEYS.ADMIN).toContain(permission);
+      expect(DEFAULT_ROLE_PERMISSION_KEYS.SUPER_ADMIN).toContain(permission);
+      expect(DEFAULT_ROLE_PERMISSION_KEYS.EDITOR).not.toContain(permission);
+      expect(DEFAULT_ROLE_PERMISSION_KEYS.SALES_PERSON).not.toContain(
+        permission,
+      );
+    }
+  });
+  it('keeps reporting, audit, observability, and backup status conservative', () => {
+    const phase18Permissions = [
+      'report.view',
+      'report.export',
+      'audit_log.view',
+      'audit_log.export',
+      'observability.view',
+      'backup.view_status',
+    ] as const;
+    for (const permission of phase18Permissions) {
       expect(DEFAULT_ROLE_PERMISSION_KEYS.ADMIN).toContain(permission);
       expect(DEFAULT_ROLE_PERMISSION_KEYS.SUPER_ADMIN).toContain(permission);
       expect(DEFAULT_ROLE_PERMISSION_KEYS.EDITOR).not.toContain(permission);

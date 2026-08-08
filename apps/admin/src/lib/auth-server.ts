@@ -116,3 +116,14 @@ export async function requireStaffPermission(
   if (!user.permissionKeys.includes(permission)) redirect('/forbidden');
   return user;
 }
+
+export async function requireStaffPermissions(
+  ...permissions: string[]
+): Promise<StaffUserResponse> {
+  const user = await requireCurrentStaffUser();
+  if (
+    !permissions.every((permission) => user.permissionKeys.includes(permission))
+  )
+    redirect('/forbidden');
+  return user;
+}

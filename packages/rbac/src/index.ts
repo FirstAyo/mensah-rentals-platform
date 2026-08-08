@@ -110,7 +110,11 @@ export const PERMISSION_CATALOGUE = [
     'View the Google Reviews integration configuration status.',
   ],
   ['report.view', 'View protected reports.'],
+  ['report.export', 'Export bounded protected report data.'],
   ['audit_log.view', 'View audit logs.'],
+  ['audit_log.export', 'Export bounded audit-history data.'],
+  ['observability.view', 'View protected operational system status.'],
+  ['backup.view_status', 'View protected backup verification status.'],
 ] as const;
 
 export type PermissionKey = (typeof PERMISSION_CATALOGUE)[number][0];
@@ -226,6 +230,11 @@ const ADMIN_PERMISSIONS = [
   'homepage.preview',
   'homepage.google_reviews.view_status',
   'report.view',
+  'report.export',
+  'audit_log.view',
+  'audit_log.export',
+  'observability.view',
+  'backup.view_status',
 ] as const satisfies readonly PermissionKey[];
 
 const EDITOR_PERMISSIONS = [

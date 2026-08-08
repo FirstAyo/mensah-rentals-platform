@@ -20,6 +20,20 @@ const optionalEnvironmentUrl = z.preprocess(
   (value) => (value === '' ? undefined : value),
   z.string().url().optional(),
 );
+const ianaTimeZoneSchema = z
+  .string()
+  .trim()
+  .refine(
+    (value) => {
+      try {
+        new Intl.DateTimeFormat('en-CA', { timeZone: value }).format();
+        return true;
+      } catch {
+        return false;
+      }
+    },
+    { message: 'A valid IANA time zone is required.' },
+  );
 
 export const staffLoginSchema = z
   .object({
@@ -95,6 +109,27 @@ export const apiEnvironmentSchema = z
       .default(60),
     DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
     MEDIA_STORAGE_ROOT: z.string().trim().min(1).default('storage/media'),
+    REPORTING_TIME_ZONE: ianaTimeZoneSchema.default('Africa/Accra'),
+    REPORT_EXPORT_MAX_ROWS: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(100_000)
+      .default(10_000),
+    REPORT_EXPORT_MAX_DAYS: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(3_660)
+      .default(366),
+    BACKUP_STATUS_FILE: z
+      .string()
+      .trim()
+      .min(1)
+      .default('.local-backups/backup-status.json'),
+    APP_VERSION: optionalEnvironmentString,
+    APP_COMMIT_SHA: optionalEnvironmentString,
+    TRUST_PROXY_REQUEST_ID: environmentBoolean.default('false'),
     GOOGLE_REVIEWS_LIVE_ENABLED: environmentBoolean.default('false'),
     GOOGLE_PLACES_API_KEY: optionalEnvironmentString,
     GOOGLE_BUSINESS_PLACE_ID: optionalEnvironmentString,

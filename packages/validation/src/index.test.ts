@@ -174,6 +174,34 @@ describe('authentication environment validation', () => {
     ).toBe(false);
   });
 
+  it('validates bounded reporting and observability configuration', () => {
+    const parsed = apiEnvironmentSchema.parse({
+      DATABASE_URL: 'postgresql://example.invalid/database',
+      REPORTING_TIME_ZONE: 'Africa/Accra',
+      REPORT_EXPORT_MAX_DAYS: '366',
+      REPORT_EXPORT_MAX_ROWS: '10000',
+      TRUST_PROXY_REQUEST_ID: 'false',
+    });
+    expect(parsed).toMatchObject({
+      REPORTING_TIME_ZONE: 'Africa/Accra',
+      REPORT_EXPORT_MAX_DAYS: 366,
+      REPORT_EXPORT_MAX_ROWS: 10_000,
+      TRUST_PROXY_REQUEST_ID: false,
+    });
+    expect(
+      apiEnvironmentSchema.safeParse({
+        DATABASE_URL: 'postgresql://example.invalid/database',
+        REPORTING_TIME_ZONE: 'not/a-time-zone',
+      }).success,
+    ).toBe(false);
+    expect(
+      apiEnvironmentSchema.safeParse({
+        DATABASE_URL: 'postgresql://example.invalid/database',
+        REPORT_EXPORT_MAX_ROWS: '1000000',
+      }).success,
+    ).toBe(false);
+  });
+
   it.each([undefined, 'production', 'test'])(
     'rejects bootstrap when NODE_ENV is %s',
     (nodeEnvironment) => {

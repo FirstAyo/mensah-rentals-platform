@@ -193,6 +193,20 @@ Stop applications with `Ctrl+C`; stop containers with:
 docker compose down
 ```
 
+## Phase 18 operator checks
+
+```powershell
+docker compose up -d postgres postgres-test
+pnpm db:migrate
+pnpm rbac:seed
+pnpm db:integrity
+pnpm db:backup:test
+pnpm db:restore:test
+pnpm dev
+```
+
+Sign in at `http://localhost:3001/login`, then open `/reports`, `/reports/audit`, and `/system/status`. Restore verification must finish `PASSED` and clean its isolated database/media extraction. `.local-backups` is ignored; never commit its artifacts.
+
 ## Phase 16.2 category deletion and slug editing
 
 Apply migration `20260731120000_phase16_2_category_deletion`, regenerate Prisma, and refresh authorization:

@@ -202,3 +202,7 @@ boundary.
 ## Phase 16 returns
 
 The permission catalogue adds `return.view`, `return.create`, `return.partial`, `return.inspect`, `return.reconcile`, `return.complete`, `return.pdf`, `rental_issue.view`, `rental_issue.update`, and `rental_issue.resolve`. `SUPER_ADMIN` and `ADMIN` receive all ten. `SALES_PERSON` receives `return.view` only. `EDITOR` receives none. Creating intake requires create plus inspect; intentional partial intake also requires partial. Completion requires reconcile plus complete. A physical issue resolution requires issue resolve plus return reconcile. Staff PDFs require return view plus return PDF. Inventory, order, fulfilment, or active-rental permissions never imply return authority.
+
+## Phase 18 operations
+
+`report.view` opens allowed reports; `report.export` additionally permits export but grants no domain data. `audit_log.view` reads safe immutable history; `audit_log.export` adds export. `observability.view` reads safe status. `backup.view_status` reads verification metadata only. SUPER_ADMIN and ADMIN receive these; EDITOR and SALES_PERSON do not by default.

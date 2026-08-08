@@ -1249,3 +1249,43 @@ The focused browser command resets only the allowlisted test database, creates t
 From the repository root, start the guarded database and run `pnpm db:validate`, `pnpm db:generate`, `pnpm test`, `pnpm test:e2e:products`, `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, and `pnpm build`. The focused browser runner resets only the allowlisted `_test` database and owns every product, request, staff account, and category it creates.
 
 Success means product name/slug/category edits work without raw validation errors; duplicate and invalid slugs are friendly; an unreferenced product is hard-deleted only after confirmation; a referenced product becomes a tombstone while request history stays readable; the default EDITOR sees Edit/Deactivate but not Delete; public details return 404; dark mode persists at 320 px; the dialog restores focus and has zero serious/critical Axe findings. Service regressions additionally prove media/inventory links survive edits, empty inventory cleanup is bounded, serialized/history dependencies force retention, cart lines are removed, and no inventory mutation occurs.
+
+## Phase 18 focused commands
+
+Run `pnpm test:operator-tooling`, `pnpm db:integrity`, `pnpm db:integrity:test`, `pnpm db:backup:test`, `pnpm db:restore:test`, and `pnpm test:e2e:reports-all`. The focused browser commands are also available individually as `pnpm test:e2e:reports`, `pnpm test:e2e:audit`, and `pnpm test:e2e:system-status`. Success means guarded integrity is read-only, restore says `PASSED` with cleanup, and 320px/1440px report, export, audit, status, dark-theme persistence, overflow, and serious/critical Axe checks pass.
+
+### Phase 18 manual checks
+
+1. Run `pnpm dev`, sign in as the environment-bootstrap SUPER_ADMIN at `http://localhost:3001/login`, and open `/reports`. Success: period cards and request-volume chart load in Africa/Accra without an error alert.
+2. Open every report navigation item. Exercise search, status/record-type/overdue/tracking/action/priority, and custom dates. Success: the URL retains filters, the backend page changes, invalid dates show a safe validation error, and no whole-table client filtering occurs.
+3. Export a filtered report. Success: one `.csv` downloads with a fixed `mensah-rentals-...csv` name, formatted values, no secret/internal columns, and a corresponding read-only event appears in `/reports/audit`.
+4. Open audit history, filter domain/action, open a detail, and export. Success: no edit/delete control exists and raw metadata, notes, credentials, operations, and payloads are absent.
+5. Open `/system/status`. Success: readiness/migration values appear; no URL, host, path, key, token, or operator action appears. Backup verification is clearly guarded-test verification rather than an operational production backup.
+6. Resize to 320px and 1440px, switch dark mode, reload, use keyboard Tab/Enter, and zoom to 200%. Success: preference persists, focus is visible, no page-level horizontal overflow occurs, and content remains readable.
+
+### Exact automated sequence
+
+```powershell
+docker compose up -d postgres postgres-test
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm test:e2e:reports
+pnpm test:e2e:audit
+pnpm test:e2e:system-status
+pnpm test:e2e:reports-all
+pnpm db:integrity
+pnpm db:integrity:test
+pnpm db:restore:test
+git diff --check
+```
+
+The browser harness refuses occupied ports and resets only the local database whose name ends `_test`. A permission failure should be 401 without a session and 403 with an insufficient staff session. A row/range limit should be 422. A stale/unavailable dependency should show a safe error, never a stack or raw database message. Do not run browser/integration reset commands against staging or production.

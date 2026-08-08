@@ -18,3 +18,7 @@
 4. A failure keeps the target unavailable and offers an explicit corrective work order; no work order, recurrence, or inventory movement is silently invented.
 
 Customers do not participate in either flow and never receive maintenance data.
+
+## Staff reporting flow
+
+Authorized staff select a bounded date period and see only reports allowed by reporting plus domain permissions. An export rechecks live permissions, returns allowlisted CSV, and records an immutable audit event. Audit History is searchable but cannot be edited. System Status is safe and read-only; backup and restore remain operator-only commands outside the UI.

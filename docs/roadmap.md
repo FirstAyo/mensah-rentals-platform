@@ -59,3 +59,7 @@ database, API, authorization, UI, documentation, and tests where applicable.
 
 Redis remains deferred until a concrete cache, queue, distributed locking, or
 session requirement justifies its operational cost.
+
+## Phase 18 complete
+
+The platform now has read-only operational reports, permission-aware safe exports, unified immutable audit history, internal observability, integrity checks, and isolated PostgreSQL/media restore verification. Scheduled encrypted off-host retention remains VPS operations work.

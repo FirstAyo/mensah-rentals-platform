@@ -22,6 +22,7 @@ export default defineConfig({
           '**/maintenance.spec.ts',
           '**/amendments-isolated.spec.ts',
           '**/homepage.spec.ts',
+          '**/reports.spec.ts',
         ],
   timeout: 60_000,
   expect: { timeout: 30_000 },

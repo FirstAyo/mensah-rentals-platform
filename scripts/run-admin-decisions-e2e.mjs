@@ -47,6 +47,10 @@ const modes = new Set([
   'homepage-google-timeout',
   'homepage-google-quota',
   'homepage-all',
+  'reports',
+  'audit',
+  'system-status',
+  'reports-all',
 ]);
 if (!modes.has(mode)) throw new Error(`Unknown decision browser mode: ${mode}`);
 
@@ -517,6 +521,54 @@ if (
   browserEnvironment.PHASE17_SERIALIZED_ITEM_ID = serializedItem.id;
   browserEnvironment.PHASE17_SERIALIZED_ASSET_NUMBER = assetNumber;
 }
+if (
+  mode === 'reports' ||
+  mode === 'audit' ||
+  mode === 'system-status' ||
+  mode === 'reports-all'
+) {
+  const marker = randomUUID().replaceAll('-', '').slice(0, 12);
+  const reportViewerPassword = `${randomBytes(24).toString('base64url')}Aa1!`;
+  const reportPermissions = await prisma.permission.findMany({
+    where: { key: { in: ['report.view', 'rental_request.view'] } },
+  });
+  if (reportPermissions.length !== 2)
+    throw new Error('Phase 18 report-viewer permissions were not seeded.');
+  const reportViewerRole = await prisma.role.create({
+    data: {
+      displayName: 'Phase 18 report viewer',
+      name: `P18_REPORT_VIEWER_${marker.toUpperCase()}`,
+      permissions: {
+        create: reportPermissions.map((permission) => ({
+          permissionId: permission.id,
+        })),
+      },
+    },
+  });
+  const reportViewer = await prisma.user.create({
+    data: {
+      email: `phase18-viewer-${marker}@example.test`,
+      firstName: 'Report',
+      lastName: 'Viewer',
+      passwordHash: await hashPassword(reportViewerPassword),
+      roles: { create: { roleId: reportViewerRole.id } },
+      status: 'ACTIVE',
+    },
+  });
+  browserEnvironment.PHASE18_REPORT_VIEWER_EMAIL = reportViewer.email;
+  browserEnvironment.PHASE18_REPORT_VIEWER_PASSWORD = reportViewerPassword;
+  await prisma.platformAuditEvent.create({
+    data: {
+      action: 'PHASE18_BROWSER_FIXTURE_CREATED',
+      actorUserId: fixture.id,
+      domain: 'REPORTING',
+      entityReference: 'phase18-browser-fixture',
+      entityType: 'TEST_FIXTURE',
+      sourceKey: `phase18-browser:${marker}`,
+      summary: 'Created the isolated Phase 18 browser audit fixture.',
+    },
+  });
+}
 if (mode === 'phase12-1-layout') {
   const product = await prisma.product.findFirstOrThrow({
     where: { isActive: true },
@@ -941,6 +993,11 @@ const maintenanceMode =
   mode === 'maintenance-all';
 const homepageMode = mode.startsWith('homepage');
 const publicRegressionMode = mode === 'catalogue' || mode === 'cart';
+const phase18Mode =
+  mode === 'reports' ||
+  mode === 'audit' ||
+  mode === 'system-status' ||
+  mode === 'reports-all';
 const productionPublicRegressionMode = mode === 'catalogue';
 if (
   phase121Mode ||
@@ -951,6 +1008,7 @@ if (
   returnMode ||
   maintenanceMode ||
   homepageMode ||
+  phase18Mode ||
   publicRegressionMode
 )
   run(
@@ -981,8 +1039,9 @@ const servers = [
       categoryMode ||
       productMode ||
       homepageMode ||
+      phase18Mode ||
       productionPublicRegressionMode ||
-      ((fulfilmentMode || returnMode || maintenanceMode) &&
+      ((fulfilmentMode || returnMode || maintenanceMode || phase18Mode) &&
         workspace !== '@mensah-rentals/web')
         ? 'start'
         : 'dev',
@@ -1001,21 +1060,33 @@ try {
     waitFor(
       'http://localhost:3000/rentals',
       'Customer website',
-      reservationMode || fulfilmentMode || returnMode || maintenanceMode
+      reservationMode ||
+        fulfilmentMode ||
+        returnMode ||
+        maintenanceMode ||
+        phase18Mode
         ? 180_000
         : 90_000,
     ),
     waitFor(
       'http://localhost:3001/login',
       'Admin application',
-      reservationMode || fulfilmentMode || returnMode || maintenanceMode
+      reservationMode ||
+        fulfilmentMode ||
+        returnMode ||
+        maintenanceMode ||
+        phase18Mode
         ? 180_000
         : 90_000,
     ),
     waitFor(
       'http://localhost:4000/health/database',
       'API database health',
-      reservationMode || fulfilmentMode || returnMode || maintenanceMode
+      reservationMode ||
+        fulfilmentMode ||
+        returnMode ||
+        maintenanceMode ||
+        phase18Mode
         ? 180_000
         : 90_000,
     ),
@@ -1050,51 +1121,59 @@ try {
                       : mode === 'homepage-all'
                         ? '@homepage'
                         : '@homepage-public'
-          : maintenanceMode
-            ? mode === 'inspections'
-              ? '@inspections'
-              : mode === 'maintenance-all'
-                ? '@maintenance|@inspections'
-                : '@maintenance'
-            : returnMode
-              ? mode === 'returns-all'
-                ? '@returns'
-                : mode === 'returns-concurrency'
-                  ? '@return-concurrency'
-                  : mode === 'returns-issues'
-                    ? '@return-issues'
-                    : '@admin-returns'
-              : fulfilmentMode
-                ? mode === 'fulfilment-all'
-                  ? '@fulfilment'
-                  : mode === 'fulfilment-concurrency'
-                    ? '@fulfilment-concurrency'
-                    : mode === 'fulfilment-active-rentals'
-                      ? '@active-rentals'
-                      : '@admin-fulfilment'
-                : reservationMode
-                  ? mode === 'reservations-all'
-                    ? '@reservations'
-                    : mode === 'reservations-concurrency'
-                      ? '@reservation-concurrency'
-                      : '@admin-reservations'
-                  : isPhase121
-                    ? '@phase12-1'
-                    : isOrderMode
-                      ? mode === 'orders-all'
-                        ? '@orders'
-                        : mode === 'orders-admin'
-                          ? '@admin-orders'
-                          : '@customer-orders'
-                      : isQuoteMode
-                        ? mode === 'quotes-all'
-                          ? '@quotes'
-                          : mode === 'quotes-admin'
-                            ? '@admin-quotes'
-                            : '@customer-quotes'
-                        : mode === 'all'
-                          ? '@admin-decisions'
-                          : `@admin-decisions-${mode}`;
+          : phase18Mode
+            ? mode === 'reports'
+              ? '@reports'
+              : mode === 'audit'
+                ? '@audit'
+                : mode === 'system-status'
+                  ? '@system-status'
+                  : '@reports|@audit|@system-status'
+            : maintenanceMode
+              ? mode === 'inspections'
+                ? '@inspections'
+                : mode === 'maintenance-all'
+                  ? '@maintenance|@inspections'
+                  : '@maintenance'
+              : returnMode
+                ? mode === 'returns-all'
+                  ? '@returns'
+                  : mode === 'returns-concurrency'
+                    ? '@return-concurrency'
+                    : mode === 'returns-issues'
+                      ? '@return-issues'
+                      : '@admin-returns'
+                : fulfilmentMode
+                  ? mode === 'fulfilment-all'
+                    ? '@fulfilment'
+                    : mode === 'fulfilment-concurrency'
+                      ? '@fulfilment-concurrency'
+                      : mode === 'fulfilment-active-rentals'
+                        ? '@active-rentals'
+                        : '@admin-fulfilment'
+                  : reservationMode
+                    ? mode === 'reservations-all'
+                      ? '@reservations'
+                      : mode === 'reservations-concurrency'
+                        ? '@reservation-concurrency'
+                        : '@admin-reservations'
+                    : isPhase121
+                      ? '@phase12-1'
+                      : isOrderMode
+                        ? mode === 'orders-all'
+                          ? '@orders'
+                          : mode === 'orders-admin'
+                            ? '@admin-orders'
+                            : '@customer-orders'
+                        : isQuoteMode
+                          ? mode === 'quotes-all'
+                            ? '@quotes'
+                            : mode === 'quotes-admin'
+                              ? '@admin-quotes'
+                              : '@customer-quotes'
+                          : mode === 'all'
+                            ? '@admin-decisions'
+                            : `@admin-decisions-${mode}`;
   const grepArgument =
     process.platform === 'win32' && grep.includes('|') ? `"${grep}"` : grep;
   run(
@@ -1119,26 +1198,28 @@ try {
           ? ['e2e/homepage.spec.ts']
           : reservationMode || fulfilmentMode || returnMode
             ? ['e2e/orders.spec.ts']
-            : maintenanceMode
-              ? ['e2e/maintenance.spec.ts']
-              : isPhase121
-                ? [
-                    isPhase121Layout
-                      ? 'e2e/phase12-1.spec.ts'
-                      : isPhase121Quote
-                        ? 'e2e/quotes.spec.ts'
-                        : 'e2e/orders.spec.ts',
-                  ]
-                : [
-                    isOrderMode
-                      ? 'e2e/orders.spec.ts'
-                      : isQuoteMode
-                        ? 'e2e/quotes.spec.ts'
-                        : 'e2e/admin-decisions.spec.ts',
-                  ]),
+            : phase18Mode
+              ? ['e2e/reports.spec.ts']
+              : maintenanceMode
+                ? ['e2e/maintenance.spec.ts']
+                : isPhase121
+                  ? [
+                      isPhase121Layout
+                        ? 'e2e/phase12-1.spec.ts'
+                        : isPhase121Quote
+                          ? 'e2e/quotes.spec.ts'
+                          : 'e2e/orders.spec.ts',
+                    ]
+                  : [
+                      isOrderMode
+                        ? 'e2e/orders.spec.ts'
+                        : isQuoteMode
+                          ? 'e2e/quotes.spec.ts'
+                          : 'e2e/admin-decisions.spec.ts',
+                    ]),
       '--grep',
       grepArgument,
-      ...(maintenanceMode
+      ...(maintenanceMode || phase18Mode
         ? ['--project=mobile-320', '--project=wide-1440']
         : []),
       ...(mode === 'homepage-all'

@@ -444,6 +444,7 @@ model User {
   homepageActivities               HomepageActivity[]              @relation("HomepageActivityActor")
   homepageMediaCreated             HomepageMedia[]                 @relation("HomepageMediaCreator")
   categoryCoversUpdated            CategoryCover[]                 @relation("CategoryCoverUpdater")
+  platformAuditEvents              PlatformAuditEvent[]            @relation("PlatformAuditEventActor")
 }
 
 model StaffSession {
@@ -456,6 +457,32 @@ model StaffSession {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+model PlatformAuditEvent {
+  id              String   @id @default(cuid())
+  occurredAt      DateTime @default(now()) @db.Timestamptz(3)
+  actorUserId     String?
+  domain          String   @db.VarChar(40)
+  action          String   @db.VarChar(100)
+  entityType      String?  @db.VarChar(80)
+  entityId        String?  @db.VarChar(128)
+  entityReference String?  @db.VarChar(128)
+  summary         String   @db.Text
+  metadata        Json?
+  requestId       String?  @db.VarChar(128)
+  sourceType      String?  @db.VarChar(80)
+  sourceId        String?  @db.VarChar(128)
+  sourceKey       String?  @unique @db.VarChar(220)
+  createdAt       DateTime @default(now()) @db.Timestamptz(3)
+  actor           User?    @relation("PlatformAuditEventActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+
+  @@index([occurredAt, id])
+  @@index([domain, occurredAt, id])
+  @@index([actorUserId, occurredAt, id])
+  @@index([entityType, entityId, occurredAt, id])
+  @@index([entityReference, occurredAt, id])
+  @@index([requestId, occurredAt, id])
 }
 
 model Role {
@@ -651,6 +678,7 @@ model RentalRequest {
   @@index([rentalStartDate, submittedAt, id])
   @@index([updatedAt, id])
   @@index([contactEmail, submittedAt])
+  @@index([submittedAt, id])
 }
 
 model RentalRequestRevision {
@@ -924,6 +952,7 @@ model QuoteRevision {
   @@index([rentalRequestDecisionId, createdAt, id])
   @@index([validUntil, id])
   @@index([totalCents, id])
+  @@index([createdAt, id])
 }
 
 model QuoteRevisionItem {
@@ -989,6 +1018,8 @@ model QuoteRevisionLifecycle {
   sentBy           User?              @relation("QuoteRevisionSender", fields: [sentByUserId], references: [id], onDelete: Restrict)
 
   @@index([state, updatedAt, quoteRevisionId])
+  @@index([sentAt, quoteRevisionId])
+  @@index([terminalAt, quoteRevisionId])
 }
 
 model QuoteCustomerAccess {
@@ -1018,6 +1049,8 @@ model QuoteCustomerResponse {
   note            String?                   @db.Text
   respondedAt     DateTime                  @default(now()) @db.Timestamptz(3)
   quoteRevision   QuoteRevision             @relation(fields: [quoteRevisionId], references: [id], onDelete: Restrict)
+
+  @@index([response, respondedAt, id])
 }
 
 model QuoteActivity {
@@ -1458,6 +1491,8 @@ model InventoryTransaction {
   @@index([returnOperationItemId, createdAt, id])
   @@index([issueResolutionId, createdAt, id])
   @@index([maintenanceOperationId, createdAt, id])
+  @@index([createdAt, id])
+  @@index([fromState, toState, createdAt, id])
 }
 
 model OrderFulfilment {
@@ -1484,6 +1519,10 @@ model OrderFulfilment {
   activeRental           ActiveRental?
 
   @@index([status, updatedAt, id])
+  @@index([preparationStartedAt, id])
+  @@index([readyAt, id])
+  @@index([firstCheckedOutAt, id])
+  @@index([fullyCheckedOutAt, id])
 }
 
 model OrderFulfilmentItem {
@@ -1578,6 +1617,7 @@ model ActiveRental {
   rentalReturn      RentalReturn?
 
   @@index([status, expectedReturnAt, id])
+  @@index([checkedOutAt, id])
 }
 
 model ActiveRentalItem {
@@ -1641,6 +1681,7 @@ model RentalReturn {
 
   @@index([status, updatedAt, id])
   @@index([completedAt, id])
+  @@index([firstReturnAt, id])
 }
 
 model RentalReturnItem {
@@ -1757,6 +1798,7 @@ model RentalIssue {
   @@index([rentalReturnItemId, status, id])
   @@index([inventoryItemId, status, id])
   @@index([type, status, createdAt, id])
+  @@index([createdAt, id])
 }
 
 model RentalIssueResolution {
@@ -1853,6 +1895,9 @@ model MaintenanceWorkOrder {
   @@index([inventoryItemId, status, id])
   @@index([sourceRentalReturnItemId, status, id])
   @@index([sourceRentalIssueId, status, id])
+  @@index([createdAt, id])
+  @@index([completedAt, id])
+  @@index([cancelledAt, id])
 }
 
 model EquipmentInspection {
@@ -1895,6 +1940,7 @@ model EquipmentInspection {
   @@index([inventoryId, status, id])
   @@index([inventoryItemId, status, id])
   @@index([sourceWorkOrderId, status, id])
+  @@index([completedAt, result, id])
 }
 
 model MaintenanceOperation {

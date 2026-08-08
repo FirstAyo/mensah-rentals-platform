@@ -238,3 +238,7 @@ Phase 16 staff return APIs may contain condition totals, internal issue descript
 Rows with `deletedAt` are excluded from administrative catalogue lists, category selectors, public categories, public products, related products, and public slug details. Deleted products cannot be newly added to a cart or request. Historical request, quote, order, inventory, fulfilment, return, and issue endpoints continue to use protected projections and immutable snapshots. Tombstone markers, dependency counts, and retention decisions are never public fields.
 
 Phase 16.3 applies the same boundary to direct product deletion. `DELETE /admin/products/{id}` and its dependency preflight are authenticated administrative operations protected by `product.delete`. The internal response may state hard-delete versus tombstone retention and whether inventory/media were preserved; none of those fields enter public catalogue, cart, request, quote, order, or customer-capability DTOs. A removed product returns 404 from public slug routes and cannot be newly added to a cart or amendment.
+
+## Phase 18 internal data
+
+Reports, audit history, exports, detailed system status, and backup verification are administrative only. They require a staff session and exact permissions. Inventory quantities retain their confidential domain checks. CSV and audit DTOs are allowlists. Public health remains minimal and reveals no operational diagnostics.

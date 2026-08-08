@@ -20,6 +20,9 @@ import { FulfilmentModule } from './fulfilment/fulfilment.module';
 import { ReturnModule } from './returns/return.module';
 import { HomepageModule } from './homepage/homepage.module';
 import { MaintenanceModule } from './maintenance/maintenance.module';
+import { ReportingModule } from './reporting/reporting.module';
+import { AuditModule } from './audit/audit.module';
+import { SystemStatusModule } from './system/system-status.module';
 
 @Module({
   imports: [
@@ -41,6 +44,9 @@ import { MaintenanceModule } from './maintenance/maintenance.module';
     ReturnModule,
     HomepageModule,
     MaintenanceModule,
+    ReportingModule,
+    AuditModule,
+    SystemStatusModule,
   ],
   controllers: [HealthController],
   providers: [DatabaseService, HealthService],

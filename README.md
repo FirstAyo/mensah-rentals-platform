@@ -231,3 +231,7 @@ capability rotation. Quote and order PDFs contain customer-safe snapshots only.
 Confirmed-order customer links are explicitly generated, revoked, rotated, or
 prepared for resend by authorized staff. None of these actions reserves or
 changes inventory.
+
+## Phase 18 operations foundation
+
+Permission-aware operational reports, immutable audit history, safe CSV exports, internal status, and guarded database/media restore verification are documented in [reporting and audit](docs/reporting-and-audit.md), [backup and restore](docs/backup-and-restore.md), and [observability](docs/observability.md).

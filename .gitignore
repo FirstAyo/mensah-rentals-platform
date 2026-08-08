@@ -19,6 +19,7 @@ packages/database/generated/
 .env.*
 !.env.example
 !**/.env.example
+.local-backups/
 
 # Logs and local tooling
 *.log

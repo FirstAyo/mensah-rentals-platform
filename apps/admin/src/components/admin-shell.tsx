@@ -14,6 +14,9 @@ import {
   TriangleAlert,
   PanelsTopLeft,
   Wrench,
+  BarChart3,
+  History,
+  Activity,
 } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -94,6 +97,24 @@ const links = [
     icon: FolderTree,
     label: 'Categories',
     permission: 'category.view',
+  },
+  {
+    href: '/reports',
+    icon: BarChart3,
+    label: 'Reports',
+    permission: 'report.view',
+  },
+  {
+    href: '/reports/audit',
+    icon: History,
+    label: 'Audit History',
+    permission: 'audit_log.view',
+  },
+  {
+    href: '/system/status',
+    icon: Activity,
+    label: 'System Status',
+    permission: 'observability.view',
   },
 ] as const;
 
