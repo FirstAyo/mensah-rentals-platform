@@ -9,6 +9,13 @@ import { redirect } from 'next/navigation';
 
 import { getApiInternalUrl, getStaffSessionCookieName } from './auth-config';
 
+export class AdminApiUnavailableError extends Error {
+  constructor(options?: ErrorOptions) {
+    super('The Admin API is temporarily unavailable.', options);
+    this.name = 'AdminApiUnavailableError';
+  }
+}
+
 function parseStaffAuthResponse(value: unknown): StaffAuthResponse | null {
   if (!value || typeof value !== 'object' || !('user' in value)) {
     return null;
@@ -81,10 +88,16 @@ export async function requestCurrentStaffUser(
     return null;
   }
 
-  const response = await fetcher(`${getApiInternalUrl()}/auth/me`, {
-    cache: 'no-store',
-    headers: { Cookie: cookieHeader },
-  });
+  let response: Response;
+  try {
+    response = await fetcher(`${getApiInternalUrl()}/auth/me`, {
+      cache: 'no-store',
+      headers: { Cookie: cookieHeader },
+    });
+  } catch (cause) {
+    console.error('Admin API session validation failed.', cause);
+    throw new AdminApiUnavailableError({ cause });
+  }
   if (!response.ok) {
     return null;
   }
@@ -101,7 +114,15 @@ export async function getCurrentStaffUser(): Promise<StaffUserResponse | null> {
 }
 
 export async function requireCurrentStaffUser(): Promise<StaffUserResponse> {
-  const user = await getCurrentStaffUser();
+  let user: StaffUserResponse | null;
+  try {
+    user = await getCurrentStaffUser();
+  } catch (error) {
+    if (error instanceof AdminApiUnavailableError) {
+      redirect('/login?service=unavailable');
+    }
+    throw error;
+  }
   if (!user) {
     redirect('/login');
   }

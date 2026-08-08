@@ -13,7 +13,11 @@ const run = (executable, args, environment = process.env) => {
   if (result.status !== 0) process.exit(result.status ?? 1);
 };
 
-run(process.execPath, ['--test', 'scripts/test-database.test.mjs']);
+run(process.execPath, [
+  '--test',
+  'scripts/test-database.test.mjs',
+  'scripts/dev-readiness.test.mjs',
+]);
 const { environment } = loadTestEnvironment();
 run('docker', ['compose', 'up', '-d', 'postgres-test'], environment);
 

@@ -130,7 +130,7 @@ describe('admin quote BFF', () => {
     );
     expect(response.status).toBe(200);
     expect(String(fetcher.mock.calls[0]![0])).toBe(
-      'http://localhost:4000/admin/quotes/cm00000000000000000000000/revisions/cm00000000000000000000001/order',
+      'http://127.0.0.1:4000/admin/quotes/cm00000000000000000000000/revisions/cm00000000000000000000001/order',
     );
     expect(new Headers(fetcher.mock.calls[0]![1]?.headers).get('cookie')).toBe(
       'mensah_staff_session=safe',

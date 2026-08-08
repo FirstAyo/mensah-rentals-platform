@@ -4,11 +4,7 @@ import type {
   AdminRentalOrderSummaryResponse,
   PaginatedResponse,
 } from '@mensah-rentals/types';
-import {
-  QueryClient,
-  QueryClientProvider,
-  useQuery,
-} from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import Link from 'next/link';
 import { useMemo, useState } from 'react';
 
@@ -295,10 +291,5 @@ export function RentalOrderList({
 }: {
   canViewReservations: boolean;
 }) {
-  const [client] = useState(() => new QueryClient());
-  return (
-    <QueryClientProvider client={client}>
-      <RentalOrderListContent canViewReservations={canViewReservations} />
-    </QueryClientProvider>
-  );
+  return <RentalOrderListContent canViewReservations={canViewReservations} />;
 }

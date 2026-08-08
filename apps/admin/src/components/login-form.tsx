@@ -30,7 +30,11 @@ export function LoginForm() {
     });
 
     if (!response.ok) {
-      setServerError(GENERIC_LOGIN_ERROR);
+      setServerError(
+        response.status === 503
+          ? 'The Admin API is temporarily unavailable. Please try again shortly.'
+          : GENERIC_LOGIN_ERROR,
+      );
       return;
     }
 

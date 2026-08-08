@@ -4,11 +4,7 @@ import type {
   AdminQuoteSummaryResponse,
   PaginatedResponse,
 } from '@mensah-rentals/types';
-import {
-  QueryClient,
-  QueryClientProvider,
-  useQuery,
-} from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
   createColumnHelper,
   getCoreRowModel,
@@ -276,10 +272,5 @@ function QuoteListContent() {
 }
 
 export function QuoteList() {
-  const [client] = useState(() => new QueryClient());
-  return (
-    <QueryClientProvider client={client}>
-      <QuoteListContent />
-    </QueryClientProvider>
-  );
+  return <QuoteListContent />;
 }

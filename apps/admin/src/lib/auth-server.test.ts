@@ -1,6 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { requestCurrentStaffUser } from './auth-server';
+import {
+  AdminApiUnavailableError,
+  requestCurrentStaffUser,
+} from './auth-server';
 
 describe('server-side staff session validation', () => {
   it('returns null without a cookie and does not call the API', async () => {
@@ -18,6 +21,15 @@ describe('server-side staff session validation', () => {
     await expect(
       requestCurrentStaffUser('mensah_staff_session=opaque', fetcher),
     ).resolves.toBeNull();
+  });
+
+  it('distinguishes an unavailable API from an invalid session', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockRejectedValue(new TypeError('fetch failed'));
+    await expect(
+      requestCurrentStaffUser('mensah_staff_session=opaque', fetcher),
+    ).rejects.toBeInstanceOf(AdminApiUnavailableError);
   });
 
   it('returns a safe user with no-store session validation', async () => {
@@ -46,7 +58,7 @@ describe('server-side staff session validation', () => {
     expect(user?.email).toBe('staff@example.com');
     expect(user).not.toHaveProperty('passwordHash');
     expect(fetcher).toHaveBeenCalledWith(
-      'http://localhost:4000/auth/me',
+      'http://127.0.0.1:4000/auth/me',
       expect.objectContaining({ cache: 'no-store' }),
     );
   });

@@ -68,7 +68,7 @@ describe('fixed homepage BFF proxy', () => {
       RequestInit,
     ];
     expect(url).toBe(
-      'http://localhost:4000/admin/homepage/media/library?search=chair&page=2&source=PRODUCT',
+      'http://127.0.0.1:4000/admin/homepage/media/library?search=chair&page=2&source=PRODUCT',
     );
     expect(new Headers(init.headers).get('Cookie')).toBe(
       'mensah_staff_session=opaque',
@@ -101,7 +101,7 @@ describe('fixed homepage BFF proxy', () => {
       RequestInit,
     ];
     expect(url).toBe(
-      'http://localhost:4000/admin/homepage/google-reviews/test',
+      'http://127.0.0.1:4000/admin/homepage/google-reviews/test',
     );
     expect(new Headers(init.headers).get('Cookie')).toBe(
       'mensah_staff_session=opaque',

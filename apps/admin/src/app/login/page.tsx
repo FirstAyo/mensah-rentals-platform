@@ -1,13 +1,23 @@
 import { redirect } from 'next/navigation';
 
 import { LoginForm } from '@/components/login-form';
-import { getCurrentStaffUser } from '@/lib/auth-server';
+import {
+  AdminApiUnavailableError,
+  getCurrentStaffUser,
+} from '@/lib/auth-server';
 import { ThemeToggle } from '@mensah-rentals/ui';
 
 export const dynamic = 'force-dynamic';
 
 export default async function LoginPage() {
-  const user = await getCurrentStaffUser();
+  let apiUnavailable = false;
+  let user: Awaited<ReturnType<typeof getCurrentStaffUser>> = null;
+  try {
+    user = await getCurrentStaffUser();
+  } catch (error) {
+    if (!(error instanceof AdminApiUnavailableError)) throw error;
+    apiUnavailable = true;
+  }
   if (user) {
     redirect('/');
   }
@@ -25,6 +35,15 @@ export default async function LoginPage() {
         <p className="mt-3 leading-7 text-muted-foreground">
           Sign in with your internal staff account to continue.
         </p>
+        {apiUnavailable ? (
+          <p
+            className="mt-5 rounded-xl border border-amber-500/35 bg-amber-500/10 px-4 py-3 text-sm"
+            role="alert"
+          >
+            The Admin API is not available yet. Start it, wait for the health
+            check to succeed, then try again.
+          </p>
+        ) : null}
         <LoginForm />
       </section>
     </main>

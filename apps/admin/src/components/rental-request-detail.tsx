@@ -15,11 +15,7 @@ import {
   updateRentalRequestAssignmentSchema,
   updateRentalRequestReviewStateSchema,
 } from '@mensah-rentals/validation';
-import {
-  QueryClient,
-  QueryClientProvider,
-  useQuery,
-} from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
   ArrowLeft,
   ClipboardCheck,
@@ -745,10 +741,5 @@ export function RentalRequestDetail(props: {
   canViewRevisions: boolean;
   id: string;
 }) {
-  const [client] = useState(() => new QueryClient());
-  return (
-    <QueryClientProvider client={client}>
-      <DetailBody {...props} />
-    </QueryClientProvider>
-  );
+  return <DetailBody {...props} />;
 }

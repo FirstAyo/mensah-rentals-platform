@@ -11,11 +11,7 @@ import {
   updateCategorySchema,
   updateProductSchema,
 } from '@mensah-rentals/validation';
-import {
-  QueryClient,
-  QueryClientProvider,
-  useQuery,
-} from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
@@ -321,10 +317,5 @@ export function CatalogueForm(props: {
   resource: 'categories' | 'products';
   canManageMedia?: boolean;
 }) {
-  const [client] = useState(() => new QueryClient());
-  return (
-    <QueryClientProvider client={client}>
-      <FormBody {...props} />
-    </QueryClientProvider>
-  );
+  return <FormBody {...props} />;
 }

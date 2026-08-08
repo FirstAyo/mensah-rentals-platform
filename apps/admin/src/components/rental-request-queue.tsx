@@ -4,11 +4,7 @@ import type {
   AdminRentalRequestSummaryResponse,
   PaginatedResponse,
 } from '@mensah-rentals/types';
-import {
-  QueryClient,
-  QueryClientProvider,
-  useQuery,
-} from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import {
   createColumnHelper,
   flexRender,
@@ -417,10 +413,5 @@ function QueueBody() {
 }
 
 export function RentalRequestQueue() {
-  const [client] = useState(() => new QueryClient());
-  return (
-    <QueryClientProvider client={client}>
-      <QueueBody />
-    </QueryClientProvider>
-  );
+  return <QueueBody />;
 }

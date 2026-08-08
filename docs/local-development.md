@@ -866,8 +866,11 @@ The safe development defaults in `.env.example` are:
 - `AUTH_LOGIN_RATE_WINDOW_SECONDS=60`
 - `ADMIN_ORIGIN=http://localhost:3001`
 
-The admin server optionally accepts
-`API_INTERNAL_URL=http://localhost:4000`; that is also its local default.
+The Next.js servers optionally accept
+`API_INTERNAL_URL=http://127.0.0.1:4000`; that is also their local default.
+The browser-facing URLs remain on `localhost`. Using IPv4 explicitly for
+server-to-server calls avoids a Windows startup failure when `localhost`
+resolves to IPv6 (`::1`) before the API is listening there.
 Production must use HTTPS, `AUTH_COOKIE_SECURE=true`, a `__Host-` cookie name,
 and exact production admin/API URLs. See [Staff authentication](authentication.md).
 
@@ -969,6 +972,39 @@ Confirm the API is running on port 4000 and
 Use only `localhost` consistently; mixing `127.0.0.1` and `localhost` changes
 cookie hosts. Clear cookies for localhost, confirm the cookie name matches in
 the API and admin environment, and restart both applications.
+
+### Web or Admin starts before the API
+
+Use the readiness-gated command from the repository root:
+
+```powershell
+pnpm dev:safe
+```
+
+It starts NestJS first, polls `http://127.0.0.1:4000/health`, and starts the
+customer and admin Next.js applications only after the health check succeeds.
+The default timeout is 120 seconds. To use a longer local compilation window:
+
+```powershell
+$env:DEV_API_READY_TIMEOUT_MS='180000'
+pnpm dev:safe
+```
+
+An invalid health URL or timeout ends with a clear `API readiness timed out`
+message instead of starting the frontend applications against an unavailable
+API. `API_INTERNAL_URL` and `DEV_API_HEALTH_URL` remain configurable for other
+environments; production process supervision must still report genuine API
+outages rather than use this development orchestrator.
+
+### next-themes script warning on Next.js 16.2
+
+With Next.js 16.2.x and the latest stable `next-themes` 0.4.6, development may
+log `Encountered a script tag while rendering React component`. Theme
+initialization, system preference, manual light/dark selection, and persistence
+continue to work. This is an open upstream compatibility warning. Do not patch
+`node_modules`, suppress `console.error`, or replace the initialization script
+with a template tag. Recheck the upstream package before a future dependency
+update.
 
 ## 21. Apply and test Phase 4 products and categories
 

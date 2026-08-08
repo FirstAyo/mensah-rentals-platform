@@ -5,12 +5,7 @@ import type {
   AdminProductResponse,
   PaginatedResponse,
 } from '@mensah-rentals/types';
-import {
-  useQuery,
-  QueryClient,
-  QueryClientProvider,
-  useQueryClient,
-} from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   flexRender,
   getCoreRowModel,
@@ -501,9 +496,8 @@ export function CatalogueList(props: {
   resource: 'categories' | 'products';
   title: string;
 }) {
-  const [client] = useState(() => new QueryClient());
   return (
-    <QueryClientProvider client={client}>
+    <>
       <div className="mb-6 flex items-center justify-between">
         <div>
           <p className="text-sm font-semibold uppercase tracking-wider text-primary">
@@ -521,6 +515,6 @@ export function CatalogueList(props: {
         ) : null}
       </div>
       <TableView {...props} />
-    </QueryClientProvider>
+    </>
   );
 }

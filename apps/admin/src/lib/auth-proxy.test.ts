@@ -47,7 +47,7 @@ describe('fixed admin authentication proxy', () => {
 
     expect(response.headers.get('set-cookie')).toContain('HttpOnly');
     expect(fetcher).toHaveBeenCalledWith(
-      'http://localhost:4000/auth/login',
+      'http://127.0.0.1:4000/auth/login',
       expect.objectContaining({
         headers: expect.any(Headers),
         method: 'POST',

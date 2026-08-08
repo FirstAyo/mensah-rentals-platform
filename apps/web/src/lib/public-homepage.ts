@@ -20,10 +20,18 @@ function assertSafe(value: unknown): void {
 
 export const getPublicHomepage = cache(
   async (): Promise<PublicHomepageResponse> => {
-    const response = await fetch(
-      `${process.env.API_INTERNAL_URL ?? 'http://localhost:4000'}/public/homepage`,
-      { cache: 'no-store' },
-    );
+    let response: Response;
+    try {
+      response = await fetch(
+        `${process.env.API_INTERNAL_URL ?? 'http://127.0.0.1:4000'}/public/homepage`,
+        { cache: 'no-store' },
+      );
+    } catch (cause) {
+      console.error('Public homepage API request failed.', cause);
+      throw new Error('Homepage content is temporarily unavailable.', {
+        cause,
+      });
+    }
     if (!response.ok)
       throw new Error('Homepage content is temporarily unavailable.');
     const body: unknown = await response.json();

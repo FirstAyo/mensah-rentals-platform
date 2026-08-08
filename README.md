@@ -144,7 +144,8 @@ Then open:
 ## Common commands
 
 ```powershell
-pnpm dev          # Start all applications
+pnpm dev:safe     # Recommended: start API, wait for health, then Web/Admin
+pnpm dev          # Start all applications concurrently (no readiness gate)
 pnpm dev:web      # Start only the customer website
 pnpm dev:admin    # Start only the admin dashboard
 pnpm dev:api      # Start only the API

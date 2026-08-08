@@ -51,6 +51,7 @@ const modes = new Set([
   'audit',
   'system-status',
   'reports-all',
+  'runtime-regression',
 ]);
 if (!modes.has(mode)) throw new Error(`Unknown decision browser mode: ${mode}`);
 
@@ -998,6 +999,7 @@ const phase18Mode =
   mode === 'audit' ||
   mode === 'system-status' ||
   mode === 'reports-all';
+const runtimeRegressionMode = mode === 'runtime-regression';
 const productionPublicRegressionMode = mode === 'catalogue';
 if (
   phase121Mode ||
@@ -1009,7 +1011,8 @@ if (
   maintenanceMode ||
   homepageMode ||
   phase18Mode ||
-  publicRegressionMode
+  publicRegressionMode ||
+  runtimeRegressionMode
 )
   run(
     pnpm,
@@ -1121,59 +1124,61 @@ try {
                       : mode === 'homepage-all'
                         ? '@homepage'
                         : '@homepage-public'
-          : phase18Mode
-            ? mode === 'reports'
-              ? '@reports'
-              : mode === 'audit'
-                ? '@audit'
-                : mode === 'system-status'
-                  ? '@system-status'
-                  : '@reports|@audit|@system-status'
-            : maintenanceMode
-              ? mode === 'inspections'
-                ? '@inspections'
-                : mode === 'maintenance-all'
-                  ? '@maintenance|@inspections'
-                  : '@maintenance'
-              : returnMode
-                ? mode === 'returns-all'
-                  ? '@returns'
-                  : mode === 'returns-concurrency'
-                    ? '@return-concurrency'
-                    : mode === 'returns-issues'
-                      ? '@return-issues'
-                      : '@admin-returns'
-                : fulfilmentMode
-                  ? mode === 'fulfilment-all'
-                    ? '@fulfilment'
-                    : mode === 'fulfilment-concurrency'
-                      ? '@fulfilment-concurrency'
-                      : mode === 'fulfilment-active-rentals'
-                        ? '@active-rentals'
-                        : '@admin-fulfilment'
-                  : reservationMode
-                    ? mode === 'reservations-all'
-                      ? '@reservations'
-                      : mode === 'reservations-concurrency'
-                        ? '@reservation-concurrency'
-                        : '@admin-reservations'
-                    : isPhase121
-                      ? '@phase12-1'
-                      : isOrderMode
-                        ? mode === 'orders-all'
-                          ? '@orders'
-                          : mode === 'orders-admin'
-                            ? '@admin-orders'
-                            : '@customer-orders'
-                        : isQuoteMode
-                          ? mode === 'quotes-all'
-                            ? '@quotes'
-                            : mode === 'quotes-admin'
-                              ? '@admin-quotes'
-                              : '@customer-quotes'
-                          : mode === 'all'
-                            ? '@admin-decisions'
-                            : `@admin-decisions-${mode}`;
+          : runtimeRegressionMode
+            ? '@runtime-regression'
+            : phase18Mode
+              ? mode === 'reports'
+                ? '@reports'
+                : mode === 'audit'
+                  ? '@audit'
+                  : mode === 'system-status'
+                    ? '@system-status'
+                    : '@reports|@audit|@system-status'
+              : maintenanceMode
+                ? mode === 'inspections'
+                  ? '@inspections'
+                  : mode === 'maintenance-all'
+                    ? '@maintenance|@inspections'
+                    : '@maintenance'
+                : returnMode
+                  ? mode === 'returns-all'
+                    ? '@returns'
+                    : mode === 'returns-concurrency'
+                      ? '@return-concurrency'
+                      : mode === 'returns-issues'
+                        ? '@return-issues'
+                        : '@admin-returns'
+                  : fulfilmentMode
+                    ? mode === 'fulfilment-all'
+                      ? '@fulfilment'
+                      : mode === 'fulfilment-concurrency'
+                        ? '@fulfilment-concurrency'
+                        : mode === 'fulfilment-active-rentals'
+                          ? '@active-rentals'
+                          : '@admin-fulfilment'
+                    : reservationMode
+                      ? mode === 'reservations-all'
+                        ? '@reservations'
+                        : mode === 'reservations-concurrency'
+                          ? '@reservation-concurrency'
+                          : '@admin-reservations'
+                      : isPhase121
+                        ? '@phase12-1'
+                        : isOrderMode
+                          ? mode === 'orders-all'
+                            ? '@orders'
+                            : mode === 'orders-admin'
+                              ? '@admin-orders'
+                              : '@customer-orders'
+                          : isQuoteMode
+                            ? mode === 'quotes-all'
+                              ? '@quotes'
+                              : mode === 'quotes-admin'
+                                ? '@admin-quotes'
+                                : '@customer-quotes'
+                            : mode === 'all'
+                              ? '@admin-decisions'
+                              : `@admin-decisions-${mode}`;
   const grepArgument =
     process.platform === 'win32' && grep.includes('|') ? `"${grep}"` : grep;
   run(
@@ -1198,28 +1203,30 @@ try {
           ? ['e2e/homepage.spec.ts']
           : reservationMode || fulfilmentMode || returnMode
             ? ['e2e/orders.spec.ts']
-            : phase18Mode
-              ? ['e2e/reports.spec.ts']
-              : maintenanceMode
-                ? ['e2e/maintenance.spec.ts']
-                : isPhase121
-                  ? [
-                      isPhase121Layout
-                        ? 'e2e/phase12-1.spec.ts'
-                        : isPhase121Quote
-                          ? 'e2e/quotes.spec.ts'
-                          : 'e2e/orders.spec.ts',
-                    ]
-                  : [
-                      isOrderMode
-                        ? 'e2e/orders.spec.ts'
-                        : isQuoteMode
-                          ? 'e2e/quotes.spec.ts'
-                          : 'e2e/admin-decisions.spec.ts',
-                    ]),
+            : runtimeRegressionMode
+              ? ['e2e/runtime-regression.spec.ts']
+              : phase18Mode
+                ? ['e2e/reports.spec.ts']
+                : maintenanceMode
+                  ? ['e2e/maintenance.spec.ts']
+                  : isPhase121
+                    ? [
+                        isPhase121Layout
+                          ? 'e2e/phase12-1.spec.ts'
+                          : isPhase121Quote
+                            ? 'e2e/quotes.spec.ts'
+                            : 'e2e/orders.spec.ts',
+                      ]
+                    : [
+                        isOrderMode
+                          ? 'e2e/orders.spec.ts'
+                          : isQuoteMode
+                            ? 'e2e/quotes.spec.ts'
+                            : 'e2e/admin-decisions.spec.ts',
+                      ]),
       '--grep',
       grepArgument,
-      ...(maintenanceMode || phase18Mode
+      ...(maintenanceMode || phase18Mode || runtimeRegressionMode
         ? ['--project=mobile-320', '--project=wide-1440']
         : []),
       ...(mode === 'homepage-all'

@@ -106,7 +106,7 @@ async function get<T>(
   shape: (value: unknown) => void,
 ): Promise<T> {
   const response = await fetch(
-    `${process.env.API_INTERNAL_URL ?? 'http://localhost:4000'}${path}`,
+    `${process.env.API_INTERNAL_URL ?? 'http://127.0.0.1:4000'}${path}`,
     { cache: 'no-store' },
   );
   if (response.status === 404) throw new PublicCatalogueNotFound();

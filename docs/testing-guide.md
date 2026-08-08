@@ -1289,3 +1289,21 @@ git diff --check
 ```
 
 The browser harness refuses occupied ports and resets only the local database whose name ends `_test`. A permission failure should be 401 without a session and 403 with an insufficient staff session. A row/range limit should be 422. A stale/unavailable dependency should show a safe error, never a stack or raw database message. Do not run browser/integration reset commands against staging or production.
+
+## Local runtime/provider regression checks
+
+Run `pnpm test:dev-readiness` to verify that the local readiness helper waits
+through temporary failures and reports a clear timeout. Run
+`pnpm --filter @mensah-rentals/admin test` for the application-level React
+Query provider and Change Requests loading, error, empty, and data states. The
+full verification remains `pnpm format:check`, `pnpm lint`, `pnpm typecheck`,
+`pnpm test`, and `pnpm build`.
+
+For a manual startup check, stop the three applications and run
+`pnpm dev:safe`. Success means API health becomes ready before ports 3000 and
+3001 start. Sign in at `http://localhost:3001/login`, then open
+`/change-requests` and an available detail. The list must not show a missing
+QueryClient error. Also check `/`, `/rental-requests`, `/quotes`, `/orders`,
+`/maintenance/work-orders`, and `/reports` at 320px and 1440px. Verify dark
+theme persistence, no page-level horizontal overflow, and zero serious or
+critical Axe findings on Change Requests.

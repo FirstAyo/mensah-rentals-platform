@@ -19,6 +19,7 @@
   },
   "scripts": {
     "dev": "turbo run dev",
+    "dev:safe": "node scripts/dev-safe.mjs",
     "dev:web": "turbo run dev --filter=@mensah-rentals/web",
     "dev:admin": "turbo run dev --filter=@mensah-rentals/admin",
     "dev:api": "turbo run dev --filter=@mensah-rentals/api",
@@ -73,6 +74,7 @@
     "test:e2e:system-status": "pnpm --filter @mensah-rentals/web test:e2e:system-status",
     "test:e2e:reports-all": "pnpm --filter @mensah-rentals/web test:e2e:reports-all",
     "test:e2e:smoke": "pnpm --filter @mensah-rentals/web test:e2e:smoke",
+    "test:e2e:runtime": "pnpm --filter @mensah-rentals/web test:e2e:runtime",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:validate": "pnpm --filter @mensah-rentals/database db:validate",
@@ -87,6 +89,7 @@
     "db:integrity": "node scripts/db-integrity.mjs --source=development",
     "db:integrity:test": "node scripts/db-integrity.mjs --source=test",
     "test:operator-tooling": "node --test scripts/database-operator-tooling.test.mjs",
+    "test:dev-readiness": "node --test scripts/dev-readiness.test.mjs",
     "db:reset": "pnpm --filter @mensah-rentals/database db:reset",
     "rbac:seed": "turbo run build --filter=@mensah-rentals/database && pnpm --filter @mensah-rentals/database rbac:seed",
     "rbac:verify": "turbo run build --filter=@mensah-rentals/database && pnpm --filter @mensah-rentals/database rbac:verify",

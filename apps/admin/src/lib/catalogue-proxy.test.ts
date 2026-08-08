@@ -35,7 +35,7 @@ describe('fixed catalogue BFF proxy', () => {
       string,
       RequestInit,
     ];
-    expect(url).toBe('http://localhost:4000/admin/products?page=2');
+    expect(url).toBe('http://127.0.0.1:4000/admin/products?page=2');
     expect(new Headers(init.headers).get('Cookie')).toBe(
       'mensah_staff_session=opaque',
     );

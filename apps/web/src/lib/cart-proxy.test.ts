@@ -51,6 +51,7 @@ describe('fixed public cart BFF proxy', () => {
   });
 
   it('forwards only the named opaque cart token to a fixed upstream path', async () => {
+    vi.stubEnv('API_INTERNAL_URL', 'http://127.0.0.1:4000');
     const fetcher = vi.fn(async () =>
       Response.json({ desiredUnitCount: 0, distinctItemCount: 0, items: [] }),
     );
@@ -67,7 +68,7 @@ describe('fixed public cart BFF proxy', () => {
       string,
       RequestInit,
     ];
-    expect(url).toBe('http://localhost:4000/public/cart');
+    expect(url).toBe('http://127.0.0.1:4000/public/cart');
     const headers = new Headers(init.headers);
     expect(headers.get('x-rental-cart-token')).toBe('a'.repeat(43));
     expect(headers.get('cookie')).toBeNull();

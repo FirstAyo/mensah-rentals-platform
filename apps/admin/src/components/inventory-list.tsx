@@ -6,11 +6,7 @@ import type {
   AdminProductResponse,
   PaginatedResponse,
 } from '@mensah-rentals/types';
-import {
-  useQuery,
-  QueryClient,
-  QueryClientProvider,
-} from '@tanstack/react-query';
+import { useQuery } from '@tanstack/react-query';
 import { Plus, Warehouse } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
@@ -291,10 +287,5 @@ export function InventoryList(props: {
   canAdjust: boolean;
   canViewQuantity: boolean;
 }) {
-  const [client] = useState(() => new QueryClient());
-  return (
-    <QueryClientProvider client={client}>
-      <InventoryListBody {...props} />
-    </QueryClientProvider>
-  );
+  return <InventoryListBody {...props} />;
 }

@@ -54,7 +54,8 @@
     "test:e2e:audit": "node ../../scripts/run-admin-decisions-e2e.mjs audit",
     "test:e2e:system-status": "node ../../scripts/run-admin-decisions-e2e.mjs system-status",
     "test:e2e:reports-all": "node ../../scripts/run-admin-decisions-e2e.mjs reports-all",
-    "test:e2e:smoke": "playwright test --grep @smoke"
+    "test:e2e:smoke": "playwright test --grep @smoke",
+    "test:e2e:runtime": "node ../../scripts/run-admin-decisions-e2e.mjs runtime-regression"
   },
   "dependencies": {
     "@hookform/resolvers": "5.2.2",

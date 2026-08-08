@@ -4,8 +4,15 @@ import { proxyAudit } from './audit-proxy';
 describe('audit fixed BFF', () => {
   it('allows only list, safe details and export', async () => {
     expect(
-      (await proxyAudit(new Request('http://localhost:3001/api/audit'), []))
-        .status,
+      (
+        await proxyAudit(
+          new Request('http://localhost:3001/api/audit'),
+          [],
+          vi.fn(async () => {
+            throw new TypeError('fetch failed');
+          }) as unknown as typeof fetch,
+        )
+      ).status,
     ).toBe(503);
     expect(
       (
