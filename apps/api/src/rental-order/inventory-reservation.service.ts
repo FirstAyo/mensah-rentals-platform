@@ -9,12 +9,15 @@ import {
 } from '@nestjs/common';
 import {
   InventoryReservationItemType,
+  InventoryReservationCoverageStatus,
   InventoryReservationOperationType,
   InventoryReservationStatus,
   InventoryState,
   InventoryTrackingMode,
   Prisma,
   RentalOrderReservationStatus,
+  ReservationShortfallResolutionType,
+  ReservationShortfallStatus,
   SerializedAssetAllocationStatus,
   UserStatus,
   prisma,
@@ -52,6 +55,7 @@ const reservationInclude = {
         },
         orderBy: [{ allocatedAt: 'asc' as const }, { id: 'asc' as const }],
       },
+      shortfallPlan: true,
     },
     orderBy: [{ createdAt: 'asc' as const }, { id: 'asc' as const }],
   },
@@ -143,19 +147,16 @@ export class InventoryReservationService {
       const items = await Promise.all(
         order.items.map(async (orderItem) => {
           const inventory = inventories.get(orderItem.productIdSnapshot);
-          if (!inventory)
-            throw new UnprocessableEntityException(
-              `No reservable inventory exists for ${orderItem.productNameSnapshot}`,
-            );
           return tx.inventoryReservationItem.create({
             data: {
-              inventoryId: inventory.id,
+              inventoryId: inventory?.id ?? null,
               inventoryReservationId: reservation.id,
               productIdSnapshot: orderItem.productIdSnapshot,
               rentalOrderItemId: orderItem.id,
               requestedQuantity: orderItem.quotedQuantity,
-              reservationType:
-                inventory.trackingMode === InventoryTrackingMode.BULK
+              reservationType: !inventory
+                ? null
+                : inventory.trackingMode === InventoryTrackingMode.BULK
                   ? InventoryReservationItemType.BULK
                   : InventoryReservationItemType.SERIALIZED,
               reservedQuantity: 0,
@@ -178,7 +179,7 @@ export class InventoryReservationService {
         (sum, item) => sum + item.reservedAfter,
         0,
       );
-      if (reservedTotal === 0 || (hasShortfall && !input.allowPartial)) {
+      if (hasShortfall && !input.allowPartial) {
         const failureItems = this.shortageItems(availability, plan);
         await tx.inventoryReservationOperation.create({
           data: {
@@ -216,14 +217,22 @@ export class InventoryReservationService {
       }
       await this.assertPartialPolicy(tx, actorId, input, hasShortfall);
       const nextStatus = hasShortfall
-        ? InventoryReservationStatus.PARTIALLY_RESERVED
+        ? reservedTotal > 0
+          ? InventoryReservationStatus.PARTIALLY_RESERVED
+          : InventoryReservationStatus.NOT_RESERVED
         : InventoryReservationStatus.RESERVED;
       const operation = await tx.inventoryReservationOperation.create({
         data: {
           actorUserId: actorId,
           expectedVersion: 0,
           inventoryReservationId: reservation.id,
-          metadata: hasShortfall ? { intentionalPartial: true } : undefined,
+          metadata: hasShortfall
+            ? {
+                intentionalPartial: true,
+                shortfallAcknowledged: true,
+                shortfallResolutionType: input.resolutionType,
+              }
+            : undefined,
           operationId: input.operationId,
           payloadHash,
           reason: hasShortfall ? input.overrideReason : null,
@@ -234,9 +243,22 @@ export class InventoryReservationService {
         },
       });
       await this.applyPlan(tx, operation.id, actorId, reservation, plan);
+      await this.syncShortfallPlans(tx, {
+        actorId,
+        acknowledge: hasShortfall,
+        items: plan,
+        reason: input.overrideReason,
+        resolutionType: input.resolutionType,
+      });
       await tx.inventoryReservation.update({
         where: { id: reservation.id },
-        data: { status: nextStatus, version: 1 },
+        data: {
+          coverageStatus: hasShortfall
+            ? InventoryReservationCoverageStatus.SHORTFALL_ACKNOWLEDGED
+            : InventoryReservationCoverageStatus.FULLY_INTERNAL,
+          status: nextStatus,
+          version: 1,
+        },
       });
       await tx.rentalOrder.update({
         where: { id: order.id },
@@ -296,18 +318,50 @@ export class InventoryReservationService {
         );
       await this.lockInventoriesForOrder(tx, order);
       const availability = await this.calculateAvailability(tx, order);
+      const externalCheckoutByReservationItem = new Map(
+        (
+          await tx.orderFulfilmentItem.findMany({
+            where: {
+              externalCheckedOutQuantity: { gt: 0 },
+              reservationItem: { inventoryReservationId: reservation.id },
+            },
+            select: {
+              externalCheckedOutQuantity: true,
+              reservationItemId: true,
+            },
+          })
+        ).map((item) => [
+          item.reservationItemId,
+          item.externalCheckedOutQuantity,
+        ]),
+      );
+      if (
+        reservation.items.every(
+          (item) =>
+            item.requestedQuantity -
+              item.consumedQuantity -
+              item.reservedQuantity -
+              (externalCheckoutByReservationItem.get(item.id) ?? 0) <=
+            0,
+        )
+      )
+        throw new ConflictException(
+          'All ordered quantities are already reserved or checked out',
+        );
       const plan = await this.planAdditionalAllocations(
         tx,
         reservation,
         reservation.items,
         input.serializedSelections,
+        externalCheckoutByReservationItem,
       );
       const hasShortfall = plan.some(
         ({ committedAfter, requestedQuantity }) =>
           committedAfter < requestedQuantity,
       );
       if (
-        !plan.some(({ quantityDelta }) => quantityDelta > 0) ||
+        (!plan.some(({ quantityDelta }) => quantityDelta > 0) &&
+          !input.allowPartial) ||
         (hasShortfall && !input.allowPartial)
       )
         throw new ConflictException({
@@ -323,14 +377,22 @@ export class InventoryReservationService {
       const nextStatus = hasConsumption
         ? InventoryReservationStatus.PARTIALLY_CONSUMED
         : hasShortfall
-          ? InventoryReservationStatus.PARTIALLY_RESERVED
+          ? plan.some(({ reservedAfter }) => reservedAfter > 0)
+            ? InventoryReservationStatus.PARTIALLY_RESERVED
+            : InventoryReservationStatus.NOT_RESERVED
           : InventoryReservationStatus.RESERVED;
       const operation = await tx.inventoryReservationOperation.create({
         data: {
           actorUserId: actorId,
           expectedVersion: reservation.version,
           inventoryReservationId: reservation.id,
-          metadata: hasShortfall ? { intentionalPartial: true } : undefined,
+          metadata: hasShortfall
+            ? {
+                intentionalPartial: true,
+                shortfallAcknowledged: true,
+                shortfallResolutionType: input.resolutionType,
+              }
+            : undefined,
           operationId: input.operationId,
           payloadHash,
           reason: hasShortfall ? input.overrideReason : null,
@@ -341,9 +403,22 @@ export class InventoryReservationService {
         },
       });
       await this.applyPlan(tx, operation.id, actorId, reservation, plan);
+      await this.syncShortfallPlans(tx, {
+        actorId,
+        acknowledge: hasShortfall,
+        items: plan,
+        reason: input.overrideReason,
+        resolutionType: input.resolutionType,
+      });
       await tx.inventoryReservation.update({
         where: { id: reservation.id },
-        data: { status: nextStatus, version: nextVersion },
+        data: {
+          coverageStatus: hasShortfall
+            ? InventoryReservationCoverageStatus.SHORTFALL_ACKNOWLEDGED
+            : InventoryReservationCoverageStatus.FULLY_INTERNAL,
+          status: nextStatus,
+          version: nextVersion,
+        },
       });
       await tx.rentalOrder.update({
         where: { id: orderId },
@@ -491,6 +566,7 @@ export class InventoryReservationService {
                 shortfallQuantity: { increment: quantity },
               },
             });
+            await this.reopenShortfallPlan(tx, item.id);
             await tx.inventoryReservationOperationItem.create({
               data: {
                 quantityDelta: -quantity,
@@ -538,6 +614,7 @@ export class InventoryReservationService {
                 shortfallQuantity: { increment: active.length },
               },
             });
+            await this.reopenShortfallPlan(tx, item.id);
             for (const allocation of active)
               await tx.inventoryReservationOperationItem.create({
                 data: {
@@ -580,7 +657,12 @@ export class InventoryReservationService {
                 : InventoryReservationStatus.PARTIALLY_RESERVED;
       await tx.inventoryReservation.update({
         where: { id: reservation.id },
-        data: { status: nextStatus, version: nextVersion },
+        data: {
+          coverageStatus:
+            InventoryReservationCoverageStatus.SHORTFALL_REQUIRES_PLAN,
+          status: nextStatus,
+          version: nextVersion,
+        },
       });
       await tx.rentalOrder.update({
         where: { id: orderId },
@@ -615,9 +697,14 @@ export class InventoryReservationService {
         item.reservationType !== InventoryReservationItemType.SERIALIZED
       )
         throw new NotFoundException('Serialized reservation item not found');
+      if (!item.inventoryId)
+        throw new NotFoundException(
+          'Serialized reservation inventory not found',
+        );
+      const inventoryId = item.inventoryId;
       const items = await tx.inventoryItem.findMany({
         where: {
-          inventoryId: item.inventoryId,
+          inventoryId,
           status: InventoryState.RENTABLE,
           serializedAllocations: {
             none: {
@@ -692,19 +779,33 @@ export class InventoryReservationService {
     );
     const items = await Promise.all(
       order.items.map(async (item) => {
+        const existing = order.reservation?.items.find(
+          (candidate) => candidate.rentalOrderItemId === item.id,
+        );
+        const alreadyReservedQuantity = existing?.reservedQuantity ?? 0;
+        const requiredRemainingQuantity = Math.max(
+          0,
+          item.quotedQuantity -
+            alreadyReservedQuantity -
+            (existing?.consumedQuantity ?? 0),
+        );
         const inventory = byProduct.get(item.productIdSnapshot);
         if (!inventory)
           return {
+            alreadyReservedQuantity,
             availableToReserve: 0,
             eligibleSerializedAssetCount: null,
             inventoryId: null,
             orderedQuantity: item.quotedQuantity,
+            requiredRemainingQuantity,
+            reservableNowQuantity: 0,
+            remainingShortfallQuantity: requiredRemainingQuantity,
             overlappingReservedQuantity: 0,
             physicalRentableQuantity: 0,
             productId: item.productIdSnapshot,
             productName: item.productNameSnapshot,
             rentalOrderItemId: item.id,
-            shortfallQuantity: item.quotedQuantity,
+            shortfallQuantity: requiredRemainingQuantity,
             trackingMode: null,
           };
         if (inventory.trackingMode === InventoryTrackingMode.BULK) {
@@ -716,17 +817,31 @@ export class InventoryReservationService {
             range.end,
           );
           const available = Math.max(0, physical - overlapping);
+          const reservableNowQuantity = Math.min(
+            requiredRemainingQuantity,
+            available,
+          );
           return {
+            alreadyReservedQuantity,
             availableToReserve: available,
             eligibleSerializedAssetCount: null,
             inventoryId: inventory.id,
             orderedQuantity: item.quotedQuantity,
+            requiredRemainingQuantity,
+            reservableNowQuantity,
+            remainingShortfallQuantity: Math.max(
+              0,
+              requiredRemainingQuantity - reservableNowQuantity,
+            ),
             overlappingReservedQuantity: overlapping,
             physicalRentableQuantity: physical,
             productId: item.productIdSnapshot,
             productName: item.productNameSnapshot,
             rentalOrderItemId: item.id,
-            shortfallQuantity: Math.max(0, item.quotedQuantity - available),
+            shortfallQuantity: Math.max(
+              0,
+              requiredRemainingQuantity - reservableNowQuantity,
+            ),
             trackingMode: inventory.trackingMode,
           };
         }
@@ -742,17 +857,31 @@ export class InventoryReservationService {
           },
         });
         const available = Math.max(0, physical - overlapping);
+        const reservableNowQuantity = Math.min(
+          requiredRemainingQuantity,
+          available,
+        );
         return {
+          alreadyReservedQuantity,
           availableToReserve: available,
           eligibleSerializedAssetCount: available,
           inventoryId: inventory.id,
           orderedQuantity: item.quotedQuantity,
+          requiredRemainingQuantity,
+          reservableNowQuantity,
+          remainingShortfallQuantity: Math.max(
+            0,
+            requiredRemainingQuantity - reservableNowQuantity,
+          ),
           overlappingReservedQuantity: overlapping,
           physicalRentableQuantity: physical,
           productId: item.productIdSnapshot,
           productName: item.productNameSnapshot,
           rentalOrderItemId: item.id,
-          shortfallQuantity: Math.max(0, item.quotedQuantity - available),
+          shortfallQuantity: Math.max(
+            0,
+            requiredRemainingQuantity - reservableNowQuantity,
+          ),
           trackingMode: inventory.trackingMode,
         };
       }),
@@ -776,10 +905,10 @@ export class InventoryReservationService {
     >,
     items: Array<{
       id: string;
-      inventoryId: string;
+      inventoryId: string | null;
       rentalOrderItemId: string;
       requestedQuantity: number;
-      reservationType: InventoryReservationItemType;
+      reservationType: InventoryReservationItemType | null;
       consumedQuantity: number;
       reservedQuantity: number;
     }>,
@@ -787,6 +916,7 @@ export class InventoryReservationService {
       rentalOrderItemId: string;
       serializedAssetIds: string[];
     }>,
+    externalCheckoutByReservationItem = new Map<string, number>(),
   ) {
     const byOrderItem = new Map(
       selections.map((selection) => [
@@ -811,8 +941,17 @@ export class InventoryReservationService {
         const remaining =
           item.requestedQuantity -
           item.consumedQuantity -
-          item.reservedQuantity;
+          item.reservedQuantity -
+          (externalCheckoutByReservationItem.get(item.id) ?? 0);
         if (remaining <= 0)
+          return {
+            ...item,
+            assetIds: [] as string[],
+            committedAfter: item.consumedQuantity + item.reservedQuantity,
+            quantityDelta: 0,
+            reservedAfter: item.reservedQuantity,
+          };
+        if (!item.inventoryId || !item.reservationType)
           return {
             ...item,
             assetIds: [] as string[],
@@ -928,10 +1067,112 @@ export class InventoryReservationService {
     }
   }
 
+  private async syncShortfallPlans(
+    tx: Prisma.TransactionClient,
+    input: {
+      actorId: string;
+      acknowledge: boolean;
+      items: Awaited<
+        ReturnType<InventoryReservationService['planAdditionalAllocations']>
+      >;
+      reason?: string;
+      resolutionType?: 'SUBRENT' | 'PARTNER_SOURCE' | 'TRANSFER' | 'OTHER';
+    },
+  ) {
+    const now = new Date();
+    for (const item of input.items) {
+      const shortfall = Math.max(
+        0,
+        item.requestedQuantity - item.committedAfter,
+      );
+      const current = await tx.reservationShortfall.findUnique({
+        where: { reservationItemId: item.id },
+      });
+      if (shortfall === 0) {
+        if (current && current.status !== ReservationShortfallStatus.RESOLVED)
+          await tx.reservationShortfall.update({
+            where: { id: current.id },
+            data: {
+              acknowledgedAt: current.acknowledgedAt ?? now,
+              acknowledgedByUserId:
+                current.acknowledgedByUserId ?? input.actorId,
+              acknowledgedQuantity: Math.max(1, current.acknowledgedQuantity),
+              resolutionNote:
+                current.resolutionNote ?? 'Resolved with internal inventory.',
+              resolutionType:
+                current.resolutionType ??
+                ReservationShortfallResolutionType.OTHER,
+              resolvedAt: now,
+              status: ReservationShortfallStatus.RESOLVED,
+              version: { increment: 1 },
+            },
+          });
+        continue;
+      }
+      const acknowledged =
+        input.acknowledge &&
+        Boolean(input.reason?.trim()) &&
+        Boolean(input.resolutionType);
+      const data = acknowledged
+        ? {
+            acknowledgedAt: now,
+            acknowledgedByUserId: input.actorId,
+            acknowledgedQuantity: shortfall,
+            resolutionNote: input.reason!.trim(),
+            resolutionType:
+              input.resolutionType as ReservationShortfallResolutionType,
+            resolvedAt: null,
+            status: ReservationShortfallStatus.ACKNOWLEDGED,
+          }
+        : {
+            acknowledgedAt: null,
+            acknowledgedByUserId: null,
+            acknowledgedQuantity: 0,
+            resolutionNote: null,
+            resolutionType: null,
+            resolvedAt: null,
+            status: ReservationShortfallStatus.OPEN,
+          };
+      if (current)
+        await tx.reservationShortfall.update({
+          where: { id: current.id },
+          data: { ...data, version: { increment: 1 } },
+        });
+      else
+        await tx.reservationShortfall.create({
+          data: { ...data, reservationItemId: item.id },
+        });
+    }
+  }
+
+  private async reopenShortfallPlan(
+    tx: Prisma.TransactionClient,
+    reservationItemId: string,
+  ) {
+    await tx.reservationShortfall.updateMany({
+      where: { reservationItemId },
+      data: {
+        acknowledgedAt: null,
+        acknowledgedByUserId: null,
+        acknowledgedQuantity: 0,
+        resolutionNote: null,
+        resolutionType: null,
+        resolvedAt: null,
+        status: ReservationShortfallStatus.OPEN,
+        version: { increment: 1 },
+      },
+    });
+  }
+
   private async assertPartialPolicy(
     tx: Prisma.TransactionClient,
     actorId: string,
-    input: { allowPartial: boolean; overrideReason?: string },
+    input: {
+      allowPartial: boolean;
+      confirmShortfallPlan?: boolean;
+      overrideReason?: string;
+      resolutionType?: string;
+    },
     hasShortfall: boolean,
   ) {
     if (!hasShortfall) return;
@@ -944,6 +1185,12 @@ export class InventoryReservationService {
       throw new UnprocessableEntityException({
         code: 'MISSING_OVERRIDE_REASON',
         message: 'Enter an internal reason for the partial reservation.',
+      });
+    if (!input.confirmShortfallPlan || !input.resolutionType)
+      throw new UnprocessableEntityException({
+        code: 'SHORTFALL_PLAN_REQUIRED',
+        message:
+          'Choose and confirm an internal fulfilment plan for every shortfall.',
       });
     await this.requireActor(tx, actorId, ['inventory.reservation.override']);
   }
@@ -1147,6 +1394,7 @@ export class InventoryReservationService {
         type: operation.type,
       })),
       createdAt: reservation.createdAt.toISOString(),
+      coverageStatus: reservation.coverageStatus,
       id: reservation.id,
       items: reservation.items.map((item) => ({
         allocations: item.serializedAllocations.map((allocation) => ({
@@ -1164,6 +1412,17 @@ export class InventoryReservationService {
         requestedQuantity: item.requestedQuantity,
         reservedQuantity: item.reservedQuantity,
         shortfallQuantity: item.shortfallQuantity,
+        shortfallPlan: item.shortfallPlan
+          ? {
+              acknowledgedAt:
+                item.shortfallPlan.acknowledgedAt?.toISOString() ?? null,
+              acknowledgedQuantity: item.shortfallPlan.acknowledgedQuantity,
+              resolutionNote: item.shortfallPlan.resolutionNote,
+              resolutionType: item.shortfallPlan.resolutionType,
+              status: item.shortfallPlan.status,
+              version: item.shortfallPlan.version,
+            }
+          : null,
         trackingMode: item.reservationType,
       })),
       orderId: reservation.rentalOrderId,

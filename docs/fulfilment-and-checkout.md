@@ -1,5 +1,7 @@
 # Fulfilment and checkout
 
+> Acknowledged external shortfalls may satisfy commercial coverage, but they never consume or mutate Mensah-owned inventory. See [Reservation shortfall coverage](reservation-shortfall-coverage.md).
+
 Phase 15 adds internal preparation, picking, physical handoff, and checkout. It does not implement returns, damage, missing equipment, maintenance resolution, payments, or customer accounts.
 
 ## Lifecycle and eligibility

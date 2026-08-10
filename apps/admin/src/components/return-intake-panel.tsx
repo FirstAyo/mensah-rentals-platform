@@ -13,8 +13,17 @@ type Counts = {
   damaged: number;
   maintenance: number;
   missing: number;
+  externalReceived: number;
+  externalMissing: number;
 };
-const empty: Counts = { rentable: 0, damaged: 0, maintenance: 0, missing: 0 };
+const empty: Counts = {
+  rentable: 0,
+  damaged: 0,
+  maintenance: 0,
+  missing: 0,
+  externalReceived: 0,
+  externalMissing: 0,
+};
 
 export function ReturnIntakePanel({
   activeRentalId,
@@ -55,7 +64,9 @@ export function ReturnIntakePanel({
           item.rentable +
           item.damaged +
           item.maintenance +
-          item.missing,
+          item.missing +
+          item.externalReceived +
+          item.externalMissing,
         0,
       ) + Object.keys(assets).length,
     [assets, counts],
@@ -68,13 +79,19 @@ export function ReturnIntakePanel({
     setMessage(null);
     const items = data.items.flatMap((item) => {
       if (item.trackingMode === 'SERIALIZED') {
+        const value = counts[item.activeRentalItemId] ?? empty;
         const serializedAssets = item.serializedAssets
           .filter((asset) => assets[asset.activeRentalSerializedAssetId])
           .map((asset) => ({
             activeRentalSerializedAssetId: asset.activeRentalSerializedAssetId,
             disposition: assets[asset.activeRentalSerializedAssetId],
           }));
-        if (!serializedAssets.length) return [];
+        if (
+          !serializedAssets.length &&
+          value.externalReceived === 0 &&
+          value.externalMissing === 0
+        )
+          return [];
         const quantity = (state: string) =>
           serializedAssets.filter((asset) => asset.disposition === state)
             .length;
@@ -85,6 +102,8 @@ export function ReturnIntakePanel({
             quantityDamaged: quantity('DAMAGED'),
             quantityMaintenance: quantity('MAINTENANCE'),
             quantityMissing: quantity('MISSING'),
+            externalQuantityReceived: value.externalReceived,
+            externalQuantityMissing: value.externalMissing,
             serializedAssets,
           },
         ];
@@ -98,6 +117,8 @@ export function ReturnIntakePanel({
           quantityDamaged: value.damaged,
           quantityMaintenance: value.maintenance,
           quantityMissing: value.missing,
+          externalQuantityReceived: value.externalReceived,
+          externalQuantityMissing: value.externalMissing,
           serializedAssets: [],
         },
       ];
@@ -170,7 +191,9 @@ export function ReturnIntakePanel({
           >
             <h3 className="font-semibold">{item.productName}</h3>
             <p className="text-sm text-muted-foreground">
-              Outstanding: {item.outstandingQuantity} {item.rentalUnit}
+              Outstanding: {item.outstandingQuantity} {item.rentalUnit} (owned{' '}
+              {item.outstandingQuantity - item.externalOutstandingQuantity},
+              externally sourced {item.externalOutstandingQuantity})
             </p>
             {item.trackingMode === 'BULK' ? (
               <div className="mt-3 grid gap-3 min-[480px]:grid-cols-2 lg:grid-cols-4">
@@ -238,6 +261,47 @@ export function ReturnIntakePanel({
                   ))}
               </div>
             )}
+            {item.externalOutstandingQuantity > 0 ? (
+              <fieldset className="mt-3 rounded-md border border-dashed p-3">
+                <legend className="px-1 text-sm font-medium">
+                  Externally sourced equipment
+                </legend>
+                <p className="mb-2 text-xs text-muted-foreground">
+                  These quantities are reconciled operationally and never added
+                  to Mensah Rentals inventory.
+                </p>
+                <div className="grid gap-3 min-[480px]:grid-cols-2">
+                  {(['externalReceived', 'externalMissing'] as const).map(
+                    (state) => (
+                      <label className="text-sm" key={state}>
+                        {state === 'externalReceived' ? 'Received' : 'Missing'}
+                        <input
+                          className="mt-1 w-full rounded-md border bg-background px-3 py-2"
+                          min="0"
+                          max={item.externalOutstandingQuantity}
+                          type="number"
+                          value={
+                            (counts[item.activeRentalItemId] ?? empty)[state]
+                          }
+                          onChange={(event) =>
+                            setCounts((current) => ({
+                              ...current,
+                              [item.activeRentalItemId]: {
+                                ...(current[item.activeRentalItemId] ?? empty),
+                                [state]: Math.max(
+                                  0,
+                                  Number(event.target.value) || 0,
+                                ),
+                              },
+                            }))
+                          }
+                        />
+                      </label>
+                    ),
+                  )}
+                </div>
+              </fieldset>
+            ) : null}
           </article>
         ))}
       </div>

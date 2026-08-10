@@ -1,5 +1,7 @@
 # Local Development on Windows
 
+> For the reservation-shortfall workflow and guarded browser command, see [Reservation shortfall coverage](reservation-shortfall-coverage.md). Never reset the development database to test this workflow.
+
 ## Phase 17 maintenance setup and local workflow
 
 Phase 17 uses the existing local PostgreSQL database and two additive migrations: `20260808090000_phase17_maintenance_inspections` and the corrective `20260808093000_phase17_maintenance_history_trigger_fix`. Never run `pnpm db:reset`, `prisma migrate reset`, `db push --force-reset`, or `docker compose down -v` against development. Open PowerShell in the repository root and run:

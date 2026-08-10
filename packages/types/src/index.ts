@@ -263,7 +263,7 @@ export interface AdminRentalRequestInventoryContext {
   notice: string;
   states: Record<InventoryStateResponse, number>;
   totalQuantity: number;
-  trackingMode: InventoryTrackingModeResponse;
+  trackingMode: InventoryTrackingModeResponse | null;
 }
 
 export interface AdminRentalRequestItemResponse {
@@ -852,13 +852,16 @@ export interface AdminFulfilmentItemResponse {
   id: string;
   rentalOrderItemId: string;
   productName: string;
-  trackingMode: InventoryTrackingModeResponse;
+  trackingMode: InventoryTrackingModeResponse | null;
   orderedQuantity: number;
   reservedQuantity: number;
   consumedQuantity: number;
   shortfallQuantity: number;
   preparedQuantity: number;
   checkedOutQuantity: number;
+  internalCheckedOutQuantity: number;
+  externalCheckedOutQuantity: number;
+  acknowledgedExternalQuantity: number;
   remainingCommercialQuantity: number;
   serializedAllocations: Array<{
     allocationId: string;
@@ -922,6 +925,8 @@ export interface AdminActiveRentalDetailResponse
     productName: string;
     rentalUnit: string;
     checkedOutQuantity: number;
+    internalCheckedOutQuantity: number;
+    externalCheckedOutQuantity: number;
     serializedAssets: Array<{
       assetNumber: string;
       serialNumber: string | null;
@@ -953,6 +958,7 @@ export interface AdminActiveRentalListResponse {
 
 export type InventoryReservationStatusResponse =
   | 'PENDING'
+  | 'NOT_RESERVED'
   | 'PARTIALLY_RESERVED'
   | 'RESERVED'
   | 'RELEASED'
@@ -961,10 +967,14 @@ export type InventoryReservationStatusResponse =
   | 'CONSUMED';
 
 export interface AdminAvailabilityItemResponse {
+  alreadyReservedQuantity: number;
   availableToReserve: number;
   eligibleSerializedAssetCount: number | null;
   inventoryId: string | null;
   orderedQuantity: number;
+  requiredRemainingQuantity: number;
+  reservableNowQuantity: number;
+  remainingShortfallQuantity: number;
   overlappingReservedQuantity: number;
   physicalRentableQuantity: number;
   productId: string;
@@ -1028,7 +1038,15 @@ export interface AdminReservationItemResponse {
   requestedQuantity: number;
   reservedQuantity: number;
   shortfallQuantity: number;
-  trackingMode: InventoryTrackingModeResponse;
+  trackingMode: InventoryTrackingModeResponse | null;
+  shortfallPlan: {
+    acknowledgedAt: string | null;
+    acknowledgedQuantity: number;
+    resolutionNote: string | null;
+    resolutionType: 'SUBRENT' | 'PARTNER_SOURCE' | 'TRANSFER' | 'OTHER' | null;
+    status: 'OPEN' | 'ACKNOWLEDGED' | 'RESOLVED';
+    version: number;
+  } | null;
 }
 
 export interface AdminReservationActivityResponse {
@@ -1047,7 +1065,11 @@ export interface AdminReservationActivityResponse {
     | 'RESERVATION_QUANTITY_RELEASED'
     | 'RESERVATION_RELEASED'
     | 'RESERVATION_FAILED'
-    | 'RESERVATION_OVERRIDE_RECORDED';
+    | 'RESERVATION_OVERRIDE_RECORDED'
+    | 'SHORTFALL_IDENTIFIED'
+    | 'SHORTFALL_ACKNOWLEDGED'
+    | 'SHORTFALL_PLAN_UPDATED'
+    | 'SHORTFALL_RESOLVED';
 }
 
 export interface AdminInventoryReservationResponse {
@@ -1062,6 +1084,10 @@ export interface AdminInventoryReservationResponse {
   rentalStartDate: string;
   reservationNumber: string;
   status: InventoryReservationStatusResponse;
+  coverageStatus:
+    | 'FULLY_INTERNAL'
+    | 'SHORTFALL_REQUIRES_PLAN'
+    | 'SHORTFALL_ACKNOWLEDGED';
   updatedAt: string;
   version: number;
 }
@@ -1138,14 +1164,19 @@ export interface AdminRentalReturnItemResponse {
   activeRentalItemId: string;
   productName: string;
   rentalUnit: string;
-  trackingMode: InventoryTrackingModeResponse;
+  trackingMode: InventoryTrackingModeResponse | null;
   expectedCheckedOutQuantity: number;
+  expectedInternalQuantity: number;
+  expectedExternalQuantity: number;
   receivedQuantity: number;
   rentableQuantity: number;
   damagedQuantity: number;
   maintenanceQuantity: number;
   missingQuantity: number;
   outstandingQuantity: number;
+  externalReceivedQuantity: number;
+  externalMissingQuantity: number;
+  externalOutstandingQuantity: number;
   serializedAssets: Array<{
     activeRentalSerializedAssetId: string;
     assetNumber: string;

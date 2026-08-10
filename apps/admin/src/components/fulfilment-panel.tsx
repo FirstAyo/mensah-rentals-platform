@@ -32,6 +32,9 @@ export function FulfilmentPanel({
     {},
   );
   const [checkout, setCheckout] = useState<Record<string, number>>({});
+  const [externalCheckout, setExternalCheckout] = useState<
+    Record<string, number>
+  >({});
   const [partial, setPartial] = useState(false);
   const [reason, setReason] = useState('');
   const [recipient, setRecipient] = useState('');
@@ -73,6 +76,17 @@ export function FulfilmentPanel({
         next.items.map((item) => [
           item.rentalOrderItemId,
           Math.min(item.preparedQuantity, item.reservedQuantity),
+        ]),
+      ),
+    );
+    setExternalCheckout(
+      Object.fromEntries(
+        next.items.map((item) => [
+          item.rentalOrderItemId,
+          Math.max(
+            0,
+            item.acknowledgedExternalQuantity - item.externalCheckedOutQuantity,
+          ),
         ]),
       ),
     );
@@ -137,7 +151,11 @@ export function FulfilmentPanel({
         { cache: 'no-store' },
       );
       if (!reservationResponse.ok)
-        throw new Error('The active reservation could not be refreshed.');
+        throw new Error(
+          reservationResponse.status === 404
+            ? 'Create an inventory reservation and approve every shortfall plan before starting preparation.'
+            : 'The active reservation could not be refreshed.',
+        );
       const reservation =
         (await reservationResponse.json()) as AdminInventoryReservationResponse;
       const response = await fetch(
@@ -231,6 +249,10 @@ export function FulfilmentPanel({
                   <dd className="text-right font-medium">
                     {item.reservedQuantity}
                   </dd>
+                  <dt>External/subrent plan</dt>
+                  <dd className="text-right font-medium">
+                    {item.acknowledgedExternalQuantity}
+                  </dd>
                   <dt>Prepared</dt>
                   <dd
                     aria-label="Prepared quantity"
@@ -241,6 +263,14 @@ export function FulfilmentPanel({
                   <dt>Checked out</dt>
                   <dd className="text-right font-medium">
                     {item.checkedOutQuantity}
+                  </dd>
+                  <dt>Internal checked out</dt>
+                  <dd className="text-right font-medium">
+                    {item.internalCheckedOutQuantity}
+                  </dd>
+                  <dt>External checked out</dt>
+                  <dd className="text-right font-medium">
+                    {item.externalCheckedOutQuantity}
                   </dd>
                   <dt>Commercial remaining</dt>
                   <dd className="text-right font-medium">
@@ -269,6 +299,35 @@ export function FulfilmentPanel({
                       type="number"
                       value={prepared[item.rentalOrderItemId] ?? 0}
                     />
+                  </label>
+                ) : null}
+                {permissions.canCheckout &&
+                permissions.canHandoff &&
+                data.status !== 'CHECKED_OUT' &&
+                item.acknowledgedExternalQuantity > 0 ? (
+                  <label className="mt-4 block text-sm font-medium">
+                    External/subrent quantity to hand off
+                    <input
+                      className="mt-1 min-h-11 w-full rounded-lg border bg-background px-3"
+                      min={0}
+                      max={Math.max(
+                        0,
+                        item.acknowledgedExternalQuantity -
+                          item.externalCheckedOutQuantity,
+                      )}
+                      onChange={(event) =>
+                        setExternalCheckout((current) => ({
+                          ...current,
+                          [item.rentalOrderItemId]: Number(event.target.value),
+                        }))
+                      }
+                      type="number"
+                      value={externalCheckout[item.rentalOrderItemId] ?? 0}
+                    />
+                    <span className="mt-1 block text-xs text-muted-foreground">
+                      This records operational handoff only. It does not change
+                      Mensah inventory.
+                    </span>
                   </label>
                 ) : null}
                 {item.trackingMode === 'SERIALIZED' &&
@@ -464,9 +523,14 @@ export function FulfilmentPanel({
                     internalReason: partial ? reason : undefined,
                     items: data.items
                       .filter(
-                        (item) => (checkout[item.rentalOrderItemId] ?? 0) > 0,
+                        (item) =>
+                          (checkout[item.rentalOrderItemId] ?? 0) +
+                            (externalCheckout[item.rentalOrderItemId] ?? 0) >
+                          0,
                       )
                       .map((item) => ({
+                        externalQuantity:
+                          externalCheckout[item.rentalOrderItemId] ?? 0,
                         rentalOrderItemId: item.rentalOrderItemId,
                         quantity: checkout[item.rentalOrderItemId],
                         serializedAllocationIds:

@@ -107,8 +107,12 @@ const uniqueSerializedSelections = z
 export const createInventoryReservationSchema = z
   .object({
     allowPartial: z.boolean(),
+    confirmShortfallPlan: z.boolean().default(false),
     operationId: reservationOperationId,
     overrideReason: reservationReason.optional(),
+    resolutionType: z
+      .enum(['SUBRENT', 'PARTNER_SOURCE', 'TRANSFER', 'OTHER'])
+      .optional(),
     serializedSelections: uniqueSerializedSelections.default([]),
   })
   .strict()
@@ -119,7 +123,25 @@ export const createInventoryReservationSchema = z
         message: 'A reason is required for intentional partial reservation.',
         path: ['overrideReason'],
       });
-    if (!value.allowPartial && value.overrideReason)
+    if (value.allowPartial && !value.resolutionType)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Choose how the reservation shortfall will be covered.',
+        path: ['resolutionType'],
+      });
+    if (value.allowPartial && !value.confirmShortfallPlan)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'Confirm that every shortfall has an internal fulfilment plan.',
+        path: ['confirmShortfallPlan'],
+      });
+    if (
+      !value.allowPartial &&
+      (value.overrideReason ||
+        value.resolutionType ||
+        value.confirmShortfallPlan)
+    )
       context.addIssue({
         code: z.ZodIssueCode.custom,
         message:
@@ -131,9 +153,13 @@ export const createInventoryReservationSchema = z
 export const completeInventoryReservationSchema = z
   .object({
     allowPartial: z.boolean().default(false),
+    confirmShortfallPlan: z.boolean().default(false),
     expectedVersion: reservationExpectedVersion,
     operationId: reservationOperationId,
     overrideReason: reservationReason.optional(),
+    resolutionType: z
+      .enum(['SUBRENT', 'PARTNER_SOURCE', 'TRANSFER', 'OTHER'])
+      .optional(),
     serializedSelections: uniqueSerializedSelections.default([]),
   })
   .strict()
@@ -144,7 +170,25 @@ export const completeInventoryReservationSchema = z
         message: 'A reason is required for intentional partial reservation.',
         path: ['overrideReason'],
       });
-    if (!value.allowPartial && value.overrideReason)
+    if (value.allowPartial && !value.resolutionType)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Choose how the reservation shortfall will be covered.',
+        path: ['resolutionType'],
+      });
+    if (value.allowPartial && !value.confirmShortfallPlan)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message:
+          'Confirm that every shortfall has an internal fulfilment plan.',
+        path: ['confirmShortfallPlan'],
+      });
+    if (
+      !value.allowPartial &&
+      (value.overrideReason ||
+        value.resolutionType ||
+        value.confirmShortfallPlan)
+    )
       context.addIssue({
         code: z.ZodIssueCode.custom,
         message:

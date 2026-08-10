@@ -1,5 +1,9 @@
 # Testing Guide
 
+## Reservation shortfall correction
+
+Run `pnpm test:e2e:reservation-shortfall` from the repository root after stopping normal development servers. The guarded harness resets only the local `_test` database and checks partial-reservation controls, 320px layout, persisted dark mode, keyboard dialog behavior, and Axe serious/critical results. `pnpm test` additionally proves zero-stock coverage, external-only checkout/return, and owned-inventory non-mutation. See [Reservation shortfall coverage](reservation-shortfall-coverage.md).
+
 ## Phase 17 maintenance and inspection verification
 
 All destructive fixtures must use the guarded local `_test` PostgreSQL database. Stop ordinary applications on ports 3000, 3001, and 4000, then run from PowerShell:

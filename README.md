@@ -23,6 +23,8 @@ transaction/database safeguards against double-booking. These internal
 operations never change the order's commercial snapshot or expose inventory to
 customers. See [Inventory reservations](docs/inventory-reservations.md).
 
+Confirmed orders with incomplete owned availability can continue through an acknowledged internal sourcing plan without creating false inventory. See [Reservation shortfall coverage](docs/reservation-shortfall-coverage.md).
+
 ## Phase 13: request amendments
 
 Customers with private request access can submit an immutable replacement revision before quote acceptance. Accepted quotes and confirmed orders use a separate formal change-request workflow. Neither workflow reserves or mutates inventory. See [rental request amendments](docs/rental-request-amendments.md) and [formal change requests](docs/rental-change-requests.md).

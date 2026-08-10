@@ -174,6 +174,7 @@ enum RentalOrderReservationStatus {
 
 enum InventoryReservationStatus {
   PENDING
+  NOT_RESERVED
   PARTIALLY_RESERVED
   RESERVED
   RESERVATION_FAILED
@@ -198,6 +199,29 @@ enum InventoryReservationOperationType {
   RESERVATION_RELEASED
   RESERVATION_FAILED
   RESERVATION_OVERRIDE_RECORDED
+  SHORTFALL_IDENTIFIED
+  SHORTFALL_ACKNOWLEDGED
+  SHORTFALL_PLAN_UPDATED
+  SHORTFALL_RESOLVED
+}
+
+enum InventoryReservationCoverageStatus {
+  FULLY_INTERNAL
+  SHORTFALL_REQUIRES_PLAN
+  SHORTFALL_ACKNOWLEDGED
+}
+
+enum ReservationShortfallStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+enum ReservationShortfallResolutionType {
+  SUBRENT
+  PARTNER_SOURCE
+  TRANSFER
+  OTHER
 }
 
 enum SerializedAssetAllocationStatus {
@@ -415,6 +439,7 @@ model User {
   orderAccessCreated               OrderCustomerAccess[]           @relation("OrderAccessCreator")
   inventoryReservationsCreated     InventoryReservation[]          @relation("InventoryReservationCreator")
   inventoryReservationOperations   InventoryReservationOperation[] @relation("InventoryReservationOperationActor")
+  reservationShortfallsAcknowledged ReservationShortfall[]          @relation("ReservationShortfallAcknowledgedBy")
   serializedAllocationsCreated     SerializedAssetAllocation[]     @relation("SerializedAssetAllocationCreator")
   serializedAllocationsReleased    SerializedAssetAllocation[]     @relation("SerializedAssetAllocationReleaser")
   rentalRequestRevisionsCreated    RentalRequestRevision[]         @relation("RentalRequestRevisionStaffCreator")
@@ -1341,6 +1366,7 @@ model InventoryReservation {
   rentalOrderId             String                          @unique
   reservationNumber         String                          @unique
   status                    InventoryReservationStatus      @default(PENDING)
+  coverageStatus            InventoryReservationCoverageStatus @default(SHORTFALL_REQUIRES_PLAN)
   rentalStartDateSnapshot   DateTime                        @db.Date
   rentalEndDateSnapshot     DateTime                        @db.Date
   rangeStartUtc             DateTime                        @db.Timestamptz(3)
@@ -1364,9 +1390,9 @@ model InventoryReservationItem {
   id                     String                              @id @default(cuid())
   inventoryReservationId String
   rentalOrderItemId      String                              @unique
-  inventoryId            String
+  inventoryId            String?
   productIdSnapshot      String
-  reservationType        InventoryReservationItemType
+  reservationType        InventoryReservationItemType?
   requestedQuantity      Int
   reservedQuantity       Int                                 @default(0)
   consumedQuantity       Int                                 @default(0)
@@ -1375,7 +1401,8 @@ model InventoryReservationItem {
   updatedAt              DateTime                            @updatedAt @db.Timestamptz(3)
   inventoryReservation   InventoryReservation                @relation(fields: [inventoryReservationId], references: [id], onDelete: Restrict)
   rentalOrderItem        RentalOrderItem                     @relation(fields: [rentalOrderItemId], references: [id], onDelete: Restrict)
-  inventory              Inventory                           @relation(fields: [inventoryId], references: [id], onDelete: Restrict)
+  inventory              Inventory?                          @relation(fields: [inventoryId], references: [id], onDelete: Restrict)
+  shortfallPlan          ReservationShortfall?
   operationItems         InventoryReservationOperationItem[]
   serializedAllocations  SerializedAssetAllocation[]
   fulfilmentItem         OrderFulfilmentItem?
@@ -1384,6 +1411,26 @@ model InventoryReservationItem {
   @@unique([inventoryReservationId, inventoryId])
   @@index([inventoryReservationId, createdAt, id])
   @@index([inventoryId, reservationType, id])
+}
+
+model ReservationShortfall {
+  id                     String                             @id @default(cuid())
+  reservationItemId      String                             @unique
+  status                 ReservationShortfallStatus         @default(OPEN)
+  resolutionType         ReservationShortfallResolutionType?
+  acknowledgedQuantity   Int                                @default(0)
+  resolutionNote         String?                            @db.Text
+  acknowledgedByUserId   String?
+  acknowledgedAt         DateTime?                          @db.Timestamptz(3)
+  resolvedAt             DateTime?                          @db.Timestamptz(3)
+  version                Int                                @default(0)
+  createdAt              DateTime                           @default(now()) @db.Timestamptz(3)
+  updatedAt              DateTime                           @updatedAt @db.Timestamptz(3)
+  reservationItem        InventoryReservationItem           @relation(fields: [reservationItemId], references: [id], onDelete: Restrict)
+  acknowledgedBy         User?                              @relation("ReservationShortfallAcknowledgedBy", fields: [acknowledgedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([status, reservationItemId])
+  @@index([acknowledgedByUserId, acknowledgedAt, id])
 }
 
 model InventoryReservationOperation {
@@ -1533,6 +1580,8 @@ model OrderFulfilmentItem {
   orderedQuantitySnapshot  Int
   preparedQuantity         Int                       @default(0)
   checkedOutQuantity       Int                       @default(0)
+  internalCheckedOutQuantity Int                     @default(0)
+  externalCheckedOutQuantity Int                     @default(0)
   createdAt                DateTime                  @default(now()) @db.Timestamptz(3)
   updatedAt                DateTime                  @updatedAt @db.Timestamptz(3)
   orderFulfilment          OrderFulfilment           @relation(fields: [orderFulfilmentId], references: [id], onDelete: Restrict)
@@ -1587,6 +1636,8 @@ model FulfilmentOperationItem {
   orderFulfilmentItemId  String
   preparedDelta          Int                        @default(0)
   checkedOutDelta        Int                        @default(0)
+  internalCheckedOutDelta Int                       @default(0)
+  externalCheckedOutDelta Int                       @default(0)
   serializedAllocationId String?
   createdAt              DateTime                   @default(now()) @db.Timestamptz(3)
   fulfilmentOperation    FulfilmentOperation        @relation(fields: [fulfilmentOperationId], references: [id], onDelete: Restrict)
@@ -1626,6 +1677,8 @@ model ActiveRentalItem {
   rentalOrderItemId     String                        @unique
   orderFulfilmentItemId String                        @unique
   checkedOutQuantity    Int
+  internalCheckedOutQuantity Int                    @default(0)
+  externalCheckedOutQuantity Int                    @default(0)
   createdAt             DateTime                      @default(now()) @db.Timestamptz(3)
   updatedAt             DateTime                      @updatedAt @db.Timestamptz(3)
   activeRental          ActiveRental                  @relation(fields: [activeRentalId], references: [id], onDelete: Restrict)
@@ -1689,12 +1742,17 @@ model RentalReturnItem {
   rentalReturnId             String
   activeRentalItemId         String                      @unique
   expectedCheckedOutQuantity Int
+  expectedInternalQuantity   Int                         @default(0)
+  expectedExternalQuantity   Int                         @default(0)
   receivedQuantity           Int                         @default(0)
   rentableQuantity           Int                         @default(0)
   damagedQuantity            Int                         @default(0)
   maintenanceQuantity        Int                         @default(0)
   missingQuantity            Int                         @default(0)
   outstandingQuantity        Int
+  externalReceivedQuantity   Int                         @default(0)
+  externalMissingQuantity    Int                         @default(0)
+  externalOutstandingQuantity Int                        @default(0)
   createdAt                  DateTime                    @default(now()) @db.Timestamptz(3)
   updatedAt                  DateTime                    @updatedAt @db.Timestamptz(3)
   rentalReturn               RentalReturn                @relation(fields: [rentalReturnId], references: [id], onDelete: Restrict)
@@ -1736,6 +1794,8 @@ model RentalReturnOperationItem {
   quantityDamaged       Int                       @default(0)
   quantityMaintenance   Int                       @default(0)
   quantityMissing       Int                       @default(0)
+  externalQuantityReceived Int                    @default(0)
+  externalQuantityMissing Int                     @default(0)
   createdAt             DateTime                  @default(now()) @db.Timestamptz(3)
   returnOperation       RentalReturnOperation     @relation(fields: [returnOperationId], references: [id], onDelete: Restrict)
   rentalReturnItem      RentalReturnItem          @relation(fields: [rentalReturnItemId], references: [id], onDelete: Restrict)

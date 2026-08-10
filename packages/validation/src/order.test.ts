@@ -82,11 +82,22 @@ describe('rental order validation', () => {
     expect(
       createInventoryReservationSchema.safeParse({
         allowPartial: true,
+        confirmShortfallPlan: true,
         operationId,
         overrideReason:
           'Supplier shortfall will be resolved before fulfilment.',
+        resolutionType: 'SUBRENT',
       }).success,
     ).toBe(true);
+    expect(
+      createInventoryReservationSchema.safeParse({
+        allowPartial: true,
+        confirmShortfallPlan: false,
+        operationId,
+        overrideReason: 'A plan without acknowledgement is unsafe.',
+        resolutionType: 'OTHER',
+      }).success,
+    ).toBe(false);
     expect(
       completeInventoryReservationSchema.safeParse({
         allowPartial: false,

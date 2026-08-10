@@ -21,6 +21,8 @@ const returnItem = z
     quantityDamaged: quantity.default(0),
     quantityMaintenance: quantity.default(0),
     quantityMissing: quantity.default(0),
+    externalQuantityReceived: quantity.default(0),
+    externalQuantityMissing: quantity.default(0),
     serializedAssets: z.array(serializedOutcome).max(1_000).default([]),
   })
   .strict()
@@ -29,7 +31,9 @@ const returnItem = z
       value.quantityRentable +
         value.quantityDamaged +
         value.quantityMaintenance +
-        value.quantityMissing >
+        value.quantityMissing +
+        value.externalQuantityReceived +
+        value.externalQuantityMissing >
       0,
     { message: 'At least one returned or confirmed-missing item is required.' },
   );

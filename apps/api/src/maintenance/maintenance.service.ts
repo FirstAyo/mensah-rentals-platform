@@ -1222,6 +1222,10 @@ export class MaintenanceService {
       if (!item) throw new NotFoundException('Rental return item not found');
       const inventory =
         item.activeRentalItem.orderFulfilmentItem.reservationItem.inventory;
+      if (!inventory)
+        throw new UnprocessableEntityException(
+          'Return item has no Mensah inventory maintenance target',
+        );
       const claims = await tx.maintenanceWorkOrder.findMany({
         where: {
           sourceRentalReturnItemId: item.id,

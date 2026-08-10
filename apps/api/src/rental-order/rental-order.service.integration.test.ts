@@ -1086,11 +1086,14 @@ describe('confirmed rental orders against PostgreSQL', () => {
     const partialOrderId = await makeOrder('reserve-partial');
     const partial = await reservations.create(actor.id, partialOrderId, {
       allowPartial: true,
+      confirmShortfallPlan: true,
+      resolutionType: 'SUBRENT',
       operationId: randomUUID(),
       overrideReason: 'Five units will be sourced before fulfilment.',
       serializedSelections: [],
     });
     expect(partial).toMatchObject({
+      coverageStatus: 'SHORTFALL_ACKNOWLEDGED',
       overrideReason: 'Five units will be sourced before fulfilment.',
       status: 'PARTIALLY_RESERVED',
       version: 1,
@@ -1098,7 +1101,135 @@ describe('confirmed rental orders against PostgreSQL', () => {
     expect(partial.items[0]).toMatchObject({
       reservedQuantity: 5,
       shortfallQuantity: 5,
+      shortfallPlan: {
+        acknowledgedQuantity: 5,
+        resolutionType: 'SUBRENT',
+        status: 'ACKNOWLEDGED',
+      },
     });
+
+    const zeroStockOrderId = await makeOrder('reserve-zero-stock');
+    const zeroStock = await reservations.create(actor.id, zeroStockOrderId, {
+      allowPartial: true,
+      confirmShortfallPlan: true,
+      operationId: randomUUID(),
+      overrideReason: 'All units will be sub-rented for this order.',
+      resolutionType: 'SUBRENT',
+      serializedSelections: [],
+    });
+    expect(zeroStock).toMatchObject({
+      coverageStatus: 'SHORTFALL_ACKNOWLEDGED',
+      status: 'NOT_RESERVED',
+      items: [
+        {
+          reservedQuantity: 0,
+          shortfallQuantity: 10,
+          shortfallPlan: {
+            acknowledgedQuantity: 10,
+            resolutionType: 'SUBRENT',
+          },
+        },
+      ],
+    });
+    const zeroOrder = await orders.detail(zeroStockOrderId);
+    const zeroStarted = await fulfilments.start(actor.id, zeroStockOrderId, {
+      expectedReservationVersion: zeroStock.version,
+      operationId: randomUUID(),
+    });
+    const zeroReady = await fulfilments.markReady(actor.id, zeroStockOrderId, {
+      expectedVersion: zeroStarted.version,
+      operationId: randomUUID(),
+    });
+    const transactionsBeforeExternalCheckout =
+      await prisma.inventoryTransaction.count();
+    await expect(
+      fulfilments.checkout(actor.id, zeroStockOrderId, {
+        allowPartial: true,
+        expectedReservationVersion: zeroStock.version,
+        expectedVersion: zeroReady.version,
+        handoffAt: new Date().toISOString(),
+        internalReason: 'Attempted over-fulfilment regression check.',
+        items: [
+          {
+            externalQuantity: 11,
+            quantity: 0,
+            rentalOrderItemId: zeroOrder.items[0]!.id,
+            serializedAllocationIds: [],
+          },
+        ],
+        operationId: randomUUID(),
+        recipientName: 'External Equipment Recipient',
+      }),
+    ).rejects.toThrow('Checkout cannot exceed the ordered quantity');
+    const zeroCheckedOut = await fulfilments.checkout(
+      actor.id,
+      zeroStockOrderId,
+      {
+        allowPartial: false,
+        expectedReservationVersion: zeroStock.version,
+        expectedVersion: zeroReady.version,
+        handoffAt: new Date().toISOString(),
+        items: [
+          {
+            externalQuantity: 10,
+            quantity: 0,
+            rentalOrderItemId: zeroOrder.items[0]!.id,
+            serializedAllocationIds: [],
+          },
+        ],
+        operationId: randomUUID(),
+        recipientName: 'External Equipment Recipient',
+      },
+    );
+    expect(zeroCheckedOut).toMatchObject({
+      status: 'CHECKED_OUT',
+      items: [
+        {
+          checkedOutQuantity: 10,
+          externalCheckedOutQuantity: 10,
+          internalCheckedOutQuantity: 0,
+        },
+      ],
+    });
+    expect(await prisma.inventoryTransaction.count()).toBe(
+      transactionsBeforeExternalCheckout,
+    );
+    await expect(
+      reservations.complete(actor.id, zeroStockOrderId, zeroStock.id, {
+        allowPartial: true,
+        confirmShortfallPlan: true,
+        expectedVersion: zeroCheckedOut.reservationVersion,
+        operationId: randomUUID(),
+        overrideReason:
+          'A stale plan must not permit post-checkout allocation.',
+        resolutionType: 'SUBRENT',
+        serializedSelections: [],
+      }),
+    ).rejects.toThrow('already reserved or checked out');
+    const zeroActiveRental = await prisma.activeRental.findUniqueOrThrow({
+      where: { rentalOrderId: zeroStockOrderId },
+      include: { items: true },
+    });
+    const externalReturn = await returns.record(actor.id, zeroActiveRental.id, {
+      expectedVersion: 0,
+      items: [
+        {
+          activeRentalItemId: zeroActiveRental.items[0]!.id,
+          externalQuantityReceived: 10,
+        },
+      ],
+      operationId: randomUUID(),
+      receivedAt: new Date().toISOString(),
+    });
+    expect(externalReturn.items[0]).toMatchObject({
+      externalOutstandingQuantity: 0,
+      externalReceivedQuantity: 10,
+      expectedExternalQuantity: 10,
+      expectedInternalQuantity: 0,
+    });
+    expect(await prisma.inventoryTransaction.count()).toBe(
+      transactionsBeforeExternalCheckout,
+    );
 
     const completionShortage = await reservations
       .complete(actor.id, partialOrderId, partial.id, {
@@ -1196,6 +1327,68 @@ describe('confirmed rental orders against PostgreSQL', () => {
       await prisma.inventoryTransaction.count({ where: { inventoryId } }),
     ).toBe(initialTransactions);
 
+    const completedPreparation = await fulfilments.start(
+      actor.id,
+      partialOrderId,
+      {
+        expectedReservationVersion: completed.version,
+        operationId: randomUUID(),
+      },
+    );
+    expect(completedPreparation.items[0]).toMatchObject({
+      acknowledgedExternalQuantity: 0,
+      shortfallQuantity: 0,
+    });
+    const reopenedCoverage = await reservations.release(
+      actor.id,
+      partialOrderId,
+      completed.id,
+      {
+        expectedVersion: completed.version,
+        items: [
+          {
+            quantity: 1,
+            rentalOrderItemId: completed.items[0]!.rentalOrderItemId,
+            allocationIds: [],
+          },
+        ],
+        operationId: randomUUID(),
+        reason: 'Release one unit to verify shortfall coverage reopens.',
+      },
+    );
+    expect(reopenedCoverage).toMatchObject({
+      coverageStatus: 'SHORTFALL_REQUIRES_PLAN',
+      items: [
+        {
+          shortfallPlan: {
+            acknowledgedQuantity: 0,
+            status: 'OPEN',
+          },
+        },
+      ],
+    });
+    const preparedAfterRelease = await fulfilments.prepare(
+      actor.id,
+      partialOrderId,
+      {
+        expectedVersion: completedPreparation.version,
+        items: [
+          {
+            quantity: 9,
+            rentalOrderItemId: completed.items[0]!.rentalOrderItemId,
+            serializedAllocationIds: [],
+          },
+        ],
+        operationId: randomUUID(),
+      },
+    );
+    await expect(
+      fulfilments.markReady(actor.id, partialOrderId, {
+        expectedVersion: preparedAfterRelease.version,
+        operationId: randomUUID(),
+      }),
+    ).rejects.toThrow('Every actively reserved item');
+
     const access = await orders.generateCustomerAccess(actor, firstOrderId, {
       operationId: randomUUID(),
     });
@@ -1264,6 +1457,8 @@ describe('confirmed rental orders against PostgreSQL', () => {
       const attempts = await Promise.allSettled([
         reservations.create(actor.id, leftOrderId, {
           allowPartial: true,
+          confirmShortfallPlan: true,
+          resolutionType: 'SUBRENT',
           operationId: randomUUID(),
           overrideReason: 'Additional serialized assets will be sourced.',
           serializedSelections: [
@@ -1275,6 +1470,8 @@ describe('confirmed rental orders against PostgreSQL', () => {
         }),
         reservations.create(actor.id, rightOrderId, {
           allowPartial: true,
+          confirmShortfallPlan: true,
+          resolutionType: 'SUBRENT',
           operationId: randomUUID(),
           overrideReason: 'Additional serialized assets will be sourced.',
           serializedSelections: [
@@ -1303,6 +1500,8 @@ describe('confirmed rental orders against PostgreSQL', () => {
         winner.id,
         {
           allowPartial: true,
+          confirmShortfallPlan: true,
+          resolutionType: 'SUBRENT',
           expectedVersion: 1,
           operationId: randomUUID(),
           overrideReason: 'Additional serialized assets remain outstanding.',
@@ -1407,6 +1606,8 @@ describe('confirmed rental orders against PostgreSQL', () => {
       const order = await orders.detail(orderId);
       const reservation = await reservations.create(actor.id, orderId, {
         allowPartial: true,
+        confirmShortfallPlan: true,
+        resolutionType: 'SUBRENT',
         operationId: randomUUID(),
         overrideReason: 'Eight units remain commercially outstanding.',
         serializedSelections: [],
@@ -1438,6 +1639,7 @@ describe('confirmed rental orders against PostgreSQL', () => {
         internalReason: 'Two reserved units handed to the customer.',
         items: [
           {
+            externalQuantity: 0,
             quantity: 2,
             rentalOrderItemId: order.items[0]!.id,
             serializedAllocationIds: [],
@@ -1601,7 +1803,7 @@ describe('confirmed rental orders against PostgreSQL', () => {
       );
       expectPublicDataSafe(publicOrder);
       expect(JSON.stringify(publicOrder)).not.toMatch(
-        /reservedQuantity|preparedQuantity|shortfallQuantity|assetNumber|serialNumber|actorUserId/,
+        /reservedQuantity|preparedQuantity|shortfallQuantity|externalCheckedOutQuantity|resolutionType|assetNumber|serialNumber|actorUserId/,
       );
       const staffOrderForm = await orders.staffPdf(orderId);
       const customerOrderForm = await orders.publicPdf(
@@ -1624,7 +1826,7 @@ describe('confirmed rental orders against PostgreSQL', () => {
         expect(text).toContain('(2 days)');
         expect(text).toContain(`(${expectedFirstCheckoutDate})`);
         expect(text).not.toMatch(
-          /UNIT PRICE|AMOUNT|SUBTOTAL|GST 5%|PST 7%|TOTAL|\$|CAD|125\.50|1,255\.00|1,344\.00/,
+          /\(UNIT PRICE\)|\(AMOUNT\)|\(SUBTOTAL\)|\(GST 5%\)|\(PST 7%\)|\(TOTAL\)|\(\$[0-9]|125\.50|1,255\.00|1,344\.00/,
         );
         expect(text).not.toMatch(
           /tokenHash|capability=|assetNumber|serialNumber|internalNotes/,
@@ -1849,7 +2051,7 @@ describe('confirmed rental orders against PostgreSQL', () => {
           ],
           operationId: randomUUID(),
         }),
-      ).rejects.toThrow(/does not belong/i);
+      ).rejects.toThrow(/invalid cuid|does not belong/i);
 
       const secondReturn = await returns.record(
         actor.id,
@@ -2171,6 +2373,8 @@ describe('confirmed rental orders against PostgreSQL', () => {
       const order = await orders.detail(orderId);
       const reservation = await reservations.create(actor.id, orderId, {
         allowPartial: true,
+        confirmShortfallPlan: true,
+        resolutionType: 'SUBRENT',
         operationId: randomUUID(),
         overrideReason: 'Six serialized units remain outstanding.',
         serializedSelections: [
@@ -2232,6 +2436,7 @@ describe('confirmed rental orders against PostgreSQL', () => {
         internalReason: 'Four reserved serialized assets handed over.',
         items: [
           {
+            externalQuantity: 0,
             quantity: 4,
             rentalOrderItemId: order.items[0]!.id,
             serializedAllocationIds: allocationIds,

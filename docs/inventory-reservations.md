@@ -1,5 +1,7 @@
 # Inventory reservations
 
+> Shortage handling now uses separate physical-reservation and order-coverage states. See [Reservation shortfall coverage](reservation-shortfall-coverage.md).
+
 ## Phase 16.1 reservation preview and order-page correction
 
 The confirmed-order page contains a prominent **Inventory reservation**

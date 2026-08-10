@@ -1,5 +1,7 @@
 # Development Roadmap
 
+- Focused reservation correction implemented: truthful partial/zero internal reservations, durable shortfall coverage, and source-safe fulfilment/returns. This does not begin Phase 19.
+
 - Phase 17 implemented: internal maintenance work orders, exact bulk/serialized targets, assignment and scheduling, append-only activity/notes, inventory-conserving state transitions, routine and post-maintenance inspections, return/issue links, dashboard workload, protected admin UI, and public confidentiality. Parts inventory, payments, vendors, recurrence automation, and public maintenance status remain deferred.
 
 - Phase 16.4.1 implemented: server-only live Google Places reviews, compliant author/source attribution, no-store public delivery, safe fallback, protected connection diagnostics, public policy disclosures, and mocked regression coverage.

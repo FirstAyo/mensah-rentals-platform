@@ -127,7 +127,7 @@ export class WorkSummaryService {
         awaitingReservation,
         partiallyReserved,
         fullyReserved,
-        shortfall,
+        shortfallItems,
         upcomingReservations,
       ] = await Promise.all([
         prisma.rentalOrder.count({
@@ -136,6 +136,14 @@ export class WorkSummaryService {
             reservationStatus: {
               in: ['NOT_RESERVED', 'RESERVATION_FAILED'],
             },
+            OR: [
+              { reservation: { is: null } },
+              {
+                reservation: {
+                  is: { coverageStatus: 'SHORTFALL_REQUIRES_PLAN' },
+                },
+              },
+            ],
             rentalEndDateSnapshot: { gte: todayUtc },
           },
         }),
@@ -148,15 +156,21 @@ export class WorkSummaryService {
         prisma.rentalOrder.count({
           where: { status: 'CONFIRMED', reservationStatus: 'RESERVED' },
         }),
-        prisma.inventoryReservationItem.aggregate({
+        prisma.inventoryReservationItem.findMany({
           where: {
-            inventoryReservation: { status: 'PARTIALLY_RESERVED' },
+            inventoryReservation: {
+              coverageStatus: 'SHORTFALL_REQUIRES_PLAN',
+            },
           },
-          _sum: { shortfallQuantity: true },
+          select: {
+            shortfallQuantity: true,
+          },
         }),
         prisma.inventoryReservation.count({
           where: {
-            status: { in: ['PARTIALLY_RESERVED', 'RESERVED'] },
+            coverageStatus: {
+              in: ['FULLY_INTERNAL', 'SHORTFALL_ACKNOWLEDGED'],
+            },
             rentalStartDateSnapshot: { gte: todayUtc },
           },
         }),
@@ -165,7 +179,10 @@ export class WorkSummaryService {
         awaitingReservation,
         fullyReserved,
         partiallyReserved,
-        unresolvedShortfallQuantity: shortfall._sum.shortfallQuantity ?? 0,
+        unresolvedShortfallQuantity: shortfallItems.reduce(
+          (total, item) => total + item.shortfallQuantity,
+          0,
+        ),
         upcomingReservations,
       };
     }
@@ -181,8 +198,12 @@ export class WorkSummaryService {
         prisma.rentalOrder.count({
           where: {
             status: 'CONFIRMED',
-            reservationStatus: {
-              in: ['PARTIALLY_RESERVED', 'RESERVED', 'PARTIALLY_CONSUMED'],
+            reservation: {
+              is: {
+                coverageStatus: {
+                  in: ['FULLY_INTERNAL', 'SHORTFALL_ACKNOWLEDGED'],
+                },
+              },
             },
             fulfilment: { is: null },
           },

@@ -76,6 +76,10 @@ export function ReservationPanel({
     Record<string, number>
   >({});
   const [overrideReason, setOverrideReason] = useState('');
+  const [resolutionType, setResolutionType] = useState<
+    'SUBRENT' | 'PARTNER_SOURCE' | 'TRANSFER' | 'OTHER'
+  >('SUBRENT');
+  const [shortfallConfirmed, setShortfallConfirmed] = useState(false);
   const [releaseReason, setReleaseReason] = useState('');
   const [confirmation, setConfirmation] = useState<Confirmation | null>(null);
   const [preview, setPreview] = useState<ReservationPreview | null>(null);
@@ -242,9 +246,11 @@ export function ReservationPanel({
         body = {
           ...body,
           allowPartial: partial,
+          confirmShortfallPlan: partial ? shortfallConfirmed : false,
           ...(partial && permissions.canOverride && overrideReason.trim()
             ? { overrideReason: overrideReason.trim() }
             : {}),
+          ...(partial ? { resolutionType } : {}),
           serializedSelections: serializedSelections(),
         };
       } else if (
@@ -255,8 +261,10 @@ export function ReservationPanel({
         body = {
           ...body,
           allowPartial: partial,
+          confirmShortfallPlan: partial ? shortfallConfirmed : false,
           expectedVersion: reservation.version,
           ...(partial ? { overrideReason: overrideReason.trim() } : {}),
+          ...(partial ? { resolutionType } : {}),
           serializedSelections: serializedSelections(),
         };
       } else if (reservation) {
@@ -310,6 +318,7 @@ export function ReservationPanel({
       setConfirmation(null);
       setPreview(null);
       setOverrideReason('');
+      setShortfallConfirmed(false);
       setReleaseReason('');
       setReleaseAssets({});
       setReleaseQuantities({});
@@ -394,7 +403,7 @@ export function ReservationPanel({
   const partialActionUnavailable = Boolean(
     partialConfirmation &&
       (!permissions.canOverride ||
-        !preview?.reservableNowTotal ||
+        !shortfallConfirmed ||
         serializedPartialSelectionIncomplete),
   );
   const fullActionUnavailable = Boolean(
@@ -502,6 +511,30 @@ export function ReservationPanel({
             />
           </div>
 
+          {reservation ? (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <Metric
+                label="Internal reservation"
+                value={reservation.items.reduce(
+                  (sum, item) => sum + item.reservedQuantity,
+                  0,
+                )}
+              />
+              <div className="rounded-lg border bg-background p-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  Order coverage
+                </p>
+                <p className="mt-1 font-semibold">
+                  {reservation.coverageStatus === 'FULLY_INTERNAL'
+                    ? 'Complete — fully internal'
+                    : reservation.coverageStatus === 'SHORTFALL_ACKNOWLEDGED'
+                      ? 'Approved — order may proceed'
+                      : 'Shortfall plan required'}
+                </p>
+              </div>
+            </div>
+          ) : null}
+
           {availability ? (
             <div
               aria-label="Reservation quantities by equipment item"
@@ -602,7 +635,9 @@ export function ReservationPanel({
                     primary
                   />
                 ) : null}
-                {(reservation?.status === 'PARTIALLY_RESERVED' ||
+                {(reservation?.status === 'NOT_RESERVED' ||
+                  reservation?.status === 'PARTIALLY_RESERVED' ||
+                  reservation?.status === 'PARTIALLY_CONSUMED' ||
                   reservation?.status === 'RESERVATION_FAILED') &&
                 permissions.canComplete ? (
                   <ActionButton
@@ -779,7 +814,28 @@ export function ReservationPanel({
             ) : null}
 
             {partialConfirmation ? (
-              <div className="mt-5">
+              <div className="mt-5 space-y-4">
+                <label
+                  className="block text-sm font-medium"
+                  htmlFor="reservation-resolution-type"
+                >
+                  Shortfall resolution
+                  <select
+                    className="mt-2 min-h-11 w-full rounded-lg border bg-background px-3"
+                    id="reservation-resolution-type"
+                    onChange={(event) =>
+                      setResolutionType(
+                        event.target.value as typeof resolutionType,
+                      )
+                    }
+                    value={resolutionType}
+                  >
+                    <option value="SUBRENT">Subrent</option>
+                    <option value="PARTNER_SOURCE">Partner source</option>
+                    <option value="TRANSFER">Transfer</option>
+                    <option value="OTHER">Other</option>
+                  </select>
+                </label>
                 <label
                   className="block text-sm font-medium"
                   htmlFor="reservation-override-reason"
@@ -831,6 +887,20 @@ export function ReservationPanel({
                     inventory will be committed.
                   </p>
                 ) : null}
+                <label className="flex min-h-11 items-start gap-3 rounded-lg border bg-background p-3 text-sm">
+                  <input
+                    checked={shortfallConfirmed}
+                    className="mt-1 h-4 w-4"
+                    onChange={(event) =>
+                      setShortfallConfirmed(event.target.checked)
+                    }
+                    type="checkbox"
+                  />
+                  <span>
+                    I confirm that the remaining shortfall has an internal
+                    fulfilment plan.
+                  </span>
+                </label>
               </div>
             ) : null}
 
@@ -1094,6 +1164,17 @@ function ReservationAssets({
               {item.shortfallQuantity} short
             </span>
           </div>
+          {item.shortfallPlan ? (
+            <p className="mt-2 rounded-md bg-muted p-2 text-sm">
+              Shortfall plan: {item.shortfallPlan.status.replaceAll('_', ' ')}
+              {item.shortfallPlan.resolutionType
+                ? ` / ${item.shortfallPlan.resolutionType.replaceAll('_', ' ')}`
+                : ''}
+              {item.shortfallPlan.acknowledgedQuantity > 0
+                ? ` / ${item.shortfallPlan.acknowledgedQuantity} covered externally`
+                : ''}
+            </p>
+          ) : null}
           {item.trackingMode === 'BULK' && item.reservedQuantity > 0 ? (
             <label className="mt-3 block max-w-xs text-sm font-medium">
               Quantity to release

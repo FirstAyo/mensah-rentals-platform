@@ -1,5 +1,7 @@
 # API Data Visibility
 
+Reservation shortfall types, coverage state, staff notes, and internal/external fulfilment source splits are administrative-only. Customer DTOs and PDFs must not contain them. See [Reservation shortfall coverage](reservation-shortfall-coverage.md).
+
 ## Phase 17 maintenance confidentiality
 
 Maintenance work orders and equipment inspections are administrative-only. Authorized DTOs may contain internal target quantities, serialized identity, source links, schedule, priority, assignment, notes, results, and audit history according to exact permissions.

@@ -38,6 +38,37 @@ const uniqueItems = z
     });
   });
 
+const checkoutItems = z
+  .array(
+    itemTarget.extend({
+      externalQuantity: z.number().int().min(0).max(1_000_000).default(0),
+    }),
+  )
+  .min(1)
+  .max(100)
+  .superRefine((items, context) => {
+    const itemIds = new Set<string>();
+    const allocationIds = new Set<string>();
+    items.forEach((item, itemIndex) => {
+      if (itemIds.has(item.rentalOrderItemId))
+        context.addIssue({
+          code: z.ZodIssueCode.custom,
+          message: 'Each order item may appear only once.',
+          path: [itemIndex, 'rentalOrderItemId'],
+        });
+      itemIds.add(item.rentalOrderItemId);
+      item.serializedAllocationIds.forEach((id, allocationIndex) => {
+        if (allocationIds.has(id))
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Each serialized allocation may appear only once.',
+            path: [itemIndex, 'serializedAllocationIds', allocationIndex],
+          });
+        allocationIds.add(id);
+      });
+    });
+  });
+
 export const startPreparationSchema = z
   .object({ operationId, expectedReservationVersion: expectedVersion })
   .strict();
@@ -60,7 +91,7 @@ export const checkoutFulfilmentSchema = z
     expectedReservationVersion: expectedVersion,
     allowPartial: z.boolean(),
     internalReason: internalNote.optional(),
-    items: uniqueItems,
+    items: checkoutItems,
     handoffAt: z.string().datetime({ offset: true }),
     recipientName: z.string().trim().min(1).max(200).optional(),
     acknowledgementReference: z.string().trim().min(1).max(500).optional(),

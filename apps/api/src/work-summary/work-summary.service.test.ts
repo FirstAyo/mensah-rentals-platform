@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 const {
   quoteCount,
   inventoryReservationCount,
-  inventoryReservationItemAggregate,
+  inventoryReservationItemFindMany,
   rentalOrderCount,
   rentalRequestCount,
   rentalRequestFindMany,
@@ -13,7 +13,7 @@ const {
   activeRentalCount: vi.fn(),
   quoteCount: vi.fn(),
   inventoryReservationCount: vi.fn(),
-  inventoryReservationItemAggregate: vi.fn(),
+  inventoryReservationItemFindMany: vi.fn(),
   rentalOrderCount: vi.fn(),
   rentalRequestCount: vi.fn(),
   rentalRequestFindMany: vi.fn(),
@@ -24,7 +24,7 @@ vi.mock('@mensah-rentals/database', () => ({
     activeRental: { count: activeRentalCount },
     quote: { count: quoteCount },
     inventoryReservation: { count: inventoryReservationCount },
-    inventoryReservationItem: { aggregate: inventoryReservationItemAggregate },
+    inventoryReservationItem: { findMany: inventoryReservationItemFindMany },
     rentalOrder: { count: rentalOrderCount },
     rentalRequest: {
       count: rentalRequestCount,
@@ -100,9 +100,10 @@ describe('WorkSummaryService', () => {
       .mockResolvedValueOnce(2)
       .mockResolvedValueOnce(3)
       .mockResolvedValueOnce(4);
-    inventoryReservationItemAggregate.mockResolvedValueOnce({
-      _sum: { shortfallQuantity: 12 },
-    });
+    inventoryReservationItemFindMany.mockResolvedValueOnce([
+      { shortfallQuantity: 8 },
+      { shortfallQuantity: 6 },
+    ]);
     inventoryReservationCount.mockResolvedValueOnce(5);
     const result = await new WorkSummaryService().get(
       actor(['inventory.reservation.view']),
@@ -111,7 +112,7 @@ describe('WorkSummaryService', () => {
       awaitingReservation: 2,
       fullyReserved: 4,
       partiallyReserved: 3,
-      unresolvedShortfallQuantity: 12,
+      unresolvedShortfallQuantity: 14,
       upcomingReservations: 5,
     });
     expect(rentalOrderCount).toHaveBeenNthCalledWith(1, {
@@ -120,6 +121,14 @@ describe('WorkSummaryService', () => {
         reservationStatus: {
           in: ['NOT_RESERVED', 'RESERVATION_FAILED'],
         },
+        OR: [
+          { reservation: { is: null } },
+          {
+            reservation: {
+              is: { coverageStatus: 'SHORTFALL_REQUIRES_PLAN' },
+            },
+          },
+        ],
         status: 'CONFIRMED',
       },
     });

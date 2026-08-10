@@ -11,6 +11,7 @@ import {
   ActiveRentalStatus,
   FulfilmentHandoffType,
   FulfilmentOperationType,
+  InventoryReservationCoverageStatus,
   InventoryReservationItemType,
   InventoryReservationStatus,
   InventoryState,
@@ -35,6 +36,7 @@ import type {
   StartPreparationInput,
   UpdatePreparationInput,
 } from '@mensah-rentals/validation';
+import { checkoutFulfilmentSchema } from '@mensah-rentals/validation';
 
 import {
   buildSelectableTextPdf,
@@ -53,6 +55,7 @@ const fulfilmentInclude = {
       reservationItem: {
         include: {
           inventory: { select: { trackingMode: true } },
+          shortfallPlan: true,
           serializedAllocations: {
             where: {
               status: {
@@ -126,10 +129,12 @@ export class FulfilmentService {
       if (
         !reservation ||
         !this.reservationOperational(reservation.status) ||
-        !reservation.items.some((item) => item.reservedQuantity > 0)
+        reservation.coverageStatus ===
+          InventoryReservationCoverageStatus.SHORTFALL_REQUIRES_PLAN ||
+        !this.reservationCovered(reservation.items)
       )
         throw new UnprocessableEntityException(
-          'An active reservation is required before preparation',
+          'Every order item must have internal inventory or an acknowledged shortfall plan before preparation',
         );
       if (reservation.version !== input.expectedReservationVersion)
         throw new ConflictException(
@@ -352,8 +357,10 @@ export class FulfilmentService {
           'Fulfilment changed. Refresh and try again.',
         );
       if (
-        !fulfilment.items.some(
-          (item) => item.reservationItem.reservedQuantity > 0,
+        order.reservation?.coverageStatus ===
+          InventoryReservationCoverageStatus.SHORTFALL_REQUIRES_PLAN ||
+        !this.reservationCovered(
+          fulfilment.items.map((item) => item.reservationItem),
         ) ||
         fulfilment.items.some(
           (item) =>
@@ -393,6 +400,7 @@ export class FulfilmentService {
     orderId: string,
     input: CheckoutFulfilmentInput,
   ) {
+    input = checkoutFulfilmentSchema.parse(input);
     const payloadHash = this.hash({ action: 'checkout', orderId, ...input });
     const id = await this.mutate(async (tx) => {
       await this.lockOrder(tx, orderId);
@@ -437,11 +445,12 @@ export class FulfilmentService {
         target: targets.get(item.rentalOrderItemId),
         total:
           item.checkedOutQuantity +
-          (targets.get(item.rentalOrderItemId)?.quantity ?? 0),
+          (targets.get(item.rentalOrderItemId)?.quantity ?? 0) +
+          (targets.get(item.rentalOrderItemId)?.externalQuantity ?? 0),
       }));
       if (
         targets.size !== input.items.length ||
-        input.items.some((item) => item.quantity <= 0)
+        input.items.some((item) => item.quantity + item.externalQuantity <= 0)
       )
         throw new UnprocessableEntityException(
           'Checkout quantities must be positive and unique',
@@ -460,6 +469,10 @@ export class FulfilmentService {
       const complete = after.every(
         ({ item, total }) => total === item.orderedQuantitySnapshot,
       );
+      if (after.some(({ item, total }) => total > item.orderedQuantitySnapshot))
+        throw new UnprocessableEntityException(
+          'Checkout cannot exceed the ordered quantity',
+        );
       if (!complete && !input.allowPartial)
         throw new UnprocessableEntityException(
           'This checkout is partial and requires explicit confirmation',
@@ -519,26 +532,55 @@ export class FulfilmentService {
           throw new UnprocessableEntityException(
             'Checkout cannot exceed prepared and actively reserved quantity',
           );
+        const externalCovered =
+          item.reservationItem.shortfallPlan?.status === 'ACKNOWLEDGED' ||
+          item.reservationItem.shortfallPlan?.status === 'RESOLVED'
+            ? Math.min(
+                item.reservationItem.shortfallQuantity,
+                item.reservationItem.shortfallPlan.acknowledgedQuantity,
+              )
+            : 0;
+        if (
+          item.externalCheckedOutQuantity + target.externalQuantity >
+          externalCovered
+        )
+          throw new UnprocessableEntityException(
+            'External checkout cannot exceed the acknowledged shortfall plan',
+          );
         const inventoryId = item.reservationItem.inventoryId;
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${inventoryId}, 0))`;
-        await tx.inventoryReservationItem.update({
-          where: { id: item.reservationItemId },
-          data: {
-            consumedQuantity: { increment: target.quantity },
-            reservedQuantity: { decrement: target.quantity },
-          },
-        });
+        if (target.quantity > 0) {
+          if (!inventoryId || !item.reservationItem.reservationType)
+            throw new UnprocessableEntityException(
+              'External-only equipment cannot consume Mensah inventory',
+            );
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${inventoryId}, 0))`;
+          await tx.inventoryReservationItem.update({
+            where: { id: item.reservationItemId },
+            data: {
+              consumedQuantity: { increment: target.quantity },
+              reservedQuantity: { decrement: target.quantity },
+            },
+          });
+        }
         await tx.orderFulfilmentItem.update({
           where: { id: item.id },
           data: {
-            checkedOutQuantity: { increment: target.quantity },
+            checkedOutQuantity: {
+              increment: target.quantity + target.externalQuantity,
+            },
+            externalCheckedOutQuantity: {
+              increment: target.externalQuantity,
+            },
+            internalCheckedOutQuantity: { increment: target.quantity },
             preparedQuantity: { decrement: target.quantity },
           },
         });
         await tx.fulfilmentOperationItem.create({
           data: {
-            checkedOutDelta: target.quantity,
+            checkedOutDelta: target.quantity + target.externalQuantity,
+            externalCheckedOutDelta: target.externalQuantity,
             fulfilmentOperationId: operation.id,
+            internalCheckedOutDelta: target.quantity,
             orderFulfilmentItemId: item.id,
             preparedDelta: -target.quantity,
           },
@@ -547,12 +589,23 @@ export class FulfilmentService {
           where: { rentalOrderItemId: item.rentalOrderItemId },
           create: {
             activeRentalId: activeRental.id,
-            checkedOutQuantity: target.quantity,
+            checkedOutQuantity: target.quantity + target.externalQuantity,
+            externalCheckedOutQuantity: target.externalQuantity,
+            internalCheckedOutQuantity: target.quantity,
             orderFulfilmentItemId: item.id,
             rentalOrderItemId: item.rentalOrderItemId,
           },
-          update: { checkedOutQuantity: { increment: target.quantity } },
+          update: {
+            checkedOutQuantity: {
+              increment: target.quantity + target.externalQuantity,
+            },
+            externalCheckedOutQuantity: {
+              increment: target.externalQuantity,
+            },
+            internalCheckedOutQuantity: { increment: target.quantity },
+          },
         });
+        if (target.quantity === 0) continue;
         if (
           item.reservationItem.reservationType ===
           InventoryReservationItemType.BULK
@@ -566,7 +619,7 @@ export class FulfilmentService {
               actorUserId: actorId,
               fromState: InventoryState.RENTABLE,
               fulfilmentOperationId: operation.id,
-              inventoryId,
+              inventoryId: inventoryId!,
               kind: InventoryTransactionKind.BULK_MOVEMENT,
               action: InventoryTransactionAction.CHECKOUT,
               operationId: this.derivedUuid(input.operationId, item.id),
@@ -667,10 +720,21 @@ export class FulfilmentService {
           (targets.get(item.rentalOrderItemId)?.quantity ?? 0),
         0,
       );
+      const consumedAfter = reservation.items.reduce(
+        (sum, item) =>
+          sum +
+          item.consumedQuantity +
+          (targets.get(item.rentalOrderItemId)?.quantity ?? 0),
+        0,
+      );
       const reservationStatus =
         remainingReserved > 0
-          ? InventoryReservationStatus.PARTIALLY_CONSUMED
-          : InventoryReservationStatus.CONSUMED;
+          ? consumedAfter > 0
+            ? InventoryReservationStatus.PARTIALLY_CONSUMED
+            : InventoryReservationStatus.PARTIALLY_RESERVED
+          : consumedAfter > 0
+            ? InventoryReservationStatus.CONSUMED
+            : InventoryReservationStatus.NOT_RESERVED;
       await tx.inventoryReservation.update({
         where: { id: reservation.id },
         data: { status: reservationStatus, version: { increment: 1 } },
@@ -680,8 +744,12 @@ export class FulfilmentService {
         data: {
           reservationStatus:
             remainingReserved > 0
-              ? RentalOrderReservationStatus.PARTIALLY_CONSUMED
-              : RentalOrderReservationStatus.CONSUMED,
+              ? consumedAfter > 0
+                ? RentalOrderReservationStatus.PARTIALLY_CONSUMED
+                : RentalOrderReservationStatus.PARTIALLY_RESERVED
+              : reservationStatus === InventoryReservationStatus.CONSUMED
+                ? RentalOrderReservationStatus.CONSUMED
+                : RentalOrderReservationStatus.NOT_RESERVED,
           reservationVersion: { increment: 1 },
         },
       });
@@ -845,6 +913,8 @@ export class FulfilmentService {
         })),
         items: row.items.map((item) => ({
           checkedOutQuantity: item.checkedOutQuantity,
+          externalCheckedOutQuantity: item.externalCheckedOutQuantity,
+          internalCheckedOutQuantity: item.internalCheckedOutQuantity,
           productName: item.rentalOrderItem.productNameSnapshot,
           rentalUnit: item.rentalOrderItem.rentalUnitSnapshot,
           serializedAssets: item.serializedAssets.map((asset) => ({
@@ -927,7 +997,17 @@ export class FulfilmentService {
       fullyCheckedOutAt: record.fullyCheckedOutAt?.toISOString() ?? null,
       id: record.id,
       items: record.items.map((item) => ({
+        acknowledgedExternalQuantity:
+          item.reservationItem.shortfallPlan?.status === 'ACKNOWLEDGED' ||
+          item.reservationItem.shortfallPlan?.status === 'RESOLVED'
+            ? Math.min(
+                item.reservationItem.shortfallQuantity,
+                item.reservationItem.shortfallPlan.acknowledgedQuantity,
+              )
+            : 0,
         checkedOutQuantity: item.checkedOutQuantity,
+        externalCheckedOutQuantity: item.externalCheckedOutQuantity,
+        internalCheckedOutQuantity: item.internalCheckedOutQuantity,
         consumedQuantity: item.reservationItem.consumedQuantity,
         id: item.id,
         orderedQuantity: item.orderedQuantitySnapshot,
@@ -949,7 +1029,7 @@ export class FulfilmentService {
           }),
         ),
         shortfallQuantity: item.reservationItem.shortfallQuantity,
-        trackingMode: item.reservationItem.inventory.trackingMode,
+        trackingMode: item.reservationItem.inventory?.trackingMode ?? null,
       })),
       notice: internalNotice,
       orderId: record.rentalOrderId,
@@ -988,6 +1068,8 @@ export class FulfilmentService {
                 preparedSerializedAssets: true,
                 reservationItem: {
                   include: {
+                    inventory: true,
+                    shortfallPlan: true,
                     serializedAllocations: { include: { inventoryItem: true } },
                   },
                 },
@@ -996,7 +1078,11 @@ export class FulfilmentService {
           },
         },
         reservation: {
-          include: { items: { include: { rentalOrderItem: true } } },
+          include: {
+            items: {
+              include: { rentalOrderItem: true, shortfallPlan: true },
+            },
+          },
         },
       },
     });
@@ -1022,9 +1108,37 @@ export class FulfilmentService {
   private reservationOperational(status: InventoryReservationStatus) {
     return (
       status === InventoryReservationStatus.PARTIALLY_RESERVED ||
+      status === InventoryReservationStatus.NOT_RESERVED ||
       status === InventoryReservationStatus.RESERVED ||
       status === InventoryReservationStatus.PARTIALLY_CONSUMED
     );
+  }
+  private reservationCovered(
+    items: Array<{
+      requestedQuantity: number;
+      reservedQuantity: number;
+      consumedQuantity: number;
+      shortfallQuantity: number;
+      shortfallPlan: {
+        acknowledgedQuantity: number;
+        status: string;
+      } | null;
+    }>,
+  ) {
+    return items.every((item) => {
+      const acknowledged =
+        item.shortfallPlan &&
+        ['ACKNOWLEDGED', 'RESOLVED'].includes(item.shortfallPlan.status)
+          ? Math.min(
+              item.shortfallQuantity,
+              item.shortfallPlan.acknowledgedQuantity,
+            )
+          : 0;
+      return (
+        item.reservedQuantity + item.consumedQuantity + acknowledged >=
+        item.requestedQuantity
+      );
+    });
   }
   private async replay(
     tx: Prisma.TransactionClient,

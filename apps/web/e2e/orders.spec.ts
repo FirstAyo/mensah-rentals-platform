@@ -281,6 +281,9 @@ async function reserveCurrentOrderPartially(page: Page, reason: string) {
       name: 'Full reservation is not currently possible.',
     }),
   ).toBeVisible();
+  await dialog
+    .getByLabel(/remaining shortfall has an internal fulfilment plan/i)
+    .check();
   await dialog.getByLabel('Internal shortfall reason').fill(reason);
   await dialog
     .getByRole('button', { name: 'Reserve available quantity' })
@@ -457,10 +460,12 @@ test('@orders @customer-orders exchanges a dedicated fragment and renders a conf
   await unauthenticated.close();
 });
 
-test('@reservations @admin-reservations staff intentionally creates a partial reservation and releases it', async ({
+test('@reservations @admin-reservations @reservation-shortfall staff covers partial and zero-internal reservations, then releases the partial reservation', async ({
+  browser,
   page,
 }, info) => {
   test.skip(info.project.name !== 'desktop-1024');
+  test.setTimeout(540_000);
   await createOrder(page);
   const panel = reservationPanel(page);
   await expect(
@@ -470,6 +475,12 @@ test('@reservations @admin-reservations staff intentionally creates a partial re
     panel.getByText(/created from confirmed rental orders/i),
   ).toBeVisible();
   await expect(panel.getByText('Not reserved', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Start preparation' }).click();
+  await expect(
+    page
+      .getByRole('alert')
+      .filter({ hasText: /inventory reservation.*shortfall plan/i }),
+  ).toBeVisible();
   await panel
     .getByRole('button', { name: 'Check availability and reserve' })
     .click();
@@ -482,6 +493,9 @@ test('@reservations @admin-reservations staff intentionally creates a partial re
   await expect(confirmation.getByText('Ordered')).toBeVisible();
   await expect(confirmation.getByText('Available now')).toBeVisible();
   await expect(confirmation.getByText('Missing')).toBeVisible();
+  await confirmation
+    .getByLabel(/remaining shortfall has an internal fulfilment plan/i)
+    .check();
   await confirmation
     .getByRole('button', { name: 'Reserve available quantity' })
     .click();
@@ -500,6 +514,47 @@ test('@reservations @admin-reservations staff intentionally creates a partial re
     panel.getByText('Partially reserved', { exact: true }),
   ).toBeVisible({ timeout: 30_000 });
   await expect(panel.getByText('Internal only').first()).toBeVisible();
+  await expect(
+    panel.getByText('Approved — order may proceed', { exact: true }),
+  ).toBeVisible();
+  await startPreparation(page);
+
+  const zeroProductName = process.env.PHASE_RESERVATION_ZERO_PRODUCT_NAME;
+  if (zeroProductName) {
+    const zeroContext = await browser.newContext();
+    const zeroPage = await zeroContext.newPage();
+    await createOrder(zeroPage, 0, 1, 'PICKUP', zeroProductName);
+    const zeroPanel = reservationPanel(zeroPage);
+    await zeroPanel
+      .getByRole('button', { name: 'Check availability and reserve' })
+      .click();
+    const zeroConfirmation = zeroPage.getByRole('dialog');
+    await expect(
+      zeroConfirmation.getByRole('heading', {
+        name: 'Full reservation is not currently possible.',
+      }),
+    ).toBeVisible();
+    await expect(zeroConfirmation.getByText('Available now')).toBeVisible();
+    await expect(zeroConfirmation.getByText('Missing')).toBeVisible();
+    await zeroConfirmation
+      .getByLabel(/remaining shortfall has an internal fulfilment plan/i)
+      .check();
+    await zeroConfirmation
+      .getByLabel('Internal shortfall reason')
+      .fill('Browser-test external subrent covers zero internal stock');
+    await zeroConfirmation
+      .getByRole('button', { name: 'Reserve available quantity' })
+      .click();
+    await expect(
+      zeroPanel.getByText('Not reserved', { exact: true }),
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(
+      zeroPanel.getByText('Approved — order may proceed', { exact: true }),
+    ).toBeVisible();
+    await startPreparation(zeroPage);
+    await zeroContext.close();
+  }
+
   await panel.getByLabel('Release reason').fill('Browser-test release');
   await panel
     .getByRole('button', { name: 'Release entire reservation' })
@@ -522,7 +577,7 @@ test('@reservations @admin-reservations staff intentionally creates a partial re
   await axe(page);
 });
 
-test('@reservations @admin-reservations full reservation dialog is accessible at 320px and restores focus', async ({
+test('@reservations @admin-reservations @reservation-shortfall full reservation dialog is accessible at 320px and restores focus', async ({
   page,
 }, info) => {
   test.skip(info.project.name !== 'mobile-320');
@@ -578,6 +633,8 @@ test('@reservations @reservation-concurrency duplicate reservation submission is
   const operationId = crypto.randomUUID();
   const body = {
     allowPartial: true,
+    confirmShortfallPlan: true,
+    resolutionType: 'SUBRENT',
     operationId,
     overrideReason: 'Browser-test idempotent intentional shortfall',
     serializedSelections: [],
@@ -611,7 +668,7 @@ async function createPartiallyReservedOrder(page: Page, productIndex = 0) {
   return created;
 }
 
-test('@fulfilment @admin-fulfilment @active-rentals @official-pdfs prepares, checks out partially, and exposes only customer-safe status', async ({
+test('@fulfilment @admin-fulfilment @active-rentals @official-pdfs prepares internal stock, hands off external coverage, and exposes only customer-safe status', async ({
   page,
 }, info) => {
   test.skip(info.project.name !== 'mobile-320');
@@ -630,16 +687,12 @@ test('@fulfilment @admin-fulfilment @active-rentals @official-pdfs prepares, che
     timeout: 30_000,
   });
   await page.getByLabel('Recipient name').fill('Phase 15 Customer');
-  await page.getByLabel('This is an intentional partial checkout').check();
-  await page
-    .getByLabel('Internal partial-checkout reason')
-    .fill('One commercially requested unit remains unavailable.');
   await page
     .getByRole('button', { name: 'Confirm pickup and check out' })
     .click();
-  await expect(
-    page.getByText('PARTIALLY CHECKED OUT', { exact: true }),
-  ).toBeVisible({ timeout: 30_000 });
+  await expect(page.getByText('CHECKED OUT', { exact: true })).toBeVisible({
+    timeout: 30_000,
+  });
   await page.goto('http://localhost:3001/active-rentals');
   await expect(page.getByText(orderNumber, { exact: true })).toBeVisible();
   await page.getByText(orderNumber, { exact: true }).click();

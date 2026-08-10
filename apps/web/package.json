@@ -33,6 +33,7 @@
     "test:e2e:amendments": "playwright test --grep \"@customer-amendments|@admin-amendments|@change-requests\"",
     "test:e2e:admin-reservations": "node ../../scripts/run-admin-decisions-e2e.mjs reservations-admin",
     "test:e2e:reservation-concurrency": "node ../../scripts/run-admin-decisions-e2e.mjs reservations-concurrency",
+    "test:e2e:reservation-shortfall": "node ../../scripts/run-admin-decisions-e2e.mjs reservations-shortfall",
     "test:e2e:reservations": "node ../../scripts/run-admin-decisions-e2e.mjs reservations-all",
     "test:e2e:admin-fulfilment": "node ../../scripts/run-admin-decisions-e2e.mjs fulfilment-admin",
     "test:e2e:active-rentals": "node ../../scripts/run-admin-decisions-e2e.mjs fulfilment-active-rentals",

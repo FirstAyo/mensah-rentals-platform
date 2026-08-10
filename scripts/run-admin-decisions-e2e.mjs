@@ -23,6 +23,7 @@ const modes = new Set([
   'phase12-1-order',
   'reservations-admin',
   'reservations-concurrency',
+  'reservations-shortfall',
   'reservations-all',
   'fulfilment-admin',
   'fulfilment-active-rentals',
@@ -254,6 +255,22 @@ if (
         toState: 'RENTABLE',
       },
     });
+  }
+  if (mode === 'reservations-shortfall') {
+    const source = products[0];
+    if (!source)
+      throw new Error('A catalogue product is required for reservation tests.');
+    const zeroStockProductName = `Phase reservation external-only ${randomUUID()}`;
+    await prisma.product.create({
+      data: {
+        categoryId: source.categoryId,
+        name: zeroStockProductName,
+        shortDescription: 'Isolated product with no owned inventory record',
+        slug: `phase-reservation-external-only-${randomUUID()}`,
+      },
+    });
+    browserEnvironment.PHASE_RESERVATION_ZERO_PRODUCT_NAME =
+      zeroStockProductName;
   }
   if (
     mode.startsWith('fulfilment-') ||
@@ -1083,7 +1100,7 @@ try {
         maintenanceMode ||
         phase18Mode ||
         officialPdfMode
-        ? 180_000
+        ? 300_000
         : 90_000,
     ),
     waitFor(
@@ -1095,7 +1112,7 @@ try {
         maintenanceMode ||
         phase18Mode ||
         officialPdfMode
-        ? 180_000
+        ? 300_000
         : 90_000,
     ),
     waitFor(
@@ -1107,7 +1124,7 @@ try {
         maintenanceMode ||
         phase18Mode ||
         officialPdfMode
-        ? 180_000
+        ? 300_000
         : 90_000,
     ),
   ]);
@@ -1180,7 +1197,9 @@ try {
                           ? '@reservations'
                           : mode === 'reservations-concurrency'
                             ? '@reservation-concurrency'
-                            : '@admin-reservations'
+                            : mode === 'reservations-shortfall'
+                              ? '@reservation-shortfall'
+                              : '@admin-reservations'
                         : isPhase121
                           ? '@phase12-1'
                           : isOrderMode

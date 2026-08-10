@@ -1,5 +1,7 @@
 # Permissions and Roles
 
+`inventory.reservation.override` authorizes acknowledgement of a documented external shortfall plan. ADMIN and SUPER_ADMIN receive it; SALES_PERSON and EDITOR do not. Backend live permission checks remain authoritative.
+
 ## Phase 17 maintenance permissions
 
 - `maintenance.view`

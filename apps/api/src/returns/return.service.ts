@@ -36,6 +36,7 @@ import type {
   ReturnListQuery,
   ReturnVersionCommandInput,
 } from '@mensah-rentals/validation';
+import { recordReturnSchema } from '@mensah-rentals/validation';
 
 import {
   buildOfficialCustomerFormPdf,
@@ -146,6 +147,7 @@ export class ReturnService {
     activeRentalId: string,
     input: RecordReturnInput,
   ): Promise<AdminRentalReturnResponse> {
+    input = recordReturnSchema.parse(input);
     const payloadHash = this.hash({
       action: 'RETURN_INTAKE',
       activeRentalId,
@@ -221,6 +223,9 @@ export class ReturnService {
           data: active.items.map((item) => ({
             activeRentalItemId: item.id,
             expectedCheckedOutQuantity: item.checkedOutQuantity,
+            expectedExternalQuantity: item.externalCheckedOutQuantity,
+            expectedInternalQuantity: item.internalCheckedOutQuantity,
+            externalOutstandingQuantity: item.externalCheckedOutQuantity,
             outstandingQuantity: item.checkedOutQuantity,
             rentalReturnId: rentalReturn!.id,
           })),
@@ -247,7 +252,9 @@ export class ReturnService {
           item.quantityRentable +
           item.quantityDamaged +
           item.quantityMaintenance +
-          item.quantityMissing,
+          item.quantityMissing +
+          item.externalQuantityReceived +
+          item.externalQuantityMissing,
         0,
       );
       const totalOutstanding = returnItems.reduce(
@@ -280,26 +287,44 @@ export class ReturnService {
           throw new UnprocessableEntityException(
             'Return item does not belong to this active rental',
           );
-        const quantityReceived =
+        const internalReceived =
           inputItem.quantityRentable +
           inputItem.quantityDamaged +
           inputItem.quantityMaintenance;
-        const quantityAccounted = quantityReceived + inputItem.quantityMissing;
+        const quantityReceived =
+          internalReceived + inputItem.externalQuantityReceived;
+        const quantityMissing =
+          inputItem.quantityMissing + inputItem.externalQuantityMissing;
+        const quantityAccounted = quantityReceived + quantityMissing;
         if (quantityAccounted > returnItem.outstandingQuantity)
           throw new UnprocessableEntityException(
             'Return quantity exceeds the outstanding checked-out quantity',
           );
+        if (
+          inputItem.externalQuantityReceived +
+            inputItem.externalQuantityMissing >
+          returnItem.externalOutstandingQuantity
+        )
+          throw new UnprocessableEntityException(
+            'External return quantity exceeds the outstanding external quantity',
+          );
         const trackingMode =
-          activeItem.orderFulfilmentItem.reservationItem.inventory.trackingMode;
+          activeItem.orderFulfilmentItem.reservationItem.inventory
+            ?.trackingMode ?? null;
+        const internalAccounted = internalReceived + inputItem.quantityMissing;
+        if (!trackingMode && internalAccounted > 0)
+          throw new UnprocessableEntityException(
+            'External-source equipment cannot mutate Mensah inventory',
+          );
         if (
           trackingMode === InventoryTrackingMode.SERIALIZED &&
-          inputItem.serializedAssets.length !== quantityAccounted
+          inputItem.serializedAssets.length !== internalAccounted
         )
           throw new UnprocessableEntityException(
             'Every serialized quantity must identify its checkout occurrence',
           );
         if (
-          trackingMode === InventoryTrackingMode.BULK &&
+          (trackingMode === InventoryTrackingMode.BULK || !trackingMode) &&
           inputItem.serializedAssets.length > 0
         )
           throw new UnprocessableEntityException(
@@ -309,7 +334,9 @@ export class ReturnService {
           data: {
             quantityDamaged: inputItem.quantityDamaged,
             quantityMaintenance: inputItem.quantityMaintenance,
-            quantityMissing: inputItem.quantityMissing,
+            externalQuantityMissing: inputItem.externalQuantityMissing,
+            externalQuantityReceived: inputItem.externalQuantityReceived,
+            quantityMissing,
             quantityReceived,
             quantityRentable: inputItem.quantityRentable,
             rentalReturnItemId: returnItem.id,
@@ -318,7 +345,12 @@ export class ReturnService {
         });
         const inventoryId =
           activeItem.orderFulfilmentItem.reservationItem.inventoryId;
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${inventoryId}, 0))`;
+        if (internalAccounted > 0 && !inventoryId)
+          throw new UnprocessableEntityException(
+            'Internal return equipment has no Mensah inventory record',
+          );
+        if (inventoryId && internalAccounted > 0)
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtextextended(${inventoryId}, 0))`;
         if (trackingMode === InventoryTrackingMode.BULK) {
           for (const movement of this.bulkMovements(inputItem)) {
             await tx.inventoryTransaction.create({
@@ -326,7 +358,7 @@ export class ReturnService {
                 action: movement.action,
                 actorUserId: actorId,
                 fromState: InventoryState.RENTED,
-                inventoryId,
+                inventoryId: inventoryId!,
                 kind: InventoryTransactionKind.BULK_MOVEMENT,
                 operationId: this.derivedUuid(
                   input.operationId,
@@ -339,7 +371,7 @@ export class ReturnService {
               },
             });
           }
-        } else {
+        } else if (trackingMode === InventoryTrackingMode.SERIALIZED) {
           const activeAssetById = new Map(
             activeItem.serializedAssets.map((asset) => [asset.id, asset]),
           );
@@ -370,7 +402,7 @@ export class ReturnService {
                 action: this.returnAction(toState),
                 actorUserId: actorId,
                 fromState: InventoryState.RENTED,
-                inventoryId,
+                inventoryId: inventoryId!,
                 inventoryItemId: asset.inventoryItemId,
                 kind: InventoryTransactionKind.SERIALIZED_ITEM_STATE_CHANGED,
                 operationId: this.derivedUuid(input.operationId, asset.id),
@@ -421,7 +453,18 @@ export class ReturnService {
           data: {
             damagedQuantity: { increment: inputItem.quantityDamaged },
             maintenanceQuantity: { increment: inputItem.quantityMaintenance },
-            missingQuantity: { increment: inputItem.quantityMissing },
+            externalMissingQuantity: {
+              increment: inputItem.externalQuantityMissing,
+            },
+            externalOutstandingQuantity: {
+              decrement:
+                inputItem.externalQuantityReceived +
+                inputItem.externalQuantityMissing,
+            },
+            externalReceivedQuantity: {
+              increment: inputItem.externalQuantityReceived,
+            },
+            missingQuantity: { increment: quantityMissing },
             outstandingQuantity: { decrement: quantityAccounted },
             receivedQuantity: { increment: quantityReceived },
             rentableQuantity: { increment: inputItem.quantityRentable },
@@ -520,14 +563,20 @@ export class ReturnService {
           productName: item.rentalOrderItem.productNameSnapshot,
           rentalUnit: item.rentalOrderItem.rentalUnitSnapshot,
           trackingMode:
-            item.orderFulfilmentItem.reservationItem.inventory.trackingMode,
+            item.orderFulfilmentItem.reservationItem.inventory?.trackingMode ??
+            null,
           expectedCheckedOutQuantity: item.checkedOutQuantity,
+          expectedExternalQuantity: item.externalCheckedOutQuantity,
+          expectedInternalQuantity: item.internalCheckedOutQuantity,
           receivedQuantity: 0,
           rentableQuantity: 0,
           damagedQuantity: 0,
           maintenanceQuantity: 0,
           missingQuantity: 0,
           outstandingQuantity: item.checkedOutQuantity,
+          externalMissingQuantity: 0,
+          externalOutstandingQuantity: item.externalCheckedOutQuantity,
+          externalReceivedQuantity: 0,
           serializedAssets: item.serializedAssets.map((asset) => ({
             activeRentalSerializedAssetId: asset.id,
             assetNumber: asset.inventoryItem.assetNumber,
@@ -1267,14 +1316,19 @@ export class ReturnService {
         rentalUnit: item.activeRentalItem.rentalOrderItem.rentalUnitSnapshot,
         trackingMode:
           item.activeRentalItem.orderFulfilmentItem.reservationItem.inventory
-            .trackingMode,
+            ?.trackingMode ?? null,
         expectedCheckedOutQuantity: item.expectedCheckedOutQuantity,
+        expectedExternalQuantity: item.expectedExternalQuantity,
+        expectedInternalQuantity: item.expectedInternalQuantity,
         receivedQuantity: item.receivedQuantity,
         rentableQuantity: item.rentableQuantity,
         damagedQuantity: item.damagedQuantity,
         maintenanceQuantity: item.maintenanceQuantity,
         missingQuantity: item.missingQuantity,
         outstandingQuantity: item.outstandingQuantity,
+        externalMissingQuantity: item.externalMissingQuantity,
+        externalOutstandingQuantity: item.externalOutstandingQuantity,
+        externalReceivedQuantity: item.externalReceivedQuantity,
         serializedAssets: item.activeRentalItem.serializedAssets.map(
           (asset) => ({
             activeRentalSerializedAssetId: asset.id,
@@ -1559,11 +1613,15 @@ function quantityReceived(input: RecordReturnInput) {
       sum +
       item.quantityRentable +
       item.quantityDamaged +
-      item.quantityMaintenance,
+      item.quantityMaintenance +
+      item.externalQuantityReceived,
     0,
   );
 }
 
 function quantityMissing(input: RecordReturnInput) {
-  return input.items.reduce((sum, item) => sum + item.quantityMissing, 0);
+  return input.items.reduce(
+    (sum, item) => sum + item.quantityMissing + item.externalQuantityMissing,
+    0,
+  );
 }

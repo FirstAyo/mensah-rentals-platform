@@ -1,5 +1,7 @@
 # Planned Domain Model
 
+The implemented reservation model now separates Mensah-owned `InventoryReservationItem` quantities from per-line `ReservationShortfall` coverage plans and source-aware fulfilment/return quantities. See [Reservation shortfall coverage](reservation-shortfall-coverage.md).
+
 ## Phase 17 maintenance and inspection models
 
 - `MaintenanceWorkOrder` is a versioned operational projection with one immutable bulk or serialized target, immutable source, display snapshots, lifecycle, assignment, schedule, and explicit completion outcome.
