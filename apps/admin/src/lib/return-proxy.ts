@@ -16,7 +16,7 @@ const returnRoutes = [
   },
   {
     pattern: new RegExp(
-      `^${id}/(receipt|inspection|missing|damage|reconciliation)-pdf$`,
+      `^${id}/(receipt|inspection|missing|damage|reconciliation|official)-pdf$`,
     ),
     methods: new Set(['GET']),
   },

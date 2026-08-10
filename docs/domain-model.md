@@ -230,3 +230,7 @@ Direct product removal uses the same `Product.deletedAt` marker. Hard deletion i
 ## PlatformAuditEvent
 
 This append-only cross-cutting event records safe domain/action/entity references, a bounded summary, optional actor and request correlation, and an idempotent source key. Database triggers forbid update and delete. Existing domain activity tables remain authoritative and are projected into the unified audit history rather than destructively copied.
+
+# Official document derivation (Phase 18.1)
+
+Official customer forms are derived documents, not mutable business entities. The Order Form uses `RentalOrder`, immutable `RentalOrderItem` snapshots, and `OrderFulfilment.firstCheckedOutAt`. The final Return Form uses the same order snapshots plus completed `RentalReturn` and its aggregate `RentalReturnItem.receivedQuantity` values. PDF generation creates no database rows and changes no order, fulfilment, return, inventory, or media state.

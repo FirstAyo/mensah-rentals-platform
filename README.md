@@ -236,3 +236,7 @@ changes inventory.
 ## Phase 18 operations foundation
 
 Permission-aware operational reports, immutable audit history, safe CSV exports, internal status, and guarded database/media restore verification are documented in [reporting and audit](docs/reporting-and-audit.md), [backup and restore](docs/backup-and-restore.md), and [observability](docs/observability.md).
+
+# Official customer forms
+
+Picked-up orders and completed returns provide official customer Order and Return PDFs modeled on the company forms. These PDFs intentionally contain no customer-specific prices or monetary totals. See [docs/official-customer-pdfs.md](docs/official-customer-pdfs.md).

@@ -194,13 +194,20 @@ export function RentalOrderDetail({
                 : ''}
             </p>
           </div>
-          <a
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2 font-semibold"
-            href={`/api/orders/${id}/pdf`}
-          >
-            <FileDown className="h-4 w-4" aria-hidden="true" />
-            Download order PDF
-          </a>
+          {order.officialOrderFormAvailable ? (
+            <a
+              className="inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2 font-semibold"
+              href={`/api/orders/${id}/pdf`}
+            >
+              <FileDown className="h-4 w-4" aria-hidden="true" />
+              Download official customer Order Form
+            </a>
+          ) : (
+            <span className="max-w-xs text-sm text-muted-foreground">
+              Official Order Form is available after the first confirmed pickup
+              or handoff.
+            </span>
+          )}
         </div>
         {canManageAccess ? (
           <div className="mt-4 flex flex-wrap gap-3">

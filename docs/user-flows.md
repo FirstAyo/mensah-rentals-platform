@@ -22,3 +22,7 @@ Customers do not participate in either flow and never receive maintenance data.
 ## Staff reporting flow
 
 Authorized staff select a bounded date period and see only reports allowed by reporting plus domain permissions. An export rechecks live permissions, returns allowlisted CSV, and records an immutable audit event. Audit History is searchable but cannot be edited. System Status is safe and read-only; backup and restore remain operator-only commands outside the UI.
+
+# Official document downloads
+
+After the first confirmed pickup or delivery handoff, the private customer order page offers **Download Order Form**. Before that event it explains that the form is not yet available. After the return is finally completed, the same private page offers **Download Return Form**. Partial returns do not produce a final Return Form.

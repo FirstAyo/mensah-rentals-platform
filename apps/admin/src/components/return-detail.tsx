@@ -134,6 +134,18 @@ export function ReturnDetail({
         </Link>
       </div>
       <div className="flex flex-wrap gap-2 text-sm">
+        {data.status === 'COMPLETED' ? (
+          <a
+            className="font-semibold underline"
+            href={`/api/returns/${id}/official-pdf`}
+          >
+            Download official customer Return Form
+          </a>
+        ) : (
+          <span className="text-muted-foreground">
+            Official Return Form is available after completion.
+          </span>
+        )}
         {['receipt', 'inspection', 'missing', 'damage', 'reconciliation'].map(
           (kind) => (
             <a

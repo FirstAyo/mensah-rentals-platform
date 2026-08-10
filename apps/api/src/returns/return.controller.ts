@@ -132,6 +132,26 @@ export class AdminReturnController {
     return this.returns.createManualIssue(actor.id, id, input);
   }
 
+  @Get(':id/official-pdf')
+  @RequirePermissions('return.view', 'return.pdf')
+  @Header('Cache-Control', 'private, no-store, max-age=0')
+  @Header('Pragma', 'no-cache')
+  @Header('Expires', '0')
+  @Header('X-Content-Type-Options', 'nosniff')
+  @Header('X-Robots-Tag', 'noindex, nofollow, noarchive')
+  @Header('Referrer-Policy', 'no-referrer')
+  @Header('Content-Security-Policy', 'sandbox')
+  async officialPdf(
+    @CurrentStaffUser() actor: StaffUserResponse,
+    @Param('id', new RentalOrderZodPipe(cuidParamSchema)) id: string,
+  ) {
+    const result = await this.returns.officialPdf(actor.id, id);
+    return new StreamableFile(result.buffer, {
+      disposition: `attachment; filename="${result.filename}"`,
+      type: 'application/pdf',
+    });
+  }
+
   @Get(':id/:kind')
   @RequirePermissions('return.view', 'return.pdf')
   @Header('Cache-Control', 'private, no-store, max-age=0')

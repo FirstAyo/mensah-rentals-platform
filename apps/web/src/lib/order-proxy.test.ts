@@ -86,6 +86,35 @@ describe('customer rental order BFF', () => {
     ).toBe(404);
   });
 
+  it('allows only capability-scoped official Order and Return PDF downloads', async () => {
+    for (const route of ['pdf', 'return-pdf']) {
+      const fetcher = vi.fn(async (url: string, init?: RequestInit) => {
+        expect(url).toContain(
+          `/public/orders/current/${route === 'pdf' ? 'pdf' : 'return-pdf'}`,
+        );
+        expect(new Headers(init?.headers).get('x-order-capability')).toBe(
+          capability,
+        );
+        return new Response(Buffer.from('%PDF-1.4'), {
+          headers: {
+            'Content-Disposition': `attachment; filename="Mensah-Rentals-${route === 'pdf' ? 'Order' : 'Return'}-RO-ABC123.pdf"`,
+            'Content-Type': 'application/pdf',
+          },
+        });
+      });
+      const response = await proxyOrder(
+        new Request(`http://localhost:3000/api/order/${route}`, {
+          headers: { cookie: `mensah_order_access=${capability}` },
+        }),
+        [route],
+        fetcher as typeof fetch,
+      );
+      expect(response.status).toBe(200);
+      expect(response.headers.get('cache-control')).toContain('no-store');
+      expect(response.headers.get('content-type')).toBe('application/pdf');
+    }
+  });
+
   it('requires same-origin JSON for capability exchange', async () => {
     const crossOrigin = await proxyOrder(
       new Request('http://localhost:3000/api/order/access', {

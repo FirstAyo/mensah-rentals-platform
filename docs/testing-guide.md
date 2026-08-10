@@ -1307,3 +1307,14 @@ QueryClient error. Also check `/`, `/rental-requests`, `/quotes`, `/orders`,
 `/maintenance/work-orders`, and `/reports` at 320px and 1440px. Verify dark
 theme persistence, no page-level horizontal overflow, and zero serious or
 critical Axe findings on Change Requests.
+
+# Phase 18.1 official PDF tests
+
+Run the focused guarded browser workflow only after stopping normal local servers:
+
+```powershell
+docker compose up -d postgres-test
+pnpm test:e2e:official-pdfs
+```
+
+Success means the 320px pickup and completed-return flows download safe `Mensah-Rentals-Order-...pdf` and `Mensah-Rentals-Return-...pdf` files through staff and customer capability paths. API tests also verify lifecycle gating, exact controlled legal content, inclusive duration, continuation pages, safe metadata, and absence of price labels, currencies, sentinel amounts, serial identifiers, and internal fields.

@@ -260,7 +260,9 @@ export async function proxyOrder(
           ? 'current/view'
           : joined === 'pdf' && request.method === 'GET'
             ? 'current/pdf'
-            : null;
+            : joined === 'return-pdf' && request.method === 'GET'
+              ? 'current/return-pdf'
+              : null;
   if (!route)
     return Response.json({ message: 'Order route not found' }, { status: 404 });
 
@@ -338,7 +340,7 @@ export async function proxyOrder(
       body: upstreamBody,
       cache: 'no-store',
     });
-    if (route === 'current/pdf') {
+    if (route === 'current/pdf' || route === 'current/return-pdf') {
       const contentType = upstream.headers
         .get('content-type')
         ?.split(';', 1)[0]
@@ -356,7 +358,7 @@ export async function proxyOrder(
             disposition &&
             /^attachment; filename="[A-Za-z0-9._-]+"$/.test(disposition)
               ? disposition
-              : 'attachment; filename="mensah-rentals-order.pdf"',
+              : `attachment; filename="mensah-rentals-${route === 'current/pdf' ? 'order' : 'return'}.pdf"`,
           'X-Content-Type-Options': 'nosniff',
         },
       });

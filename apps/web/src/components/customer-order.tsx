@@ -282,13 +282,31 @@ export function CustomerOrder() {
           </div>
         </div>
       </section>
-      <a
-        className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-5 py-3 font-semibold"
-        href="/api/order/pdf"
-      >
-        <FileDown className="h-4 w-4" aria-hidden="true" />
-        Download order PDF
-      </a>
+      <div className="flex flex-wrap gap-3">
+        {order.checkedOutItems?.length ? (
+          <a
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-5 py-3 font-semibold"
+            href="/api/order/pdf"
+          >
+            <FileDown className="h-4 w-4" aria-hidden="true" />
+            Download Order Form
+          </a>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            Your Order Form will be available after the first confirmed pickup
+            or handoff.
+          </p>
+        )}
+        {order.returnSummary?.status === 'COMPLETED' ? (
+          <a
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-border px-5 py-3 font-semibold"
+            href="/api/order/return-pdf"
+          >
+            <FileDown className="h-4 w-4" aria-hidden="true" />
+            Download Return Form
+          </a>
+        ) : null}
+      </div>
     </article>
   );
 }

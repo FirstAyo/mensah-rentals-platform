@@ -422,7 +422,7 @@ test('@orders @customer-orders exchanges a dedicated fragment and renders a conf
   ).toBeVisible();
   await expect(page.getByText(marker, { exact: true })).toBeVisible();
   await expect(
-    page.getByText(/equipment allocation and fulfill?ment/i),
+    page.getByText(/arranging fulfilment for the agreed rental period/i),
   ).toBeVisible();
   const body = await page.locator('body').innerText();
   expect(body).not.toContain('PRIVATE-P12-SENTINEL');
@@ -611,7 +611,7 @@ async function createPartiallyReservedOrder(page: Page, productIndex = 0) {
   return created;
 }
 
-test('@fulfilment @admin-fulfilment @active-rentals prepares, checks out partially, and exposes only customer-safe status', async ({
+test('@fulfilment @admin-fulfilment @active-rentals @official-pdfs prepares, checks out partially, and exposes only customer-safe status', async ({
   page,
 }, info) => {
   test.skip(info.project.name !== 'mobile-320');
@@ -663,6 +663,11 @@ test('@fulfilment @admin-fulfilment @active-rentals prepares, checks out partial
   const customerText = await page.locator('body').innerText();
   expect(customerText).not.toMatch(
     /reserved remaining|prepared quantity|shortfall|asset number|serial number|internal partial/i,
+  );
+  const orderFormDownload = page.waitForEvent('download');
+  await page.getByRole('link', { name: 'Download Order Form' }).click();
+  expect((await orderFormDownload).suggestedFilename()).toMatch(
+    /^Mensah-Rentals-Order-RO-.*\.pdf$/,
   );
   await page.getByRole('button', { name: /switch to dark theme/i }).click();
   await expect(page.locator('html')).toHaveClass(/dark/);
@@ -894,7 +899,7 @@ test('@fulfilment @fulfilment-concurrency duplicate checkout is idempotent and c
   expect(winner.items[0].reservedQuantity).toBe(0);
 });
 
-test('@returns @admin-returns records a complete bulk return at 320px and exposes only customer-safe progress', async ({
+test('@returns @admin-returns @official-pdfs records a complete bulk return at 320px and exposes only customer-safe progress', async ({
   page,
 }, info) => {
   test.skip(info.project.name !== 'mobile-320');
@@ -945,6 +950,13 @@ test('@returns @admin-returns records a complete bulk return at 320px and expose
   page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Complete rental' }).click();
   await expect(page.getByText('Rental completed.')).toBeVisible();
+  const staffReturnDownload = page.waitForEvent('download');
+  await page
+    .getByRole('link', { name: 'Download official customer Return Form' })
+    .click();
+  expect((await staffReturnDownload).suggestedFilename()).toMatch(
+    /^Mensah-Rentals-Return-RO-.*\.pdf$/,
+  );
   await page.getByRole('button', { name: /switch to dark theme/i }).click();
   await expect(page.locator('html')).toHaveClass(/dark/);
   await page.reload();
@@ -956,6 +968,11 @@ test('@returns @admin-returns records a complete bulk return at 320px and expose
   expect(text).toContain(orderNumber);
   expect(text).not.toMatch(
     /asset number|serial number|rentable quantity|damaged quantity|maintenance quantity|inventory state|staff|operation id|payload hash/i,
+  );
+  const customerReturnDownload = page.waitForEvent('download');
+  await page.getByRole('link', { name: 'Download Return Form' }).click();
+  expect((await customerReturnDownload).suggestedFilename()).toMatch(
+    /^Mensah-Rentals-Return-RO-.*\.pdf$/,
   );
 });
 

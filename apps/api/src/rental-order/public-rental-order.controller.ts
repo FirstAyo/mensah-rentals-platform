@@ -58,4 +58,20 @@ export class PublicRentalOrderController {
       type: 'application/pdf',
     });
   }
+
+  @Get('current/return-pdf')
+  @Header('Cache-Control', 'private, no-store, max-age=0')
+  @Header('Pragma', 'no-cache')
+  @Header('Expires', '0')
+  @Header('X-Content-Type-Options', 'nosniff')
+  @Header('X-Robots-Tag', 'noindex, nofollow, noarchive')
+  @Header('Referrer-Policy', 'no-referrer')
+  @Header('Content-Security-Policy', 'sandbox')
+  async returnPdf(@Headers(capabilityHeader) capability: string | undefined) {
+    const pdf = await this.orders.publicReturnPdf(capability ?? '');
+    return new StreamableFile(pdf.buffer, {
+      disposition: `attachment; filename="${pdf.filename}"`,
+      type: 'application/pdf',
+    });
+  }
 }

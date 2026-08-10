@@ -1524,3 +1524,11 @@ Docker without deleting the local database volume, run:
 ```powershell
 docker compose down
 ```
+
+# Testing official customer PDFs locally
+
+1. Start PostgreSQL and the applications as documented above.
+2. Complete an order's first checkout/pickup in Admin. The order detail and private customer page then allow the official Order Form download.
+3. Record all return intake, reconcile it, and complete the rental. The return detail and private customer page then allow the official Return Form download.
+4. A form requested before its authoritative lifecycle event is intentionally unavailable.
+5. Run `pnpm test:e2e:official-pdfs` with normal development servers stopped. This command resets only the guarded `_test` database, never the development database.

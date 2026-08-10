@@ -648,6 +648,7 @@ export interface AdminRentalOrderDetailResponse
   acceptedQuoteRevisionId: string;
   acceptedRevisionNumber: number;
   reservationVersion: number;
+  officialOrderFormAvailable: boolean;
   activities: Array<{
     actor: AdminRentalRequestStaffSummary | null;
     createdAt: string;

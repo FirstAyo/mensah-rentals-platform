@@ -38,13 +38,24 @@ import type {
 } from '@mensah-rentals/validation';
 
 import {
+  buildOfficialCustomerFormPdf,
+  type OfficialCustomerFormInput,
+} from '../common/official-customer-form-pdf';
+import {
   buildSelectableTextPdf,
   safePdfFilename,
 } from '../common/selectable-text-pdf';
 
 const returnInclude = {
   activeRental: {
-    include: { rentalOrder: true },
+    include: {
+      rentalOrder: {
+        include: {
+          quote: { select: { quoteNumber: true } },
+          rentalRequest: { select: { referenceNumber: true } },
+        },
+      },
+    },
   },
   items: {
     include: {
@@ -71,6 +82,40 @@ const returnInclude = {
 type ReturnRecord = Prisma.RentalReturnGetPayload<{
   include: typeof returnInclude;
 }>;
+
+const officialReturnSelect = {
+  completedAt: true,
+  status: true,
+  activeRental: {
+    select: {
+      rentalOrder: {
+        select: {
+          companyNameSnapshot: true,
+          contactFirstNameSnapshot: true,
+          contactLastNameSnapshot: true,
+          orderNumber: true,
+          projectLocationSnapshot: true,
+          projectNameSnapshot: true,
+          quote: { select: { quoteNumber: true } },
+          rentalEndDateSnapshot: true,
+          rentalRequest: { select: { referenceNumber: true } },
+          rentalStartDateSnapshot: true,
+        },
+      },
+    },
+  },
+  items: {
+    select: {
+      receivedQuantity: true,
+      activeRentalItem: {
+        select: {
+          rentalOrderItem: { select: { productNameSnapshot: true } },
+        },
+      },
+    },
+    orderBy: { createdAt: 'asc' as const },
+  },
+} satisfies Prisma.RentalReturnSelect;
 
 interface ReturnIntakeDraft {
   activeRentalId: string;
@@ -969,6 +1014,81 @@ export class ReturnService {
       }),
       filename: safePdfFilename(snapshot.returnNumber, kind),
     };
+  }
+
+  async officialPdf(actorId: string, returnId: string) {
+    const row = await prisma.$transaction(async (tx) => {
+      await this.requireActor(tx, actorId, ['return.view', 'return.pdf']);
+      const found = await tx.rentalReturn.findUnique({
+        where: { id: returnId },
+        select: officialReturnSelect,
+      });
+      if (!found) throw new NotFoundException('Rental return not found');
+      if (found.status !== RentalReturnStatus.COMPLETED || !found.completedAt)
+        throw new UnprocessableEntityException(
+          'The official Return Form is available after return completion',
+        );
+      return found;
+    });
+    const order = row.activeRental.rentalOrder;
+    const duration = this.inclusiveDuration(
+      order.rentalStartDateSnapshot,
+      order.rentalEndDateSnapshot,
+    );
+    const input: OfficialCustomerFormInput = {
+      customerId: order.rentalRequest.referenceNumber,
+      customerName: `${order.contactFirstNameSnapshot} ${order.contactLastNameSnapshot}${order.companyNameSnapshot ? ` - ${order.companyNameSnapshot}` : ''}`,
+      documentDate: this.operationalDate(row.completedAt!),
+      documentNumber: order.orderNumber,
+      dueDate: this.dateOnly(order.rentalEndDateSnapshot),
+      eventName: order.projectNameSnapshot,
+      items: row.items
+        .filter((item) => item.receivedQuantity > 0)
+        .map((item) => ({
+          description:
+            item.activeRentalItem.rentalOrderItem.productNameSnapshot,
+          duration,
+          quantity: item.receivedQuantity,
+        })),
+      kind: 'RETURN',
+      location: order.projectLocationSnapshot,
+      poNumber: '',
+      quoteNumber: order.quote.quoteNumber,
+      rentalEndDate: this.dateOnly(order.rentalEndDateSnapshot),
+      rentalStartDate: this.dateOnly(order.rentalStartDateSnapshot),
+    };
+    return {
+      buffer: buildOfficialCustomerFormPdf(input),
+      filename: safePdfFilename('Mensah-Rentals', 'Return', order.orderNumber),
+    };
+  }
+
+  private inclusiveDuration(start: Date, end: Date) {
+    const startUtc = Date.UTC(
+      start.getUTCFullYear(),
+      start.getUTCMonth(),
+      start.getUTCDate(),
+    );
+    const endUtc = Date.UTC(
+      end.getUTCFullYear(),
+      end.getUTCMonth(),
+      end.getUTCDate(),
+    );
+    const days = Math.max(1, Math.floor((endUtc - startUtc) / 86_400_000) + 1);
+    return `${days} ${days === 1 ? 'day' : 'days'}`;
+  }
+
+  private operationalDate(value: Date) {
+    return new Intl.DateTimeFormat('en-CA', {
+      day: '2-digit',
+      month: '2-digit',
+      timeZone: 'America/Vancouver',
+      year: 'numeric',
+    }).format(value);
+  }
+
+  private dateOnly(value: Date) {
+    return value.toISOString().slice(0, 10);
   }
 
   private async transition(

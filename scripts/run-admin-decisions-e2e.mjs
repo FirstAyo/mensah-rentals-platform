@@ -52,6 +52,7 @@ const modes = new Set([
   'system-status',
   'reports-all',
   'runtime-regression',
+  'official-pdfs',
 ]);
 if (!modes.has(mode)) throw new Error(`Unknown decision browser mode: ${mode}`);
 
@@ -219,6 +220,7 @@ if (
   mode.startsWith('reservations-') ||
   mode.startsWith('fulfilment-') ||
   mode.startsWith('returns-') ||
+  mode === 'official-pdfs' ||
   mode === 'maintenance' ||
   mode === 'inspections' ||
   mode === 'maintenance-all'
@@ -253,7 +255,11 @@ if (
       },
     });
   }
-  if (mode.startsWith('fulfilment-') || mode.startsWith('returns-')) {
+  if (
+    mode.startsWith('fulfilment-') ||
+    mode.startsWith('returns-') ||
+    mode === 'official-pdfs'
+  ) {
     const source = products[0];
     if (!source)
       throw new Error('A catalogue product is required for fulfilment tests.');
@@ -287,7 +293,7 @@ if (
       },
     });
     browserEnvironment.PHASE15_DELIVERY_PRODUCT_NAME = deliveryProductName;
-    if (mode.startsWith('returns-')) {
+    if (mode.startsWith('returns-') || mode === 'official-pdfs') {
       for (const [environmentKey, productName] of [
         ['PHASE16_ADMIN_RETURN_PRODUCT_NAME', 'Phase 16 Admin Return Package'],
         ['PHASE16_ISSUE_RETURN_PRODUCT_NAME', 'Phase 16 Issue Return Package'],
@@ -1000,6 +1006,7 @@ const phase18Mode =
   mode === 'system-status' ||
   mode === 'reports-all';
 const runtimeRegressionMode = mode === 'runtime-regression';
+const officialPdfMode = mode === 'official-pdfs';
 const productionPublicRegressionMode = mode === 'catalogue';
 if (
   phase121Mode ||
@@ -1011,8 +1018,10 @@ if (
   maintenanceMode ||
   homepageMode ||
   phase18Mode ||
+  mode.startsWith('orders-') ||
   publicRegressionMode ||
-  runtimeRegressionMode
+  runtimeRegressionMode ||
+  officialPdfMode
 )
   run(
     pnpm,
@@ -1044,7 +1053,12 @@ const servers = [
       homepageMode ||
       phase18Mode ||
       productionPublicRegressionMode ||
-      ((fulfilmentMode || returnMode || maintenanceMode || phase18Mode) &&
+      ((fulfilmentMode ||
+        returnMode ||
+        maintenanceMode ||
+        phase18Mode ||
+        officialPdfMode ||
+        mode.startsWith('orders-')) &&
         workspace !== '@mensah-rentals/web')
         ? 'start'
         : 'dev',
@@ -1067,7 +1081,8 @@ try {
         fulfilmentMode ||
         returnMode ||
         maintenanceMode ||
-        phase18Mode
+        phase18Mode ||
+        officialPdfMode
         ? 180_000
         : 90_000,
     ),
@@ -1078,7 +1093,8 @@ try {
         fulfilmentMode ||
         returnMode ||
         maintenanceMode ||
-        phase18Mode
+        phase18Mode ||
+        officialPdfMode
         ? 180_000
         : 90_000,
     ),
@@ -1089,7 +1105,8 @@ try {
         fulfilmentMode ||
         returnMode ||
         maintenanceMode ||
-        phase18Mode
+        phase18Mode ||
+        officialPdfMode
         ? 180_000
         : 90_000,
     ),
@@ -1100,85 +1117,87 @@ try {
   const isQuoteMode = mode.startsWith('quotes-');
   const isOrderMode = mode.startsWith('orders-');
   const isHomepageMode = homepageMode;
-  const grep = categoryMode
-    ? '@categories'
-    : productMode
-      ? '@products'
-      : publicRegressionMode
-        ? mode === 'catalogue'
-          ? '@catalogue'
-          : '@cart'
-        : isHomepageMode
-          ? mode === 'homepage-admin'
-            ? '@homepage-admin'
-            : mode === 'homepage-media'
-              ? '@homepage-media'
-              : mode === 'homepage-google-live'
-                ? '@homepage-google-live'
-                : mode === 'homepage-google-timeout'
-                  ? '@homepage-google-timeout'
-                  : mode === 'homepage-google-quota'
-                    ? '@homepage-google-quota'
-                    : mode === 'homepage-google-reviews'
-                      ? '@homepage-google-live'
-                      : mode === 'homepage-all'
-                        ? '@homepage'
-                        : '@homepage-public'
-          : runtimeRegressionMode
-            ? '@runtime-regression'
-            : phase18Mode
-              ? mode === 'reports'
-                ? '@reports'
-                : mode === 'audit'
-                  ? '@audit'
-                  : mode === 'system-status'
-                    ? '@system-status'
-                    : '@reports|@audit|@system-status'
-              : maintenanceMode
-                ? mode === 'inspections'
-                  ? '@inspections'
-                  : mode === 'maintenance-all'
-                    ? '@maintenance|@inspections'
-                    : '@maintenance'
-                : returnMode
-                  ? mode === 'returns-all'
-                    ? '@returns'
-                    : mode === 'returns-concurrency'
-                      ? '@return-concurrency'
-                      : mode === 'returns-issues'
-                        ? '@return-issues'
-                        : '@admin-returns'
-                  : fulfilmentMode
-                    ? mode === 'fulfilment-all'
-                      ? '@fulfilment'
-                      : mode === 'fulfilment-concurrency'
-                        ? '@fulfilment-concurrency'
-                        : mode === 'fulfilment-active-rentals'
-                          ? '@active-rentals'
-                          : '@admin-fulfilment'
-                    : reservationMode
-                      ? mode === 'reservations-all'
-                        ? '@reservations'
-                        : mode === 'reservations-concurrency'
-                          ? '@reservation-concurrency'
-                          : '@admin-reservations'
-                      : isPhase121
-                        ? '@phase12-1'
-                        : isOrderMode
-                          ? mode === 'orders-all'
-                            ? '@orders'
-                            : mode === 'orders-admin'
-                              ? '@admin-orders'
-                              : '@customer-orders'
-                          : isQuoteMode
-                            ? mode === 'quotes-all'
-                              ? '@quotes'
-                              : mode === 'quotes-admin'
-                                ? '@admin-quotes'
-                                : '@customer-quotes'
-                            : mode === 'all'
-                              ? '@admin-decisions'
-                              : `@admin-decisions-${mode}`;
+  const grep = officialPdfMode
+    ? '@official-pdfs'
+    : categoryMode
+      ? '@categories'
+      : productMode
+        ? '@products'
+        : publicRegressionMode
+          ? mode === 'catalogue'
+            ? '@catalogue'
+            : '@cart'
+          : isHomepageMode
+            ? mode === 'homepage-admin'
+              ? '@homepage-admin'
+              : mode === 'homepage-media'
+                ? '@homepage-media'
+                : mode === 'homepage-google-live'
+                  ? '@homepage-google-live'
+                  : mode === 'homepage-google-timeout'
+                    ? '@homepage-google-timeout'
+                    : mode === 'homepage-google-quota'
+                      ? '@homepage-google-quota'
+                      : mode === 'homepage-google-reviews'
+                        ? '@homepage-google-live'
+                        : mode === 'homepage-all'
+                          ? '@homepage'
+                          : '@homepage-public'
+            : runtimeRegressionMode
+              ? '@runtime-regression'
+              : phase18Mode
+                ? mode === 'reports'
+                  ? '@reports'
+                  : mode === 'audit'
+                    ? '@audit'
+                    : mode === 'system-status'
+                      ? '@system-status'
+                      : '@reports|@audit|@system-status'
+                : maintenanceMode
+                  ? mode === 'inspections'
+                    ? '@inspections'
+                    : mode === 'maintenance-all'
+                      ? '@maintenance|@inspections'
+                      : '@maintenance'
+                  : returnMode
+                    ? mode === 'returns-all'
+                      ? '@returns'
+                      : mode === 'returns-concurrency'
+                        ? '@return-concurrency'
+                        : mode === 'returns-issues'
+                          ? '@return-issues'
+                          : '@admin-returns'
+                    : fulfilmentMode
+                      ? mode === 'fulfilment-all'
+                        ? '@fulfilment'
+                        : mode === 'fulfilment-concurrency'
+                          ? '@fulfilment-concurrency'
+                          : mode === 'fulfilment-active-rentals'
+                            ? '@active-rentals'
+                            : '@admin-fulfilment'
+                      : reservationMode
+                        ? mode === 'reservations-all'
+                          ? '@reservations'
+                          : mode === 'reservations-concurrency'
+                            ? '@reservation-concurrency'
+                            : '@admin-reservations'
+                        : isPhase121
+                          ? '@phase12-1'
+                          : isOrderMode
+                            ? mode === 'orders-all'
+                              ? '@orders'
+                              : mode === 'orders-admin'
+                                ? '@admin-orders'
+                                : '@customer-orders'
+                            : isQuoteMode
+                              ? mode === 'quotes-all'
+                                ? '@quotes'
+                                : mode === 'quotes-admin'
+                                  ? '@admin-quotes'
+                                  : '@customer-quotes'
+                              : mode === 'all'
+                                ? '@admin-decisions'
+                                : `@admin-decisions-${mode}`;
   const grepArgument =
     process.platform === 'win32' && grep.includes('|') ? `"${grep}"` : grep;
   run(
@@ -1201,7 +1220,7 @@ try {
           ]
         : isHomepageMode
           ? ['e2e/homepage.spec.ts']
-          : reservationMode || fulfilmentMode || returnMode
+          : reservationMode || fulfilmentMode || returnMode || officialPdfMode
             ? ['e2e/orders.spec.ts']
             : runtimeRegressionMode
               ? ['e2e/runtime-regression.spec.ts']

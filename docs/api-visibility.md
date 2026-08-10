@@ -242,3 +242,7 @@ Phase 16.3 applies the same boundary to direct product deletion. `DELETE /admin/
 ## Phase 18 internal data
 
 Reports, audit history, exports, detailed system status, and backup verification are administrative only. They require a staff session and exact permissions. Inventory quantities retain their confidential domain checks. CSV and audit DTOs are allowlists. Public health remains minimal and reveals no operational diagnostics.
+
+# Official customer PDF visibility
+
+Customer Order and Return PDF renderers receive no monetary, inventory, reservation, preparation, serialized-asset, issue-internal, staff, operation, audit, session, or capability fields. `GET /public/orders/current/pdf` and `GET /public/orders/current/return-pdf` require the existing order capability and return private/no-store responses. There is no public raw-ID return PDF endpoint.

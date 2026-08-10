@@ -63,3 +63,7 @@ session requirement justifies its operational cost.
 ## Phase 18 complete
 
 The platform now has read-only operational reports, permission-aware safe exports, unified immutable audit history, internal observability, integrity checks, and isolated PostgreSQL/media restore verification. Scheduled encrypted off-host retention remains VPS operations work.
+
+# Phase 18.1 - official customer PDF forms
+
+Implemented the no-price official Order/Return form foundation using immutable snapshots, operational checkout/return timestamps, secure capability downloads, exact legal text, and multi-page layout. Phase 19 remains unstarted.

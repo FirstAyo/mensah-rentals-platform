@@ -427,3 +427,7 @@ Phase 16.3 extends this retention boundary to direct product deletion. The produ
 ## Phase 18 reporting and operations
 
 Reporting is a read-only NestJS boundary over authoritative operational tables; it neither copies workflow state nor mutates it. Fixed admin BFF routes connect to permission-layered report, audit, and system APIs. New cross-cutting audit events are database-enforced append-only, while existing immutable histories are safely projected. Observability is permission protected. Database/media backup and isolated restore verification are operator commands, never browser actions.
+
+# Phase 18.1 official customer PDF boundary
+
+Customer Order and Return forms use a dedicated, dependency-free A4 renderer in the API. A narrow allowlisted projection is constructed from immutable order snapshots and lifecycle records before rendering, so commercial fields cannot enter the PDF data path. Order Form eligibility is based on the first checkout timestamp; Return Form eligibility is based on final return completion. Staff authorization and opaque customer order capabilities remain the only access paths. See [official-customer-pdfs.md](official-customer-pdfs.md).

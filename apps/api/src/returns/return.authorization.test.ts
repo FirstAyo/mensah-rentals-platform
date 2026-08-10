@@ -49,6 +49,10 @@ describe('return HTTP authorization', () => {
       buffer: Buffer.from('%PDF-1.4'),
       filename: 'return.pdf',
     })),
+    officialPdf: vi.fn(async () => ({
+      buffer: Buffer.from('%PDF-1.4'),
+      filename: 'Mensah-Rentals-Return-RO-TEST.pdf',
+    })),
   };
   beforeAll(async () => {
     const module = await Test.createTestingModule({
@@ -159,5 +163,23 @@ describe('return HTTP authorization', () => {
       .set('Origin', 'http://localhost:3001')
       .send(command)
       .expect(201);
+  });
+
+  it('protects the official customer Return Form with staff PDF permissions', async () => {
+    current = base;
+    await request(app.getHttpServer())
+      .get(`/admin/returns/${id}/official-pdf`)
+      .set('Cookie', cookie)
+      .expect(403);
+    current = {
+      ...base,
+      permissionKeys: ['return.view', 'return.pdf'],
+    };
+    await request(app.getHttpServer())
+      .get(`/admin/returns/${id}/official-pdf`)
+      .set('Cookie', cookie)
+      .expect(200)
+      .expect('Content-Type', /application\/pdf/)
+      .expect('Cache-Control', /private, no-store/);
   });
 });

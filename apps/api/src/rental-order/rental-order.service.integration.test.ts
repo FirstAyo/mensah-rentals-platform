@@ -708,7 +708,7 @@ describe('confirmed rental orders against PostgreSQL', () => {
     });
   });
 
-  it('builds customer-safe selectable order PDFs for staff and capability access', async () => {
+  it('withholds final official order PDFs until first confirmed checkout', async () => {
     const { quote, revision } = await acceptedQuote('order-pdf');
     const created = await orders.create(actor, quote.id, revision.id, {
       operationId: randomUUID(),
@@ -720,26 +720,12 @@ describe('confirmed rental orders against PostgreSQL', () => {
         operationId: randomUUID(),
       },
     );
-    const staffPdf = await orders.staffPdf(created.order.id);
-    const publicPdf = await orders.publicPdf(rawCapability(access.accessLink!));
-    for (const pdf of [staffPdf, publicPdf]) {
-      const text = pdf.buffer.toString('ascii');
-      expect(text).toContain('%PDF-1.4');
-      expect(text).toContain(created.order.orderNumber);
-      expect(text).toContain('Status: CONFIRMED');
-      expect(text).toContain('Rental dates: 2027-02-01 to 2027-02-02');
-      expect(text).toContain('10 each x $125.50 = $1,255.00');
-      expect(text).toContain('Delivery: $50.00');
-      expect(text).toContain('Discount: $25.00');
-      expect(text).toContain('Tax \\(Test tax 5.00%\\): $64.00');
-      expect(text).toContain('Total: $1,344.00 CAD');
-      expect(text).toContain('Order fixture terms');
-      expect(text).toContain('Our team is arranging fulfilment');
-      expect(text).not.toContain('PRIVATE ORDER SENTINEL');
-      expect(text).not.toContain('tokenHash');
-      expect(text).not.toContain('capability=');
-      expect(text).not.toContain(actor.id);
-    }
+    await expect(orders.staffPdf(created.order.id)).rejects.toThrow(
+      /first confirmed checkout/i,
+    );
+    await expect(
+      orders.publicPdf(rawCapability(access.accessLink!)),
+    ).rejects.toThrow('Order is unavailable');
     await orders.revokeCustomerAccess(actor, created.order.id, {
       expectedAccessId: access.access.accessId!,
       operationId: randomUUID(),
@@ -1617,6 +1603,33 @@ describe('confirmed rental orders against PostgreSQL', () => {
       expect(JSON.stringify(publicOrder)).not.toMatch(
         /reservedQuantity|preparedQuantity|shortfallQuantity|assetNumber|serialNumber|actorUserId/,
       );
+      const staffOrderForm = await orders.staffPdf(orderId);
+      const customerOrderForm = await orders.publicPdf(
+        rawCapability(access.accessLink!),
+      );
+      for (const form of [staffOrderForm, customerOrderForm]) {
+        const text = form.buffer.toString('ascii');
+        const expectedFirstCheckoutDate = new Intl.DateTimeFormat('en-CA', {
+          day: '2-digit',
+          month: '2-digit',
+          timeZone: 'America/Vancouver',
+          year: 'numeric',
+        }).format(new Date(checkoutInput.handoffAt));
+        expect(form.filename).toMatch(
+          /^Mensah-Rentals-Order-RO-[A-Za-z0-9_-]+\.pdf$/,
+        );
+        expect(text).toContain('(ORDER)');
+        expect(text).toContain(order.items[0]!.productName);
+        expect(text).toContain(`(${order.items[0]!.quotedQuantity}) Tj`);
+        expect(text).toContain('(2 days)');
+        expect(text).toContain(`(${expectedFirstCheckoutDate})`);
+        expect(text).not.toMatch(
+          /UNIT PRICE|AMOUNT|SUBTOTAL|GST 5%|PST 7%|TOTAL|\$|CAD|125\.50|1,255\.00|1,344\.00/,
+        );
+        expect(text).not.toMatch(
+          /tokenHash|capability=|assetNumber|serialNumber|internalNotes/,
+        );
+      }
       await prisma.inventoryTransaction.create({
         data: {
           actorUserId: actor.id,
@@ -1680,6 +1693,16 @@ describe('confirmed rental orders against PostgreSQL', () => {
         recipientName: 'Bulk Checkout Customer',
       });
       expect(completed).toMatchObject({ status: 'CHECKED_OUT' });
+      const regeneratedOrderForm = await orders.staffPdf(orderId);
+      const firstCheckoutDate = new Intl.DateTimeFormat('en-CA', {
+        day: '2-digit',
+        month: '2-digit',
+        timeZone: 'America/Vancouver',
+        year: 'numeric',
+      }).format(new Date(checkoutInput.handoffAt));
+      expect(regeneratedOrderForm.buffer.toString('ascii')).toContain(
+        `(${firstCheckoutDate})`,
+      );
       expect(await inventory.quantities(checkoutInventory.id)).toMatchObject({
         states: { RENTABLE: 0, RENTED: 10 },
         totalQuantity: 10,
@@ -1720,7 +1743,7 @@ describe('confirmed rental orders against PostgreSQL', () => {
           },
         ],
         operationId: randomUUID(),
-        receivedAt: new Date().toISOString(),
+        receivedAt: new Date(Date.now() - 3 * 86_400_000).toISOString(),
       };
       await prisma.user.update({
         where: { id: actor.id },
@@ -1991,6 +2014,13 @@ describe('confirmed rental orders against PostgreSQL', () => {
         totalQuantity: 10,
       });
 
+      await expect(
+        returns.officialPdf(actor.id, secondReturn.id),
+      ).rejects.toThrow(/after return completion/i);
+      await expect(
+        orders.publicReturnPdf(rawCapability(access.accessLink!)),
+      ).rejects.toThrow('Order is unavailable');
+
       const afterResolution = await returns.detail(actor.id, secondReturn.id);
       const reconciled = await returns.reconcile(actor.id, secondReturn.id, {
         expectedVersion: afterResolution.version,
@@ -2005,6 +2035,38 @@ describe('confirmed rental orders against PostgreSQL', () => {
         },
       );
       expect(completedReturn).toMatchObject({ status: 'COMPLETED' });
+      const staffReturnForm = await returns.officialPdf(
+        actor.id,
+        completedReturn.id,
+      );
+      const customerReturnForm = await orders.publicReturnPdf(
+        rawCapability(access.accessLink!),
+      );
+      for (const form of [staffReturnForm, customerReturnForm]) {
+        const text = form.buffer.toString('ascii');
+        const expectedCompletedDate = new Intl.DateTimeFormat('en-CA', {
+          day: '2-digit',
+          month: '2-digit',
+          timeZone: 'America/Vancouver',
+          year: 'numeric',
+        }).format(new Date(completedReturn.completedAt!));
+        const firstPartialReturnDate = new Intl.DateTimeFormat('en-CA', {
+          day: '2-digit',
+          month: '2-digit',
+          timeZone: 'America/Vancouver',
+          year: 'numeric',
+        }).format(new Date(firstReturnInput.receivedAt));
+        expect(form.filename).toMatch(
+          /^Mensah-Rentals-Return-RO-[A-Za-z0-9_-]+\.pdf$/,
+        );
+        expect(text).toContain('(RETURN)');
+        expect(text).toContain(order.items[0]!.productName);
+        expect(text).toContain(`(${expectedCompletedDate})`);
+        expect(expectedCompletedDate).not.toBe(firstPartialReturnDate);
+        expect(text).not.toMatch(
+          /UNIT PRICE|AMOUNT|SUBTOTAL|GST 5%|PST 7%|TOTAL|\$|CAD|assetNumber|serialNumber|internalNotes/,
+        );
+      }
       expect(
         await prisma.activeRental.findUniqueOrThrow({
           where: { id: returnActiveRental.id },

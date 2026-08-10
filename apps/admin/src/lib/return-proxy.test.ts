@@ -114,4 +114,30 @@ describe('return BFF allowlist', () => {
     );
     expect(response.status).toBe(502);
   });
+
+  it('allowlists the staff official customer Return Form without exposing arbitrary paths', async () => {
+    const fetcher = vi.fn(async (url: string) => {
+      expect(
+        url.endsWith('/admin/returns/cm00000000000000000000000/official-pdf'),
+      ).toBe(true);
+      return new Response(Buffer.from('%PDF-1.4'), {
+        headers: {
+          'Content-Disposition':
+            'attachment; filename="Mensah-Rentals-Return-RO-TEST.pdf"',
+          'Content-Type': 'application/pdf',
+        },
+      });
+    });
+    const response = await proxyReturnDomain(
+      'returns',
+      new Request(
+        'http://localhost:3001/api/returns/cm00000000000000000000000/official-pdf',
+        { headers: { Cookie: 'mensah_staff_session=secret' } },
+      ),
+      ['cm00000000000000000000000', 'official-pdf'],
+      fetcher as typeof fetch,
+    );
+    expect(response.status).toBe(200);
+    expect(response.headers.get('cache-control')).toContain('no-store');
+  });
 });

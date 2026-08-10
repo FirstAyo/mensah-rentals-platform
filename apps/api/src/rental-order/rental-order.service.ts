@@ -11,6 +11,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  UnprocessableEntityException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -39,9 +40,10 @@ import {
 } from '@mensah-rentals/validation';
 
 import {
-  buildSelectableTextPdf,
-  safePdfFilename,
-} from '../common/selectable-text-pdf';
+  buildOfficialCustomerFormPdf,
+  type OfficialCustomerFormInput,
+} from '../common/official-customer-form-pdf';
+import { safePdfFilename } from '../common/selectable-text-pdf';
 
 const unavailable = () => new NotFoundException('Order is unavailable');
 const notice =
@@ -72,6 +74,13 @@ const orderInclude = {
                   receivedQuantity: true,
                   missingQuantity: true,
                   outstandingQuantity: true,
+                  activeRentalItem: {
+                    select: {
+                      rentalOrderItem: {
+                        select: { productNameSnapshot: true },
+                      },
+                    },
+                  },
                 },
               },
               issues: {
@@ -96,6 +105,55 @@ const orderInclude = {
 
 type OrderRecord = Prisma.RentalOrderGetPayload<{
   include: typeof orderInclude;
+}>;
+
+const officialFormSelect = {
+  companyNameSnapshot: true,
+  contactFirstNameSnapshot: true,
+  contactLastNameSnapshot: true,
+  fulfilment: {
+    select: {
+      firstCheckedOutAt: true,
+      activeRental: {
+        select: {
+          rentalReturn: {
+            select: {
+              completedAt: true,
+              status: true,
+              items: {
+                select: {
+                  receivedQuantity: true,
+                  activeRentalItem: {
+                    select: {
+                      rentalOrderItem: {
+                        select: { productNameSnapshot: true },
+                      },
+                    },
+                  },
+                },
+                orderBy: { createdAt: 'asc' as const },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  items: {
+    select: { productNameSnapshot: true, quotedQuantity: true },
+    orderBy: { sortOrder: 'asc' as const },
+  },
+  orderNumber: true,
+  projectLocationSnapshot: true,
+  projectNameSnapshot: true,
+  quote: { select: { quoteNumber: true } },
+  rentalEndDateSnapshot: true,
+  rentalRequest: { select: { referenceNumber: true } },
+  rentalStartDateSnapshot: true,
+} satisfies Prisma.RentalOrderSelect;
+
+type OfficialFormOrder = Prisma.RentalOrderGetPayload<{
+  select: typeof officialFormSelect;
 }>;
 
 @Injectable()
@@ -733,15 +791,59 @@ export class RentalOrderService {
   async staffPdf(id: string) {
     const order = await prisma.rentalOrder.findUnique({
       where: { id },
-      include: orderInclude,
+      select: officialFormSelect,
     });
     if (!order) throw new NotFoundException('Rental order not found');
-    return this.buildPdf(order);
+    if (!order.fulfilment?.firstCheckedOutAt)
+      throw new UnprocessableEntityException(
+        'The official Order Form is available after the first confirmed checkout',
+      );
+    return this.buildOfficialPdf(order, 'ORDER');
   }
 
   async publicPdf(raw: string) {
-    const access = await this.access(raw);
-    return this.buildPdf(access.rentalOrder);
+    const access = await this.accessIdentity(raw);
+    const order = await this.officialFormOrder(access.rentalOrderId);
+    if (!order.fulfilment?.firstCheckedOutAt) throw unavailable();
+    return this.buildOfficialPdf(order, 'ORDER');
+  }
+
+  async publicReturnPdf(raw: string) {
+    const access = await this.accessIdentity(raw);
+    const order = await this.officialFormOrder(access.rentalOrderId);
+    const rentalReturn = order.fulfilment?.activeRental?.rentalReturn;
+    if (rentalReturn?.status !== 'COMPLETED' || !rentalReturn.completedAt)
+      throw unavailable();
+    return this.buildOfficialPdf(order, 'RETURN');
+  }
+
+  private async officialFormOrder(id: string) {
+    const order = await prisma.rentalOrder.findUnique({
+      where: { id },
+      select: officialFormSelect,
+    });
+    if (!order) throw unavailable();
+    return order;
+  }
+
+  private async accessIdentity(raw: string) {
+    const access = await prisma.orderCustomerAccess.findUnique({
+      where: { tokenHash: this.hash(raw) },
+      select: {
+        expiresAt: true,
+        id: true,
+        rentalOrderId: true,
+        revokedAt: true,
+      },
+    });
+    if (
+      !access ||
+      !this.validRaw(raw, access.id, access.rentalOrderId) ||
+      access.revokedAt ||
+      access.expiresAt <= new Date()
+    )
+      throw unavailable();
+    return access;
   }
 
   private async access(raw: string) {
@@ -826,6 +928,7 @@ export class RentalOrderService {
       acceptedQuoteRevisionId: order.acceptedQuoteRevisionId,
       acceptedRevisionNumber: order.acceptedRevisionNumber,
       reservationVersion: order.reservationVersion,
+      officialOrderFormAvailable: Boolean(order.fulfilment?.firstCheckedOutAt),
       activities: order.activities.map((activity) => ({
         actor: activity.actor,
         createdAt: activity.createdAt.toISOString(),
@@ -1015,70 +1118,81 @@ export class RentalOrderService {
     };
   }
 
-  private buildPdf(order: OrderRecord) {
-    const detail = this.mapPublic(order);
-    const money = (value: number) =>
-      new Intl.NumberFormat('en-CA', {
-        currency: detail.currency,
-        style: 'currency',
-      }).format(value / 100);
-    const discount =
-      detail.discountType === 'PERCENTAGE'
-        ? `${((detail.discountRateBasisPoints ?? 0) / 100).toFixed(2)}% (${money(detail.discountCents)})`
-        : money(detail.discountCents);
-    const lines = [
-      `Order number: ${detail.orderNumber}`,
-      `Status: ${detail.status}`,
-      `Confirmed: ${detail.confirmedAt}`,
-      `Customer: ${detail.customerName}${detail.companyName ? ` (${detail.companyName})` : ''}`,
-      `Project: ${detail.projectName}`,
-      `Project type: ${detail.projectType}`,
-      `Project location: ${detail.projectLocation}`,
-      `Rental dates: ${detail.rentalStartDate} to ${detail.rentalEndDate}`,
-      `Fulfillment: ${detail.fulfillmentMethod}`,
-      ...(detail.returnSummary
-        ? [
-            `Return status: ${detail.returnSummary.status}`,
-            `Return accounted quantity: ${detail.returnSummary.returnedQuantity}`,
-            `Return outstanding quantity: ${detail.returnSummary.outstandingQuantity}`,
-            detail.returnSummary.customerSafeMessage,
-          ]
-        : []),
-      ...(detail.deliveryAddress
-        ? [`Delivery address: ${detail.deliveryAddress}`]
-        : []),
-      '',
-      'Items',
-      ...detail.items.map(
-        (item) =>
-          `${item.productName} | ${item.quotedQuantity} ${item.rentalUnit} x ${money(item.unitPriceCents)} = ${money(item.lineSubtotalCents)}`,
-      ),
-      ...(detail.charges.length
-        ? [
-            '',
-            'Charges',
-            ...detail.charges.map(
-              (charge) => `${charge.label}: ${money(charge.amountCents)}`,
-            ),
-          ]
-        : []),
-      '',
-      `Items subtotal: ${money(detail.itemSubtotalCents)}`,
-      `Charges total: ${money(detail.chargeTotalCents)}`,
-      `Discount: ${discount}`,
-      `Tax (${detail.tax.name} ${(detail.tax.rateBasisPoints / 100).toFixed(2)}%): ${money(detail.taxCents)}`,
-      `Total: ${money(detail.totalCents)} ${detail.currency}`,
-      ...(detail.terms ? ['', 'Terms', detail.terms] : []),
-      '',
-      detail.notice,
-    ];
-    return {
-      buffer: buildSelectableTextPdf({
-        lines,
-        title: 'Mensah Rentals - Confirmed Rental Order',
-      }),
-      filename: safePdfFilename('mensah-rentals-order', detail.orderNumber),
+  private buildOfficialPdf(order: OfficialFormOrder, kind: 'ORDER' | 'RETURN') {
+    const rentalReturn = order.fulfilment?.activeRental?.rentalReturn;
+    const documentTimestamp =
+      kind === 'ORDER'
+        ? order.fulfilment?.firstCheckedOutAt
+        : rentalReturn?.completedAt;
+    if (!documentTimestamp)
+      throw new UnprocessableEntityException(
+        `The official ${kind === 'ORDER' ? 'Order' : 'Return'} Form is not yet available`,
+      );
+    const duration = this.inclusiveDuration(
+      order.rentalStartDateSnapshot,
+      order.rentalEndDateSnapshot,
+    );
+    const input: OfficialCustomerFormInput = {
+      customerId: order.rentalRequest.referenceNumber,
+      customerName: `${order.contactFirstNameSnapshot} ${order.contactLastNameSnapshot}${order.companyNameSnapshot ? ` - ${order.companyNameSnapshot}` : ''}`,
+      documentDate: this.operationalDate(documentTimestamp),
+      documentNumber: order.orderNumber,
+      dueDate: this.dateOnly(order.rentalEndDateSnapshot),
+      eventName: order.projectNameSnapshot,
+      items:
+        kind === 'RETURN'
+          ? (rentalReturn?.items ?? [])
+              .filter((item) => item.receivedQuantity > 0)
+              .map((item) => ({
+                description:
+                  item.activeRentalItem.rentalOrderItem.productNameSnapshot,
+                duration,
+                quantity: item.receivedQuantity,
+              }))
+          : order.items.map((item) => ({
+              description: item.productNameSnapshot,
+              duration,
+              quantity: item.quotedQuantity,
+            })),
+      kind,
+      location: order.projectLocationSnapshot,
+      poNumber: '',
+      quoteNumber: order.quote.quoteNumber,
+      rentalEndDate: this.dateOnly(order.rentalEndDateSnapshot),
+      rentalStartDate: this.dateOnly(order.rentalStartDateSnapshot),
     };
+    return {
+      buffer: buildOfficialCustomerFormPdf(input),
+      filename: safePdfFilename(
+        'Mensah-Rentals',
+        kind === 'ORDER' ? 'Order' : 'Return',
+        order.orderNumber,
+      ),
+    };
+  }
+
+  private inclusiveDuration(start: Date, end: Date) {
+    const startUtc = Date.UTC(
+      start.getUTCFullYear(),
+      start.getUTCMonth(),
+      start.getUTCDate(),
+    );
+    const endUtc = Date.UTC(
+      end.getUTCFullYear(),
+      end.getUTCMonth(),
+      end.getUTCDate(),
+    );
+    const days = Math.max(1, Math.floor((endUtc - startUtc) / 86_400_000) + 1);
+    return `${days} ${days === 1 ? 'day' : 'days'}`;
+  }
+
+  private operationalDate(value: Date) {
+    return new Intl.DateTimeFormat('en-CA', {
+      day: '2-digit',
+      month: '2-digit',
+      timeZone: 'America/Vancouver',
+      year: 'numeric',
+    }).format(value);
   }
 
   private verifyMoney(revision: {

@@ -44,6 +44,9 @@ describe('rental order HTTP authorization and validation', () => {
     publicPdf: vi.fn(async () => {
       throw new NotFoundException('Order is unavailable');
     }),
+    publicReturnPdf: vi.fn(async () => {
+      throw new NotFoundException('Order is unavailable');
+    }),
     publicCurrent: vi.fn(),
     resendCustomerAccess: vi.fn(async () => ({ access: { state: 'ACTIVE' } })),
     revokeCustomerAccess: vi.fn(async () => ({ access: { state: 'REVOKED' } })),
@@ -271,5 +274,17 @@ describe('rental order HTTP authorization and validation', () => {
       if (response.body.message !== 'Order is unavailable')
         throw new Error('Customer access response was not uniform');
     }
+  });
+
+  it('keeps customer Order and Return PDFs behind the same capability boundary', async () => {
+    for (const path of ['pdf', 'return-pdf'])
+      await request(app.getHttpServer())
+        .get(`/public/orders/current/${path}`)
+        .expect(404)
+        .expect('Cache-Control', /private, no-store/);
+    if (!service.publicPdf.mock.calls.length)
+      throw new Error('Order PDF capability path was not exercised');
+    if (!service.publicReturnPdf.mock.calls.length)
+      throw new Error('Return PDF capability path was not exercised');
   });
 });
