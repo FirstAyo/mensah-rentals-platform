@@ -10,6 +10,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Plus, Warehouse } from 'lucide-react';
 import Link from 'next/link';
 import { useState } from 'react';
+import type { InventoryLifecycleFilter } from '@/lib/inventory-management';
 
 function Quantity({ id }: { id: string }) {
   const result = useQuery<AdminInventoryQuantityResponse>({
@@ -35,6 +36,9 @@ function InventoryListBody({
 }) {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
+  const [lifecycle, setLifecycle] =
+    useState<InventoryLifecycleFilter>('ACTIVE');
+  const [notice, setNotice] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [showCreate, setShowCreate] = useState(false);
   const [productId, setProductId] = useState('');
@@ -46,11 +50,12 @@ function InventoryListBody({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const inventory = useQuery<PaginatedResponse<AdminInventoryMetadataResponse>>(
     {
-      queryKey: ['inventory', page, search],
+      queryKey: ['inventory', page, search, lifecycle],
       queryFn: async () => {
         const query = new URLSearchParams({
           page: String(page),
           pageSize: '20',
+          lifecycle,
         });
         if (search) query.set('search', search);
         const response = await fetch(`/api/inventory?${query}`);
@@ -101,6 +106,7 @@ function InventoryListBody({
       setOperationId(crypto.randomUUID());
       setShowCreate(false);
       setProductId('');
+      setNotice('Inventory record created successfully.');
       await inventory.refetch();
     } catch {
       setError(
@@ -208,11 +214,58 @@ function InventoryListBody({
         placeholder="Search products"
         value={search}
       />
+      <div
+        aria-label="Inventory status filter"
+        className="flex flex-wrap gap-2"
+        role="group"
+      >
+        {(['ACTIVE', 'ARCHIVED', 'ALL'] as const).map((value) => (
+          <button
+            aria-pressed={lifecycle === value}
+            className={`min-h-11 rounded-lg border px-4 py-2 text-sm font-semibold ${
+              lifecycle === value
+                ? 'border-primary bg-primary text-primary-foreground'
+                : 'border-border bg-card'
+            }`}
+            key={value}
+            onClick={() => {
+              setLifecycle(value);
+              setPage(1);
+            }}
+            type="button"
+          >
+            {value === 'ALL'
+              ? 'All inventory'
+              : value === 'ACTIVE'
+                ? 'Active'
+                : 'Archived'}
+          </button>
+        ))}
+      </div>
+      <div
+        aria-live="polite"
+        className="min-h-6 text-sm text-emerald-700 dark:text-emerald-300"
+        role="status"
+      >
+        {notice}
+      </div>
       {inventory.isLoading ? (
         <div className="rounded-xl border p-8">Loading inventory…</div>
       ) : null}
       {inventory.isError ? (
-        <div role="alert">Unable to load inventory.</div>
+        <div
+          className="rounded-xl border border-destructive/40 p-5"
+          role="alert"
+        >
+          Unable to load inventory.{' '}
+          <button
+            className="font-semibold underline"
+            onClick={() => inventory.refetch()}
+            type="button"
+          >
+            Retry
+          </button>
+        </div>
       ) : null}
       {inventory.data?.items.length === 0 ? (
         <div className="rounded-xl border border-dashed p-10 text-center">
@@ -228,6 +281,7 @@ function InventoryListBody({
                 <th className="p-4">Product</th>
                 <th className="p-4">Tracking</th>
                 {canViewQuantity ? <th className="p-4">Total</th> : null}
+                <th className="p-4">Status</th>
                 <th className="p-4">Updated</th>
                 <th className="p-4">
                   <span className="sr-only">Actions</span>
@@ -244,6 +298,17 @@ function InventoryListBody({
                       <Quantity id={item.id} />
                     </td>
                   ) : null}
+                  <td className="p-4">
+                    <span
+                      className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        item.isActive
+                          ? 'bg-emerald-500/15 text-foreground'
+                          : 'bg-muted text-muted-foreground'
+                      }`}
+                    >
+                      {item.isActive ? 'Active' : 'Archived'}
+                    </span>
+                  </td>
                   <td className="p-4">
                     {new Date(item.updatedAt).toLocaleDateString()}
                   </td>

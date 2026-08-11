@@ -1,5 +1,15 @@
 # User flows
 
+## Inventory administration
+
+1. An authorized Admin opens one inventory aggregate and selects a tracking-mode-appropriate action.
+2. Metadata editing never contains a quantity field or changes product/history identity.
+3. Bulk **Add stock** appends a positive acquisition into `RENTABLE`; **Reduce / retire stock** removes only eligible, uncommitted owned stock with a typed reason.
+4. Serialized inventory uses **Add serialized asset**, creating one exact internal asset per unit.
+5. Delete first performs authoritative lifecycle analysis. A truly unused zero-stock aggregate can be permanently deleted through a custom confirmation dialog. Historical aggregates are offered archive only when no live commitment blocks it.
+6. Archived inventory leaves the normal active workflow but remains reportable and can be restored when its parent product and current state allow it.
+7. Every command is permission checked, idempotent, transactionally locked, and recorded in inventory/audit history. No customer response changes.
+
 ## Internal maintenance work order
 
 1. Authorized staff create a manual preventive/corrective work order or open the action from an eligible return/issue.

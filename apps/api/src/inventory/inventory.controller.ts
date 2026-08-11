@@ -1,9 +1,11 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Inject,
   Param,
+  Patch,
   Post,
   Query,
   UseInterceptors,
@@ -11,18 +13,26 @@ import {
 import type { StaffUserResponse } from '@mensah-rentals/types';
 import {
   bulkInventoryMovementSchema,
+  addInventoryStockSchema,
   createInventoryItemSchema,
   createInventorySchema,
   cuidParamSchema,
   inventoryListQuerySchema,
   inventoryPageQuerySchema,
+  inventoryLifecycleActionSchema,
+  reduceInventoryStockSchema,
   transitionInventoryItemSchema,
+  updateInventoryMetadataSchema,
+  type AddInventoryStockInput,
   type BulkInventoryMovementInput,
   type CreateInventoryInput,
   type CreateInventoryItemInput,
   type InventoryListQuery,
+  type InventoryLifecycleActionInput,
   type InventoryPageQuery,
   type TransitionInventoryItemInput,
+  type ReduceInventoryStockInput,
+  type UpdateInventoryMetadataInput,
 } from '@mensah-rentals/validation';
 
 import { CurrentStaffUser } from '../auth/current-staff-user.decorator';
@@ -63,6 +73,86 @@ export class InventoryController {
   @RequirePermissions('inventory.view')
   get(@Param('id', new ZodBodyPipe(cuidParamSchema)) id: string) {
     return this.inventory.get(id);
+  }
+
+  @Patch(':id')
+  @RequirePermissions('inventory.view', 'inventory.adjust')
+  updateMetadata(
+    @CurrentStaffUser() actor: StaffUserResponse,
+    @Param('id', new ZodBodyPipe(cuidParamSchema)) id: string,
+    @Body(new ZodBodyPipe(updateInventoryMetadataSchema))
+    input: UpdateInventoryMetadataInput,
+  ) {
+    return this.inventory.updateMetadata(actor.id, id, input);
+  }
+
+  @Post(':id/stock-additions')
+  @RequirePermissions(
+    'inventory.view',
+    'inventory.quantity.view',
+    'inventory.adjust',
+  )
+  addStock(
+    @CurrentStaffUser() actor: StaffUserResponse,
+    @Param('id', new ZodBodyPipe(cuidParamSchema)) id: string,
+    @Body(new ZodBodyPipe(addInventoryStockSchema))
+    input: AddInventoryStockInput,
+  ) {
+    return this.inventory.addStock(actor.id, id, input);
+  }
+
+  @Post(':id/stock-reductions')
+  @RequirePermissions(
+    'inventory.view',
+    'inventory.quantity.view',
+    'inventory.adjust',
+  )
+  reduceStock(
+    @CurrentStaffUser() actor: StaffUserResponse,
+    @Param('id', new ZodBodyPipe(cuidParamSchema)) id: string,
+    @Body(new ZodBodyPipe(reduceInventoryStockSchema))
+    input: ReduceInventoryStockInput,
+  ) {
+    return this.inventory.reduceStock(actor.id, id, input);
+  }
+
+  @Get(':id/lifecycle')
+  @RequirePermissions('inventory.view', 'inventory.quantity.view')
+  lifecycle(@Param('id', new ZodBodyPipe(cuidParamSchema)) id: string) {
+    return this.inventory.lifecycle(id);
+  }
+
+  @Post(':id/archive')
+  @RequirePermissions('inventory.view', 'inventory.adjust')
+  archive(
+    @CurrentStaffUser() actor: StaffUserResponse,
+    @Param('id', new ZodBodyPipe(cuidParamSchema)) id: string,
+    @Body(new ZodBodyPipe(inventoryLifecycleActionSchema))
+    input: InventoryLifecycleActionInput,
+  ) {
+    return this.inventory.archive(actor.id, id, input);
+  }
+
+  @Post(':id/restore')
+  @RequirePermissions('inventory.view', 'inventory.adjust')
+  restore(
+    @CurrentStaffUser() actor: StaffUserResponse,
+    @Param('id', new ZodBodyPipe(cuidParamSchema)) id: string,
+    @Body(new ZodBodyPipe(inventoryLifecycleActionSchema))
+    input: InventoryLifecycleActionInput,
+  ) {
+    return this.inventory.restore(actor.id, id, input);
+  }
+
+  @Delete(':id')
+  @RequirePermissions('inventory.view', 'inventory.adjust')
+  delete(
+    @CurrentStaffUser() actor: StaffUserResponse,
+    @Param('id', new ZodBodyPipe(cuidParamSchema)) id: string,
+    @Body(new ZodBodyPipe(inventoryLifecycleActionSchema))
+    input: InventoryLifecycleActionInput,
+  ) {
+    return this.inventory.delete(actor.id, id, input);
   }
 
   @Get(':id/quantities')

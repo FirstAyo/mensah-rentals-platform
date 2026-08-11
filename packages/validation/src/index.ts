@@ -968,12 +968,20 @@ export const inventoryStateSchema = z.enum([
   'RENTED',
   'MAINTENANCE',
   'DAMAGED',
+  'MISSING',
   'LOST',
   'RETIRED',
 ]);
 const inventoryOperationIdSchema = z.string().uuid();
 const inventoryReasonSchema = z.string().trim().min(1).max(1000);
 const inventoryQuantitySchema = z.number().int().min(1).max(1_000_000);
+const inventoryReferenceSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(200)
+  .nullable()
+  .optional();
 
 export const inventoryListQuerySchema = z
   .object({
@@ -981,6 +989,7 @@ export const inventoryListQuerySchema = z
     pageSize: boundedPageSize,
     search: z.string().trim().max(100).optional(),
     trackingMode: inventoryTrackingModeSchema.optional(),
+    lifecycle: z.enum(['ACTIVE', 'ARCHIVED', 'ALL']).default('ACTIVE'),
     sortBy: z
       .enum(['productName', 'createdAt', 'updatedAt'])
       .default('productName'),
@@ -992,12 +1001,18 @@ export const inventoryPageQuerySchema = z
   .object({ page: boundedPage, pageSize: boundedPageSize })
   .strict();
 
+const inventoryInitialStateSchema = z.enum([
+  'RENTABLE',
+  'MAINTENANCE',
+  'DAMAGED',
+]);
+
 export const createInventorySchema = z
   .object({
     productId: cuidParamSchema,
     trackingMode: inventoryTrackingModeSchema,
     initialQuantity: inventoryQuantitySchema.optional(),
-    initialState: inventoryStateSchema.default('RENTABLE'),
+    initialState: inventoryInitialStateSchema.default('RENTABLE'),
     operationId: inventoryOperationIdSchema,
     reason: inventoryReasonSchema,
   })
@@ -1022,17 +1037,13 @@ export const createInventorySchema = z
 
 export const bulkInventoryMovementSchema = z
   .object({
-    fromState: inventoryStateSchema,
-    toState: inventoryStateSchema,
+    fromState: z.literal('RENTABLE'),
+    toState: z.literal('DAMAGED'),
     quantity: inventoryQuantitySchema,
     operationId: inventoryOperationIdSchema,
     reason: inventoryReasonSchema,
   })
-  .strict()
-  .refine((value) => value.fromState !== value.toState, {
-    message: 'Source and destination states must differ.',
-    path: ['toState'],
-  });
+  .strict();
 
 export const createInventoryItemSchema = z
   .object({
@@ -1043,7 +1054,7 @@ export const createInventoryItemSchema = z
       .max(100)
       .transform((value) => value.toUpperCase()),
     serialNumber: z.string().trim().min(1).max(160).nullable().optional(),
-    initialState: inventoryStateSchema.default('RENTABLE'),
+    initialState: inventoryInitialStateSchema.default('RENTABLE'),
     operationId: inventoryOperationIdSchema,
     reason: inventoryReasonSchema,
   })
@@ -1051,7 +1062,59 @@ export const createInventoryItemSchema = z
 
 export const transitionInventoryItemSchema = z
   .object({
-    toState: inventoryStateSchema,
+    toState: z.literal('DAMAGED'),
+    operationId: inventoryOperationIdSchema,
+    reason: inventoryReasonSchema,
+  })
+  .strict();
+
+export const updateInventoryMetadataSchema = z
+  .object({
+    operationId: inventoryOperationIdSchema,
+    internalNotes: z.string().trim().min(1).max(3000).nullable(),
+  })
+  .strict();
+
+export const addInventoryStockSchema = z
+  .object({
+    operationId: inventoryOperationIdSchema,
+    quantity: inventoryQuantitySchema,
+    reason: inventoryReasonSchema,
+    reasonType: z.enum(['PURCHASE', 'ACQUISITION', 'OTHER']),
+    reference: inventoryReferenceSchema,
+  })
+  .strict();
+
+export const reduceInventoryStockSchema = z
+  .object({
+    operationId: inventoryOperationIdSchema,
+    quantity: inventoryQuantitySchema,
+    reason: inventoryReasonSchema,
+    reasonType: z.enum([
+      'SOLD',
+      'RETIRED',
+      'DISPOSED',
+      'INVENTORY_CORRECTION',
+      'OTHER',
+    ]),
+    reference: inventoryReferenceSchema,
+  })
+  .strict()
+  .superRefine((value, context) => {
+    if (
+      value.reasonType === 'INVENTORY_CORRECTION' &&
+      value.reason.trim().length < 20
+    )
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['reason'],
+        message:
+          'Inventory corrections require a detailed reason of at least 20 characters.',
+      });
+  });
+
+export const inventoryLifecycleActionSchema = z
+  .object({
     operationId: inventoryOperationIdSchema,
     reason: inventoryReasonSchema,
   })
@@ -1068,4 +1131,14 @@ export type CreateInventoryItemInput = z.infer<
 >;
 export type TransitionInventoryItemInput = z.infer<
   typeof transitionInventoryItemSchema
+>;
+export type UpdateInventoryMetadataInput = z.infer<
+  typeof updateInventoryMetadataSchema
+>;
+export type AddInventoryStockInput = z.infer<typeof addInventoryStockSchema>;
+export type ReduceInventoryStockInput = z.infer<
+  typeof reduceInventoryStockSchema
+>;
+export type InventoryLifecycleActionInput = z.infer<
+  typeof inventoryLifecycleActionSchema
 >;

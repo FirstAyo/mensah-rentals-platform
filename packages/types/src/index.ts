@@ -1114,8 +1114,11 @@ export type InventoryStateResponse =
   | 'RETIRED';
 
 export interface AdminInventoryMetadataResponse {
+  archivedAt: string | null;
   createdAt: string;
   id: string;
+  internalNotes: string | null;
+  isActive: boolean;
   product: { id: string; name: string; slug: string };
   trackingMode: InventoryTrackingModeResponse;
   updatedAt: string;
@@ -1123,6 +1126,7 @@ export interface AdminInventoryMetadataResponse {
 
 export interface AdminInventoryQuantityResponse {
   inventoryId: string;
+  reservedCommitmentQuantity: number;
   states: Record<InventoryStateResponse, number>;
   totalQuantity: number;
 }
@@ -1137,6 +1141,7 @@ export interface AdminInventoryItemResponse {
 }
 
 export interface AdminInventoryTransactionResponse {
+  action: string;
   actor: { firstName: string; id: string; lastName: string };
   createdAt: string;
   fromState: InventoryStateResponse | null;
@@ -1146,11 +1151,34 @@ export interface AdminInventoryTransactionResponse {
     | 'INITIAL_STOCK'
     | 'BULK_MOVEMENT'
     | 'SERIALIZED_ITEM_CREATED'
-    | 'SERIALIZED_ITEM_STATE_CHANGED';
+    | 'SERIALIZED_ITEM_STATE_CHANGED'
+    | 'STOCK_ADDITION'
+    | 'STOCK_REDUCTION';
   operationId: string;
   quantity: number;
   reason: string;
+  reasonType:
+    | 'PURCHASE'
+    | 'ACQUISITION'
+    | 'SOLD'
+    | 'RETIRED'
+    | 'DISPOSED'
+    | 'INVENTORY_CORRECTION'
+    | 'OTHER'
+    | null;
+  reference: string | null;
   toState: InventoryStateResponse | null;
+}
+
+export interface AdminInventoryLifecycleResponse {
+  archiveBlockers: string[];
+  canArchive: boolean;
+  canHardDelete: boolean;
+  canRestore: boolean;
+  hardDeleteBlockers: string[];
+  inventoryId: string;
+  isActive: boolean;
+  restoreBlockers: string[];
 }
 
 export type RentalReturnStatusResponse =

@@ -1,5 +1,9 @@
 # Permissions and Roles
 
+## Phase 18.3 inventory administration
+
+Phase 18.3 reuses `inventory.adjust` for inventory metadata updates, bulk acquisition/retirement, serialized-asset creation, archive, restore, and safe permanent deletion. Read access still requires `inventory.view`; confidential quantities additionally require `inventory.quantity.view`, and transaction history requires `inventory.transaction.view`. `SUPER_ADMIN` and `ADMIN` receive adjustment authority. `EDITOR` and `SALES_PERSON` do not. The API guard and a live permission check inside each mutation transaction are authoritative.
+
 `inventory.reservation.override` authorizes acknowledgement of a documented external shortfall plan. ADMIN and SUPER_ADMIN receive it; SALES_PERSON and EDITOR do not. Backend live permission checks remain authoritative.
 
 ## Phase 17 maintenance permissions

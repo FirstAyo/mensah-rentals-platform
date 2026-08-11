@@ -1,5 +1,9 @@
 # API Data Visibility
 
+## Phase 18.3 inventory-management visibility
+
+Inventory metadata, lifecycle state, physical totals, reservations, stock acquisitions/reductions, archive reasons, serialized identifiers, transaction history, and audit evidence are administrative data. They are available only through authenticated `/admin/inventory` routes with exact inventory permissions and private/no-store responses. Public catalogue, customer order, tracking, quote, and official PDF mappers remain explicit allowlists and expose none of these fields. There is no public inventory-management endpoint.
+
 Reservation shortfall types, coverage state, staff notes, and internal/external fulfilment source splits are administrative-only. Customer DTOs and PDFs must not contain them. See [Reservation shortfall coverage](reservation-shortfall-coverage.md).
 
 ## Phase 17 maintenance confidentiality

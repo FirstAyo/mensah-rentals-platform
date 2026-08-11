@@ -1,5 +1,29 @@
 # Local Development on Windows
 
+## Phase 18.3 inventory management
+
+Start the normal services and apply committed migrations without resetting development data:
+
+```powershell
+docker compose up -d postgres postgres-test
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm dev
+```
+
+Sign in at `http://localhost:3001/login`, open `http://localhost:3001/inventory`, and select a record. Bulk records offer **Add stock** and **Reduce / retire stock**; serialized records offer **Add serialized asset**. Use **Edit inventory** only for permitted metadata. Lifecycle dialogs explain whether an unused record can be permanently deleted, a historical record can be archived, or a live commitment blocks both. Use Active, Archived, or All on the inventory list and restore a safe archived record from its detail page.
+
+Run destructive browser fixtures only in the guarded test database. Stop normal development servers first:
+
+```powershell
+pnpm test:e2e:inventory-management
+```
+
+The harness verifies the database name ends in `_test`, resets only that disposable database, and leaves development records and media untouched. Never use `prisma migrate reset`, `db push --force-reset`, `TRUNCATE`, or Docker volume deletion on the development database.
+
 > For the reservation-shortfall workflow and guarded browser command, see [Reservation shortfall coverage](reservation-shortfall-coverage.md). Never reset the development database to test this workflow.
 
 ## Phase 17 maintenance setup and local workflow

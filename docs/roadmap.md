@@ -1,5 +1,7 @@
 # Development Roadmap
 
+- Phase 18.3 completes staff-facing inventory metadata editing, audited bulk acquisition and retirement, discoverable serialized-asset creation, lifecycle-aware safe deletion, archive/restore, custom confirmation dialogs, and guarded browser coverage. It preserves Phase 18.2 shortfall/external coverage and Phase 18.1 official PDFs. Phase 19 has not started.
+
 - Focused reservation correction implemented: truthful partial/zero internal reservations, durable shortfall coverage, and source-safe fulfilment/returns. This does not begin Phase 19.
 
 - Phase 17 implemented: internal maintenance work orders, exact bulk/serialized targets, assignment and scheduling, append-only activity/notes, inventory-conserving state transitions, routine and post-maintenance inspections, return/issue links, dashboard workload, protected admin UI, and public confidentiality. Parts inventory, payments, vendors, recurrence automation, and public maintenance status remain deferred.

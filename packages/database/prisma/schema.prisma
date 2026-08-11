@@ -45,6 +45,8 @@ enum InventoryTransactionAction {
   MAINTENANCE_RETURN_TO_SERVICE
   MAINTENANCE_REMAINS_DAMAGED
   MAINTENANCE_CANCELLED_RELEASE
+  STOCK_ADDED
+  STOCK_REDUCED
 }
 
 enum InventoryTransactionKind {
@@ -52,6 +54,18 @@ enum InventoryTransactionKind {
   BULK_MOVEMENT
   SERIALIZED_ITEM_CREATED
   SERIALIZED_ITEM_STATE_CHANGED
+  STOCK_ADDITION
+  STOCK_REDUCTION
+}
+
+enum InventoryAdjustmentReasonType {
+  PURCHASE
+  ACQUISITION
+  SOLD
+  RETIRED
+  DISPOSED
+  INVENTORY_CORRECTION
+  OTHER
 }
 
 enum RentalRequestStatus {
@@ -1327,6 +1341,9 @@ model Inventory {
   creationReason        String
   initialState          InventoryState
   trackingMode          InventoryTrackingMode
+  internalNotes         String?                    @db.Text
+  isActive              Boolean                    @default(true)
+  archivedAt            DateTime?                  @db.Timestamptz(3)
   createdAt             DateTime                   @default(now()) @db.Timestamptz(3)
   updatedAt             DateTime                   @updatedAt @db.Timestamptz(3)
   product               Product                    @relation(fields: [productId], references: [id], onDelete: Restrict)
@@ -1336,7 +1353,7 @@ model Inventory {
   maintenanceWorkOrders MaintenanceWorkOrder[]
   equipmentInspections  EquipmentInspection[]
 
-  @@index([trackingMode, id])
+  @@index([isActive, trackingMode, id])
 }
 
 model InventoryItem {
@@ -1515,6 +1532,8 @@ model InventoryTransaction {
   toState                InventoryState?
   operationId            String                     @unique
   reason                 String
+  reasonType             InventoryAdjustmentReasonType?
+  reference              String?                    @db.VarChar(200)
   actorUserId            String
   fulfilmentOperationId  String?
   returnOperationItemId  String?

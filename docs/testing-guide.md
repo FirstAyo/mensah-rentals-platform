@@ -1,5 +1,31 @@
 # Testing Guide
 
+## Phase 18.3 inventory-management tests
+
+Run the guarded browser suite with normal development servers stopped:
+
+```powershell
+docker compose up -d postgres-test
+pnpm test:e2e:inventory-management
+```
+
+Success means the 320px project passes bulk stock addition, safe metadata edit, dark-theme persistence, no horizontal overflow, and zero serious/critical Axe findings. The 1440px project passes custom-dialog cancel/confirm and focus restoration, hard-delete eligibility, archive/filter/restore, serialized-asset creation, customer confidentiality, containment, and Axe checks. PostgreSQL integration tests prove active-reservation reduction blocking, concurrent reduction safety, exact replay, and consumed-history archival. The harness must state that it is using `mensah_rentals_test`; refusal to run usually means a normal app is still using ports 3000, 3001, or 4000, Docker Desktop is stopped, or test environment variables do not target the guarded database.
+
+Then run:
+
+```powershell
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm db:integrity
+pnpm rbac:verify
+git diff --check
+```
+
+Successful stock-operation tests prove exact deltas, immutable transaction/audit evidence, reservation/rental non-mutation, retry idempotency, conflicting operation rejection, and concurrent balance safety. Regression verification also includes reservations, fulfilment, returns, maintenance, official PDFs, customer orders, and public catalogue contracts.
+
 ## Reservation shortfall correction
 
 Run `pnpm test:e2e:reservation-shortfall` from the repository root after stopping normal development servers. The guarded harness resets only the local `_test` database and checks partial-reservation controls, 320px layout, persisted dark mode, keyboard dialog behavior, and Axe serious/critical results. `pnpm test` additionally proves zero-stock coverage, external-only checkout/return, and owned-inventory non-mutation. See [Reservation shortfall coverage](reservation-shortfall-coverage.md).

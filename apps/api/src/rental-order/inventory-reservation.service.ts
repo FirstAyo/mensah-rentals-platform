@@ -738,6 +738,7 @@ export class InventoryReservationService {
       });
       if (
         !inventory ||
+        !inventory.isActive ||
         inventory.trackingMode !== InventoryTrackingMode.SERIALIZED
       )
         throw new NotFoundException('Serialized inventory is unavailable');
@@ -769,6 +770,7 @@ export class InventoryReservationService {
     const range = this.orderRange(order);
     const inventories = await tx.inventory.findMany({
       where: {
+        isActive: true,
         productId: {
           in: order.items.map(({ productIdSnapshot }) => productIdSnapshot),
         },
@@ -1246,7 +1248,7 @@ export class InventoryReservationService {
       ...new Set(order.items.map(({ productIdSnapshot }) => productIdSnapshot)),
     ].sort();
     const inventories = await tx.inventory.findMany({
-      where: { productId: { in: productIds } },
+      where: { isActive: true, productId: { in: productIds } },
       orderBy: { id: 'asc' },
     });
     const ids = inventories.map(({ id }) => id).sort();

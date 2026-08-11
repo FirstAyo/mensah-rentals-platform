@@ -23,6 +23,7 @@ export default defineConfig({
           '**/amendments-isolated.spec.ts',
           '**/homepage.spec.ts',
           '**/reports.spec.ts',
+          '**/inventory-management.spec.ts',
         ],
   timeout: 60_000,
   expect: { timeout: 30_000 },

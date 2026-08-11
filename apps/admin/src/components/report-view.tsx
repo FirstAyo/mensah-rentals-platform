@@ -395,6 +395,8 @@ export function ReportView({
                   'INITIAL_STOCK',
                   'MANUAL_ADJUSTMENT',
                   'ASSET_CREATED',
+                  'STOCK_ADDED',
+                  'STOCK_REDUCED',
                   'CHECKOUT',
                   'RETURN_TO_RENTABLE',
                   'RETURN_TO_DAMAGED',

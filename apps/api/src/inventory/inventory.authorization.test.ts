@@ -42,6 +42,11 @@ describe('inventory HTTP authorization', () => {
       states: {},
       totalQuantity: 0,
     })),
+    addStock: vi.fn(async () => ({
+      inventoryId: 'id',
+      states: {},
+      totalQuantity: 1,
+    })),
   };
 
   beforeAll(async () => {
@@ -118,7 +123,7 @@ describe('inventory HTTP authorization', () => {
         .set('Content-Type', 'application/json')
         .send({
           fromState: 'RENTABLE',
-          toState: 'MAINTENANCE',
+          toState: 'DAMAGED',
           quantity: 1,
           operationId: '7e57d004-2b97-4e7a-b45f-5387367791cd',
           reason: 'Authorization test movement',
@@ -134,5 +139,35 @@ describe('inventory HTTP authorization', () => {
     };
     await call().expect(201);
     expect(inventory.moveBulk).toHaveBeenCalled();
+  });
+
+  it('protects explicit stock additions with live inventory permissions', async () => {
+    const call = () =>
+      request(app.getHttpServer())
+        .post('/admin/inventory/cm00000000000000000000000/stock-additions')
+        .set('Cookie', 'mensah_staff_session=x')
+        .set('Origin', 'http://localhost:3001')
+        .set('Content-Type', 'application/json')
+        .send({
+          operationId: '91540259-210c-47cc-8a74-bb1716015879',
+          quantity: 10,
+          reason: 'Purchased additional stock',
+          reasonType: 'PURCHASE',
+        });
+    current = {
+      ...baseUser,
+      permissionKeys: ['inventory.view', 'inventory.quantity.view'],
+    };
+    await call().expect(403);
+    current = {
+      ...baseUser,
+      permissionKeys: [
+        'inventory.view',
+        'inventory.quantity.view',
+        'inventory.adjust',
+      ],
+    };
+    await call().expect(201);
+    expect(inventory.addStock).toHaveBeenCalled();
   });
 });

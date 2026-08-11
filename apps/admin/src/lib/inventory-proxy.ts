@@ -5,9 +5,13 @@ import {
 } from './auth-config';
 
 const identifier = '[a-z0-9]+';
+const MAX_JSON_BODY_BYTES = 16 * 1024;
 const routes = [
   { pattern: /^$/, methods: new Set(['GET', 'POST']) },
-  { pattern: new RegExp(`^${identifier}$`), methods: new Set(['GET']) },
+  {
+    pattern: new RegExp(`^${identifier}$`),
+    methods: new Set(['GET', 'PATCH', 'DELETE']),
+  },
   {
     pattern: new RegExp(`^${identifier}/(quantities|transactions)$`),
     methods: new Set(['GET']),
@@ -15,6 +19,16 @@ const routes = [
   {
     pattern: new RegExp(`^${identifier}/(items|bulk-movements)$`),
     methods: new Set(['GET', 'POST']),
+  },
+  {
+    pattern: new RegExp(
+      `^${identifier}/(stock-additions|stock-reductions|archive|restore)$`,
+    ),
+    methods: new Set(['POST']),
+  },
+  {
+    pattern: new RegExp(`^${identifier}/lifecycle$`),
+    methods: new Set(['GET']),
   },
   {
     pattern: new RegExp(
@@ -28,6 +42,7 @@ const queryKeys = new Set([
   'pageSize',
   'search',
   'trackingMode',
+  'lifecycle',
   'sortBy',
   'sortDirection',
 ]);
@@ -52,7 +67,32 @@ export async function proxyInventory(
       { message: 'Request origin is not allowed' },
       { status: 403 },
     );
-  const headers = new Headers();
+  let body: string | undefined;
+  if (unsafe) {
+    const mediaType = request.headers
+      .get('content-type')
+      ?.split(';')[0]
+      ?.trim()
+      .toLowerCase();
+    if (mediaType !== 'application/json')
+      return Response.json(
+        { message: 'Content-Type must be application/json' },
+        { status: 415 },
+      );
+    const declared = request.headers.get('content-length');
+    if (declared && Number(declared) > MAX_JSON_BODY_BYTES)
+      return Response.json(
+        { message: 'Request body is too large' },
+        { status: 413 },
+      );
+    body = await request.text();
+    if (new TextEncoder().encode(body).byteLength > MAX_JSON_BODY_BYTES)
+      return Response.json(
+        { message: 'Request body is too large' },
+        { status: 413 },
+      );
+  }
+  const headers = new Headers({ Accept: 'application/json' });
   const name = getStaffSessionCookieName();
   const cookie = request.headers
     .get('cookie')
@@ -74,7 +114,7 @@ export async function proxyInventory(
       {
         method: request.method,
         headers,
-        body: unsafe ? await request.text() : undefined,
+        body,
         cache: 'no-store',
       },
     );

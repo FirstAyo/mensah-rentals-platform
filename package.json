@@ -77,6 +77,7 @@
     "test:e2e:smoke": "pnpm --filter @mensah-rentals/web test:e2e:smoke",
     "test:e2e:runtime": "pnpm --filter @mensah-rentals/web test:e2e:runtime",
     "test:e2e:official-pdfs": "pnpm --filter @mensah-rentals/web test:e2e:official-pdfs",
+    "test:e2e:inventory-management": "pnpm --filter @mensah-rentals/web test:e2e:inventory-management",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "db:validate": "pnpm --filter @mensah-rentals/database db:validate",
