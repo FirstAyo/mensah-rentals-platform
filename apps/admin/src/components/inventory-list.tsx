@@ -313,12 +313,40 @@ function InventoryListBody({
                     {new Date(item.updatedAt).toLocaleDateString()}
                   </td>
                   <td className="p-4 text-right">
-                    <Link
-                      className="text-primary underline"
-                      href={`/inventory/${item.id}`}
-                    >
-                      View
-                    </Link>
+                    <div className="flex flex-wrap justify-end gap-x-3 gap-y-2 text-sm">
+                      <Link
+                        className="text-primary underline"
+                        href={`/inventory/${item.id}`}
+                      >
+                        View
+                      </Link>
+                      {canAdjust ? (
+                        <>
+                          <Link
+                            className="text-primary underline"
+                            href={`/inventory/${item.id}?action=edit#inventory-actions`}
+                          >
+                            Edit
+                          </Link>
+                          {item.isActive && item.trackingMode === 'BULK' ? (
+                            <Link
+                              className="text-primary underline"
+                              href={`/inventory/${item.id}?action=add#inventory-actions`}
+                            >
+                              Add stock
+                            </Link>
+                          ) : null}
+                          <Link
+                            className="text-destructive underline"
+                            href={`/inventory/${item.id}?action=lifecycle#inventory-actions`}
+                          >
+                            {item.isActive
+                              ? 'Delete / Archive'
+                              : 'Manage lifecycle'}
+                          </Link>
+                        </>
+                      ) : null}
+                    </div>
                   </td>
                 </tr>
               ))}

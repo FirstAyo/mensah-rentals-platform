@@ -4,6 +4,8 @@
 
 The NestJS inventory module is the sole authority for metadata changes, stock acquisition and retirement, serialized-asset creation, lifecycle eligibility, archive/restore, and safe permanent deletion. Bulk physical quantities remain derived from append-only transactions and serialized quantities from exact assets. Admin submits fixed, validated commands through the inventory BFF; it never sends a replacement total. Inventory-root locking, transactional live permission checks, operation UUIDs, and payload conflict detection protect concurrent and retried mutations. Archive preserves every historical relationship; hard delete is restricted to an unused zero-stock definition. Public and customer DTOs remain inventory-free. See [Inventory management](inventory-management.md).
 
+The Admin root provider owns a reusable mutation-notification layer. It observes only same-origin unsafe Admin BFF requests, announces domain-safe success or error feedback, and invalidates TanStack Query caches after success. Backend responses remain authoritative; notifications never infer authorization or business success from a button click. See [Admin notifications](admin-notifications.md).
+
 ## Phase 17 maintenance boundary
 
 The NestJS maintenance module is the sole maintenance and inspection authority. Work orders, inspections, append-only notes, and globally unique mutation operations are independent downstream aggregates; they never replace returns, issues, fulfilment, reservations, or inventory history. Bulk targets use serializable inventory-root locking and active-claim accounting. Serialized targets retain exact asset identity and database-enforced active-work exclusivity.

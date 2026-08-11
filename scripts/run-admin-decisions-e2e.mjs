@@ -55,6 +55,7 @@ const modes = new Set([
   'runtime-regression',
   'official-pdfs',
   'inventory-management',
+  'admin-notifications',
 ]);
 if (!modes.has(mode)) throw new Error(`Unknown decision browser mode: ${mode}`);
 
@@ -546,7 +547,7 @@ if (
   browserEnvironment.PHASE17_SERIALIZED_ITEM_ID = serializedItem.id;
   browserEnvironment.PHASE17_SERIALIZED_ASSET_NUMBER = assetNumber;
 }
-if (mode === 'inventory-management') {
+if (mode === 'inventory-management' || mode === 'admin-notifications') {
   const marker = randomUUID().replaceAll('-', '').slice(0, 12);
   const source = await prisma.product.findFirstOrThrow({
     where: { isActive: true },
@@ -1105,7 +1106,8 @@ const phase18Mode =
   mode === 'reports-all';
 const runtimeRegressionMode = mode === 'runtime-regression';
 const officialPdfMode = mode === 'official-pdfs';
-const inventoryManagementMode = mode === 'inventory-management';
+const inventoryManagementMode =
+  mode === 'inventory-management' || mode === 'admin-notifications';
 const productionPublicRegressionMode = mode === 'catalogue';
 if (
   phase121Mode ||
@@ -1222,7 +1224,9 @@ try {
   const isOrderMode = mode.startsWith('orders-');
   const isHomepageMode = homepageMode;
   const grep = inventoryManagementMode
-    ? '@inventory-management'
+    ? mode === 'admin-notifications'
+      ? '@admin-notifications'
+      : '@inventory-management'
     : officialPdfMode
       ? '@official-pdfs'
       : categoryMode

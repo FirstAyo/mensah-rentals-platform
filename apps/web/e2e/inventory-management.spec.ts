@@ -18,6 +18,10 @@ async function login(page: Page) {
   await expect(page).toHaveURL('http://localhost:3001/', { timeout: 30_000 });
 }
 
+function notifications(page: Page) {
+  return page.getByLabel('Notifications');
+}
+
 async function expectAccessibleAndContained(page: Page) {
   const results = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
@@ -45,7 +49,7 @@ async function total(page: Page, inventoryId: string) {
   };
 }
 
-test('@inventory-management adds bulk stock, edits metadata and remains accessible at 320px', async ({
+test('@inventory-management @admin-notifications adds bulk stock, edits metadata and remains accessible at 320px', async ({
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'mobile-320');
@@ -64,7 +68,9 @@ test('@inventory-management adds bulk stock, edits metadata and remains accessib
   await page.getByLabel('Reference (optional)').fill('P18.3-E2E-INVOICE');
   await page.getByRole('button', { name: 'Add 10 units' }).click();
   await expect(
-    page.getByText('10 units added to rentable stock.'),
+    notifications(page)
+      .getByRole('status')
+      .filter({ hasText: 'Stock added successfully' }),
   ).toBeVisible();
   const after = await total(page, inventoryId);
   expect(after.totalQuantity).toBe(before.totalQuantity + 10);
@@ -76,15 +82,36 @@ test('@inventory-management adds bulk stock, edits metadata and remains accessib
   await page.getByRole('button', { name: 'Edit inventory' }).click();
   await expect(page.getByLabel(/total|quantity/i)).toHaveCount(0);
   await page
-    .getByLabel('Internal operational notes')
+    .getByRole('textbox', { name: 'Internal operational notes' })
     .fill('Phase 18.3 guarded operational note');
   await page.getByRole('button', { name: 'Save inventory' }).click();
-  await expect(page.getByText('Inventory notes updated.')).toBeVisible();
+  await expect(
+    notifications(page)
+      .getByRole('status')
+      .filter({ hasText: 'Inventory updated successfully' }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('Phase 18.3 guarded operational note', { exact: true }),
+  ).toBeVisible();
   await page.reload();
   await page.getByRole('button', { name: 'Edit inventory' }).click();
-  await expect(page.getByLabel('Internal operational notes')).toHaveValue(
-    'Phase 18.3 guarded operational note',
-  );
+  await expect(
+    page.getByRole('textbox', { name: 'Internal operational notes' }),
+  ).toHaveValue('Phase 18.3 guarded operational note');
+
+  await page.getByRole('button', { name: 'Close' }).click();
+  await page.getByRole('button', { name: 'Reduce / retire stock' }).click();
+  await page.getByLabel('Quantity').fill('999999');
+  await page
+    .getByLabel('Internal reason')
+    .fill('Guarded error notification proof');
+  await page.getByRole('button', { name: /Remove 999999 units/ }).click();
+  await expect(
+    notifications(page)
+      .getByRole('alert')
+      .filter({ hasText: /cannot|exceed|quantity/i })
+      .last(),
+  ).toBeVisible();
 
   await page.getByRole('button', { name: 'Switch to dark theme' }).click();
   await expect(page.locator('html')).toHaveClass(/dark/);
@@ -93,7 +120,7 @@ test('@inventory-management adds bulk stock, edits metadata and remains accessib
   await expectAccessibleAndContained(page);
 });
 
-test('@inventory-management uses safe lifecycle dialogs and exact serialized assets at 1440px', async ({
+test('@inventory-management @admin-notifications uses safe lifecycle dialogs and exact serialized assets at 1440px', async ({
   page,
 }, testInfo) => {
   test.skip(testInfo.project.name !== 'wide-1440');
@@ -101,7 +128,7 @@ test('@inventory-management uses safe lifecycle dialogs and exact serialized ass
 
   const unusedId = required('PHASE183_UNUSED_INVENTORY_ID');
   await page.goto(`http://localhost:3001/inventory/${unusedId}`);
-  const deleteTrigger = page.getByRole('button', { name: 'Delete inventory' });
+  const deleteTrigger = page.getByRole('button', { name: 'Delete / Archive' });
   await deleteTrigger.focus();
   await deleteTrigger.click();
   const deleteDialog = page.getByRole('dialog');
@@ -125,6 +152,11 @@ test('@inventory-management uses safe lifecycle dialogs and exact serialized ass
   await deleteDialog
     .getByRole('button', { name: 'Yes, delete inventory' })
     .click();
+  await expect(
+    notifications(page)
+      .getByRole('status')
+      .filter({ hasText: 'Inventory deleted successfully' }),
+  ).toBeVisible();
   await expect(page).toHaveURL('http://localhost:3001/inventory');
   expect(
     (
@@ -134,10 +166,7 @@ test('@inventory-management uses safe lifecycle dialogs and exact serialized ass
 
   const historicalId = required('PHASE183_HISTORICAL_INVENTORY_ID');
   await page.goto(`http://localhost:3001/inventory/${historicalId}`);
-  await expect(
-    page.getByRole('button', { name: 'Delete inventory' }),
-  ).toHaveCount(0);
-  await page.getByRole('button', { name: 'Archive inventory' }).click();
+  await page.getByRole('button', { name: 'Delete / Archive' }).click();
   const archiveDialog = page.getByRole('dialog');
   await expect(
     archiveDialog.getByRole('heading', { name: 'Archive inventory?' }),
@@ -148,6 +177,11 @@ test('@inventory-management uses safe lifecycle dialogs and exact serialized ass
   await archiveDialog
     .getByRole('button', { name: 'Archive inventory' })
     .click();
+  await expect(
+    notifications(page)
+      .getByRole('status')
+      .filter({ hasText: 'Inventory archived successfully' }),
+  ).toBeVisible();
   await expect(
     page.getByText('Archived', { exact: true }).first(),
   ).toBeVisible();
@@ -168,6 +202,11 @@ test('@inventory-management uses safe lifecycle dialogs and exact serialized ass
   await restoreDialog
     .getByRole('button', { name: 'Restore inventory' })
     .click();
+  await expect(
+    notifications(page)
+      .getByRole('status')
+      .filter({ hasText: 'Inventory restored successfully' }),
+  ).toBeVisible();
   await expect(page.getByText('Active', { exact: true }).first()).toBeVisible();
 
   const bulkId = required('PHASE183_BULK_INVENTORY_ID');
@@ -175,9 +214,15 @@ test('@inventory-management uses safe lifecycle dialogs and exact serialized ass
   await expect(
     page.getByText('Inventory cannot be archived yet'),
   ).toBeVisible();
+  await page.getByRole('button', { name: 'Delete / Archive' }).click();
+  const blockedDialog = page.getByRole('dialog');
   await expect(
-    page.getByRole('button', { name: 'Archive inventory' }),
+    blockedDialog.getByText('Physical stock remains.'),
+  ).toBeVisible();
+  await expect(
+    blockedDialog.getByRole('button', { name: 'Archive inventory' }),
   ).toBeDisabled();
+  await page.keyboard.press('Escape');
 
   const serializedId = required('PHASE183_SERIALIZED_INVENTORY_ID');
   const asset = required('PHASE183_SERIALIZED_ASSET_NUMBER');
@@ -193,7 +238,9 @@ test('@inventory-management uses safe lifecycle dialogs and exact serialized ass
     .last()
     .click();
   await expect(
-    page.getByText(`Serialized asset ${asset} added.`),
+    notifications(page)
+      .getByRole('status')
+      .filter({ hasText: 'Serialized asset added successfully' }),
   ).toBeVisible();
   await expect(page.getByText(asset, { exact: true })).toBeVisible();
   const publicResponse = await page.request.get(

@@ -20,6 +20,7 @@ Run destructive browser fixtures only in the guarded test database. Stop normal 
 
 ```powershell
 pnpm test:e2e:inventory-management
+pnpm test:e2e:admin-notifications
 ```
 
 The harness verifies the database name ends in `_test`, resets only that disposable database, and leaves development records and media untouched. Never use `prisma migrate reset`, `db push --force-reset`, `TRUNCATE`, or Docker volume deletion on the development database.

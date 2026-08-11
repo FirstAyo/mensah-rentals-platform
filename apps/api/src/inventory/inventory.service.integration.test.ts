@@ -474,13 +474,22 @@ describe('inventory service against PostgreSQL', () => {
       reason: 'Initial stock',
     });
     inventoryIds.push(created.id);
+    const metadataOperationId = randomUUID();
     await service.updateMetadata(actorId, created.id, {
-      operationId: randomUUID(),
+      operationId: metadataOperationId,
       internalNotes: 'Warehouse bay seven',
     });
     expect((await service.get(created.id)).internalNotes).toBe(
       'Warehouse bay seven',
     );
+    const metadataAudit = await prisma.platformAuditEvent.findUniqueOrThrow({
+      where: { sourceKey: `inventory-admin:${metadataOperationId}` },
+    });
+    expect(metadataAudit.action).toBe('INVENTORY_UPDATED');
+    expect(metadataAudit.metadata).toMatchObject({
+      beforeInternalNotes: null,
+      afterInternalNotes: 'Warehouse bay seven',
+    });
     await service.reduceStock(actorId, created.id, {
       operationId: randomUUID(),
       quantity: 2,

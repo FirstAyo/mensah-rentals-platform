@@ -18,7 +18,7 @@ The inventory detail page exposes only actions valid for the tracking mode and c
 - **Add stock** is available for bulk inventory. It requires a positive bounded integer and a meaningful reason. New usable purchases enter `RENTABLE` and append acquisition history.
 - **Reduce / retire stock** is available for eligible uncommitted bulk `RENTABLE` units. It requires a reason type and explanation, reduces owned physical stock through an immutable transaction, and cannot consume rented, maintained, damaged, missing, reserved, or otherwise committed units.
 - **Add serialized asset** is available for serialized inventory. Each asset receives its own unique internal asset identity and adds exactly one physical unit. Serialized inventory never offers a numeric “add quantity” shortcut.
-- **Archive inventory**, **Restore inventory**, and **Delete inventory** follow the retention rules below.
+- **Delete / Archive** is always discoverable for authorized staff. The API preflight selects whether a truly unused record may be deleted, a historical record may be archived, or a live blocker must be resolved. **Restore inventory** remains visible on archived records, and hard delete is offered there only when the API confirms eligibility.
 
 All mutations use a client-generated operation UUID. Replaying the same operation and payload returns the original outcome without duplicating stock. Reusing an operation UUID with a different payload returns `409`. Database transactions and inventory-root locking ensure concurrent additions are cumulative and concurrent reductions cannot create a negative or overcommitted balance.
 
@@ -60,6 +60,12 @@ Generic state changes cannot shortcut operational workflows. The narrow manual c
 
 Delete and archive use accessible project dialogs, never `window.confirm()` or `window.alert()`. The dialog has a title, description, explicit Cancel action, destructive confirmation, Escape support, focus containment/restoration, pending-state protection, and friendly success or error feedback.
 
+The inventory list also exposes **View**, **Edit**, **Add stock** (for active bulk records), and **Delete / Archive** or **Manage lifecycle** links. Lifecycle actions are not hidden merely because permanent deletion is unsafe.
+
+Internal operational notes are loaded from the authoritative inventory response, displayed on the detail page, prefilled on the next edit, and reloaded after every successful PATCH. Each update emits `INVENTORY_UPDATED` with before/after note values in Platform Audit history. Quantity and immutable transaction history are never editable through this metadata form.
+
+Success and failure are announced by the shared Admin notification system as top-right, accessible, automatically dismissing messages. Inventory uses the exact messages documented in [Admin notifications](admin-notifications.md), while the detail view continues to show durable inline state and errors.
+
 ## Permissions and audit
 
 `inventory.view` and `inventory.quantity.view` protect internal state. Stock changes and serialized-asset creation require `inventory.adjust`. Inventory metadata, archival, restoration, and permanent deletion use the exact inventory-management permission selected by the Phase 18.3 RBAC catalogue. These sensitive permissions are seeded for `SUPER_ADMIN` and `ADMIN`, not `EDITOR` or `SALES_PERSON`. Backend guards and live transactional permission checks are authoritative; hidden controls are only a usability aid.
@@ -77,6 +83,7 @@ Use only the guarded `mensah_rentals_test` database for destructive fixtures. St
 ```powershell
 docker compose up -d postgres-test
 pnpm test:e2e:inventory-management
+pnpm test:e2e:admin-notifications
 ```
 
 The suite covers bulk acquisition and metadata editing at 320px, lifecycle dialogs and serialized-asset creation at 1440px, public confidentiality, dark mode, focus behavior, overflow, and serious/critical Axe findings. PostgreSQL integration tests—not the browser fixture—prove active-reservation reduction blocking and consumed-history archival.

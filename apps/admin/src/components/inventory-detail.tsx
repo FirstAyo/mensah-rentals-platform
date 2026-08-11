@@ -19,7 +19,8 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { AccessibleDialog } from './accessible-dialog';
 import { InventoryMaintenanceLinks } from './inventory-maintenance-links';
 
@@ -52,6 +53,24 @@ function readable(value: string) {
     .replace(/^./, (letter) => letter.toUpperCase());
 }
 
+function lifecycleBlockerMessage(value: string) {
+  const messages: Record<string, string> = {
+    ACTIVE_INSPECTION: 'An active inspection must be completed first.',
+    ACTIVE_MAINTENANCE: 'Active maintenance work must be completed first.',
+    ACTIVE_RESERVATION: 'Reserved stock must be released or consumed first.',
+    ALREADY_ACTIVE: 'This inventory is already active.',
+    ALREADY_ARCHIVED: 'This inventory is already archived.',
+    HISTORY_EXISTS: 'Historical activity requires this record to be retained.',
+    INACTIVE_PRODUCT: 'Activate the linked product before restoring inventory.',
+    PHYSICAL_STOCK: 'Physical stock remains.',
+    REFERENCES_EXIST:
+      'Operational or historical records still reference this inventory.',
+    SERIALIZED_ASSETS_EXIST: 'Serialized asset records must be retained.',
+    TRANSACTIONS_EXIST: 'Inventory transaction history must be retained.',
+  };
+  return messages[value] ?? readable(value);
+}
+
 function DetailBody({
   id,
   canAdjust,
@@ -70,6 +89,7 @@ function DetailBody({
   canViewQuantity: boolean;
 }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [action, setAction] = useState<Action>(null);
   const [confirmation, setConfirmation] = useState<LifecycleAction | null>(
     null,
@@ -96,20 +116,24 @@ function DetailBody({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const cancelRef = useRef<HTMLButtonElement>(null);
   const triggerRef = useRef<HTMLElement | null>(null);
+  const handledEntryAction = useRef(false);
 
-  function newIntent() {
+  const newIntent = useCallback(() => {
     setOperationId(crypto.randomUUID());
     setError(null);
     setNotice(null);
-  }
+  }, []);
 
-  function openAction(next: Exclude<Action, null>) {
-    newIntent();
-    setReason('');
-    setReference('');
-    setQuantity(1);
-    setAction(next);
-  }
+  const openAction = useCallback(
+    (next: Exclude<Action, null>) => {
+      newIntent();
+      setReason('');
+      setReference('');
+      setQuantity(1);
+      setAction(next);
+    },
+    [newIntent],
+  );
 
   const metadata = useQuery<AdminInventoryMetadataResponse>({
     queryKey: ['inventory-detail', id],
@@ -173,6 +197,43 @@ function DetailBody({
       >;
     },
   });
+
+  useEffect(() => {
+    if (handledEntryAction.current || !metadata.data || !canAdjust) return;
+    const requestedAction = searchParams.get('action');
+    if (requestedAction === 'edit') {
+      handledEntryAction.current = true;
+      setInternalNotes(metadata.data.internalNotes ?? '');
+      openAction('edit');
+    } else if (
+      requestedAction === 'add' &&
+      metadata.data.isActive &&
+      metadata.data.trackingMode === 'BULK'
+    ) {
+      handledEntryAction.current = true;
+      openAction('add');
+    } else if (requestedAction === 'lifecycle' && lifecycle.data) {
+      handledEntryAction.current = true;
+      newIntent();
+      setReason('');
+      setConfirmation(
+        lifecycle.data.isActive
+          ? lifecycle.data.canHardDelete
+            ? 'delete'
+            : 'archive'
+          : 'restore',
+      );
+    } else if (!requestedAction || requestedAction !== 'lifecycle') {
+      handledEntryAction.current = true;
+    }
+  }, [
+    canAdjust,
+    lifecycle.data,
+    metadata.data,
+    newIntent,
+    openAction,
+    searchParams,
+  ]);
 
   async function refresh() {
     await Promise.all([
@@ -248,7 +309,7 @@ function DetailBody({
       await mutate({
         body: { internalNotes: internalNotes.trim() || null },
         method: 'PATCH',
-        success: 'Inventory notes updated.',
+        success: 'Inventory updated successfully',
       });
     } else if (action === 'add') {
       await mutate({
@@ -259,7 +320,7 @@ function DetailBody({
           reference: reference.trim() || null,
         },
         path: '/stock-additions',
-        success: `${quantity} unit${quantity === 1 ? '' : 's'} added to rentable stock.`,
+        success: 'Stock added successfully',
       });
     } else if (action === 'reduce') {
       await mutate({
@@ -270,7 +331,7 @@ function DetailBody({
           reference: reference.trim() || null,
         },
         path: '/stock-reductions',
-        success: `${quantity} unit${quantity === 1 ? '' : 's'} removed from owned stock.`,
+        success: 'Inventory reduced successfully',
       });
     } else if (action === 'asset') {
       if (!assetNumber.trim()) {
@@ -285,7 +346,7 @@ function DetailBody({
           reason: trimmedReason,
         },
         path: '/items',
-        success: `Serialized asset ${assetNumber.trim()} added.`,
+        success: 'Serialized asset added successfully',
       });
     } else {
       await mutate({
@@ -305,7 +366,7 @@ function DetailBody({
       const deleted = await mutate({
         body: { reason: reason.trim() },
         method: 'DELETE',
-        success: 'Inventory record permanently deleted.',
+        success: 'Inventory deleted successfully',
       });
       if (deleted) router.replace('/inventory');
       return;
@@ -315,8 +376,8 @@ function DetailBody({
       path: `/${confirmation}`,
       success:
         confirmation === 'archive'
-          ? 'Inventory archived.'
-          : 'Inventory restored to active workflows.',
+          ? 'Inventory archived successfully'
+          : 'Inventory restored successfully',
     });
   }
 
@@ -447,10 +508,30 @@ function DetailBody({
         </section>
       ) : null}
 
+      <section
+        aria-labelledby="inventory-notes-heading"
+        className="rounded-xl border border-border bg-card p-4 sm:p-5"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <h2 className="text-xl font-semibold" id="inventory-notes-heading">
+              Internal operational notes
+            </h2>
+            <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
+              {data.internalNotes?.trim() || 'No internal notes recorded.'}
+            </p>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Updated {new Date(data.updatedAt).toLocaleString()}
+          </p>
+        </div>
+      </section>
+
       {canAdjust ? (
         <section
           className="rounded-xl border border-border bg-card p-4 sm:p-5"
           aria-labelledby="actions-heading"
+          id="inventory-actions"
         >
           <h2 className="text-xl font-semibold" id="actions-heading">
             Inventory actions
@@ -510,24 +591,29 @@ function DetailBody({
             ) : null}
             {data.isActive ? (
               <button
-                className={actionButton}
-                disabled={!lifecycle.data?.canArchive}
+                className={`${actionButton} border-destructive/40`}
+                disabled={lifecycle.isLoading || lifecycle.isError}
                 onClick={(event) => {
                   triggerRef.current = event.currentTarget;
                   newIntent();
                   setReason('');
-                  setConfirmation('archive');
+                  setConfirmation(
+                    lifecycle.data?.canHardDelete ? 'delete' : 'archive',
+                  );
                 }}
-                title={lifecycle.data?.archiveBlockers.join(' ') || undefined}
                 type="button"
               >
-                <Archive className="h-4 w-4" aria-hidden="true" /> Archive
-                inventory
+                {lifecycle.data?.canHardDelete ? (
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                ) : (
+                  <Archive className="h-4 w-4" aria-hidden="true" />
+                )}{' '}
+                Delete / Archive
               </button>
             ) : (
               <button
                 className={actionButton}
-                disabled={!lifecycle.data?.canRestore}
+                disabled={lifecycle.isLoading || lifecycle.isError}
                 onClick={(event) => {
                   triggerRef.current = event.currentTarget;
                   newIntent();
@@ -540,7 +626,7 @@ function DetailBody({
                 inventory
               </button>
             )}
-            {data.isActive && lifecycle.data?.canHardDelete ? (
+            {!data.isActive && lifecycle.data?.canHardDelete ? (
               <button
                 className={`${actionButton} border-destructive/50 text-destructive hover:bg-destructive/10`}
                 onClick={(event) => {
@@ -574,11 +660,18 @@ function DetailBody({
               <p className="font-semibold">Inventory cannot be archived yet</p>
               <ul className="mt-1 list-disc pl-5">
                 {lifecycle.data.archiveBlockers.map((blocker) => (
-                  <li key={blocker}>{blocker}</li>
+                  <li key={blocker}>{lifecycleBlockerMessage(blocker)}</li>
                 ))}
               </ul>
             </div>
           ) : null}
+          <p className="mt-4 text-xs text-muted-foreground">
+            Metadata changes and lifecycle actions are recorded in{' '}
+            <a className="underline" href="/reports/audit">
+              Audit history
+            </a>
+            .
+          </p>
         </section>
       ) : null}
 
@@ -957,7 +1050,7 @@ function DetailBody({
               {blockers?.length ? (
                 <ul className="list-disc pl-5">
                   {blockers.map((blocker) => (
-                    <li key={blocker}>{blocker}</li>
+                    <li key={blocker}>{lifecycleBlockerMessage(blocker)}</li>
                   ))}
                 </ul>
               ) : null}

@@ -7,7 +7,10 @@ const { replace, useQuery } = vi.hoisted(() => ({
 }));
 
 vi.mock('@tanstack/react-query', () => ({ useQuery }));
-vi.mock('next/navigation', () => ({ useRouter: () => ({ replace }) }));
+vi.mock('next/navigation', () => ({
+  useRouter: () => ({ replace }),
+  useSearchParams: () => new URLSearchParams(),
+}));
 vi.mock('./inventory-maintenance-links', () => ({
   InventoryMaintenanceLinks: () => <div>Maintenance links</div>,
 }));
@@ -133,6 +136,8 @@ describe('Phase 18.3 inventory management UI', () => {
     expect(html).toContain('Add stock');
     expect(html).toContain('Reduce / retire stock');
     expect(html).toContain('Inventory cannot be archived yet');
+    expect(html).toContain('Delete / Archive');
+    expect(html).toContain('Warehouse row A');
     expect(html).not.toContain('Add serialized asset');
   });
 });
