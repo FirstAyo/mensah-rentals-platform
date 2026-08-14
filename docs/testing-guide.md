@@ -1332,12 +1332,36 @@ full verification remains `pnpm format:check`, `pnpm lint`, `pnpm typecheck`,
 
 For a manual startup check, stop the three applications and run
 `pnpm dev:safe`. Success means API health becomes ready before ports 3000 and
-3001 start. Sign in at `http://localhost:3001/login`, then open
+3001 start, and the final readiness message confirms the customer catalogue,
+cart BFF, and Admin login. Run `pnpm test:dev-build-artifacts` to verify the
+bounded stale-build cleanup and occupied-port protection. Sign in at
+`http://localhost:3001/login`, then open
 `/change-requests` and an available detail. The list must not show a missing
 QueryClient error. Also check `/`, `/rental-requests`, `/quotes`, `/orders`,
 `/maintenance/work-orders`, and `/reports` at 320px and 1440px. Verify dark
 theme persistence, no page-level horizontal overflow, and zero serious or
 critical Axe findings on Change Requests.
+
+## Public navigation and cart-route regression
+
+Stop normal local servers, open Docker Desktop, and run from the repository
+root:
+
+```powershell
+docker compose up -d postgres-test
+pnpm test:e2e:public-navigation
+```
+
+The guarded harness resets only `mensah_rentals_test`, builds the applications,
+and runs Chromium at 320px and 1440px. Success means real homepage, Header,
+Footer, catalogue, category, product, cart, rental-request, tracking, Privacy,
+and Terms navigation stays out of the custom 404. It also proves cart load,
+add, quantity update, remove, and clear operations use the local `/api/cart`
+BFF; a desired quantity of 100 is accepted without stock claims; dark theme
+persists; pages do not overflow; and Axe reports no serious or critical
+violations. The deliberate `/this-page-does-not-exist-123` request must still
+return 404. The suite also checks Admin login and API health without resetting
+the development database.
 
 # Phase 18.1 official PDF tests
 

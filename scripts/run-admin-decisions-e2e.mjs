@@ -5,6 +5,7 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { loadTestEnvironment } from './test-database.mjs';
+import { clearNextBuildArtifacts } from './dev-build-artifacts.mjs';
 
 const mode = process.argv[2] ?? 'all';
 const modes = new Set([
@@ -40,6 +41,7 @@ const modes = new Set([
   'products',
   'catalogue',
   'cart',
+  'public-navigation',
   'homepage',
   'homepage-admin',
   'homepage-media',
@@ -123,6 +125,8 @@ const browserEnvironment = {
   AUTH_LOGIN_RATE_LIMIT: '100',
   MENSAH_ISOLATED_E2E: 'verified-local-test-database',
   MEDIA_STORAGE_ROOT: 'storage/test-media',
+  PUBLIC_CART_COOKIE_NAME: '__Host-mensah_test_cart',
+  PUBLIC_CART_COOKIE_SECURE: 'true',
   STAFF_BOOTSTRAP_EMAIL: 'phase10-browser@example.test',
   STAFF_BOOTSTRAP_FIRST_NAME: 'Phase Ten',
   STAFF_BOOTSTRAP_LAST_NAME: 'Browser',
@@ -1098,7 +1102,8 @@ const maintenanceMode =
   mode === 'inspections' ||
   mode === 'maintenance-all';
 const homepageMode = mode.startsWith('homepage');
-const publicRegressionMode = mode === 'catalogue' || mode === 'cart';
+const publicRegressionMode =
+  mode === 'catalogue' || mode === 'cart' || mode === 'public-navigation';
 const phase18Mode =
   mode === 'reports' ||
   mode === 'audit' ||
@@ -1108,7 +1113,8 @@ const runtimeRegressionMode = mode === 'runtime-regression';
 const officialPdfMode = mode === 'official-pdfs';
 const inventoryManagementMode =
   mode === 'inventory-management' || mode === 'admin-notifications';
-const productionPublicRegressionMode = mode === 'catalogue';
+const productionPublicRegressionMode =
+  mode === 'catalogue' || mode === 'public-navigation';
 if (
   phase121Mode ||
   categoryMode ||
@@ -1139,6 +1145,30 @@ if (
     ],
     browserEnvironment,
   );
+
+const usesProductionStart = (workspace) =>
+  phase121Mode ||
+  categoryMode ||
+  productMode ||
+  homepageMode ||
+  phase18Mode ||
+  inventoryManagementMode ||
+  productionPublicRegressionMode ||
+  ((fulfilmentMode ||
+    returnMode ||
+    maintenanceMode ||
+    phase18Mode ||
+    inventoryManagementMode ||
+    officialPdfMode ||
+    mode.startsWith('orders-')) &&
+    workspace !== '@mensah-rentals/web');
+
+if (!usesProductionStart('@mensah-rentals/web'))
+  await clearNextBuildArtifacts({
+    appNames: ['web'],
+    repositoryRoot,
+  });
+
 const servers = [
   '@mensah-rentals/web',
   '@mensah-rentals/admin',
@@ -1146,27 +1176,7 @@ const servers = [
 ].map((workspace) =>
   spawn(
     pnpm,
-    [
-      '--filter',
-      workspace,
-      phase121Mode ||
-      categoryMode ||
-      productMode ||
-      homepageMode ||
-      phase18Mode ||
-      inventoryManagementMode ||
-      productionPublicRegressionMode ||
-      ((fulfilmentMode ||
-        returnMode ||
-        maintenanceMode ||
-        phase18Mode ||
-        inventoryManagementMode ||
-        officialPdfMode ||
-        mode.startsWith('orders-')) &&
-        workspace !== '@mensah-rentals/web')
-        ? 'start'
-        : 'dev',
-    ],
+    ['--filter', workspace, usesProductionStart(workspace) ? 'start' : 'dev'],
     {
       cwd: repositoryRoot,
       detached: process.platform !== 'win32',
@@ -1236,7 +1246,9 @@ try {
           : publicRegressionMode
             ? mode === 'catalogue'
               ? '@catalogue'
-              : '@cart'
+              : mode === 'cart'
+                ? '@cart'
+                : '@public-navigation'
             : isHomepageMode
               ? mode === 'homepage-admin'
                 ? '@homepage-admin'
@@ -1328,7 +1340,9 @@ try {
                 ? 'e2e/products.spec.ts'
                 : mode === 'catalogue'
                   ? 'e2e/catalogue.spec.ts'
-                  : 'e2e/cart.spec.ts',
+                  : mode === 'cart'
+                    ? 'e2e/cart.spec.ts'
+                    : 'e2e/public-navigation.spec.ts',
           ]
         : isHomepageMode
           ? ['e2e/homepage.spec.ts']
@@ -1362,7 +1376,8 @@ try {
       ...(maintenanceMode ||
       phase18Mode ||
       runtimeRegressionMode ||
-      inventoryManagementMode
+      inventoryManagementMode ||
+      mode === 'public-navigation'
         ? ['--project=mobile-320', '--project=wide-1440']
         : []),
       ...(mode === 'homepage-all'

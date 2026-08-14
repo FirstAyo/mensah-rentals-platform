@@ -1008,8 +1008,14 @@ Use the readiness-gated command from the repository root:
 pnpm dev:safe
 ```
 
-It starts NestJS first, polls `http://127.0.0.1:4000/health`, and starts the
-customer and admin Next.js applications only after the health check succeeds.
+It first refuses to run if ports 3000, 3001, or 4000 are already serving an
+application. It then removes only the generated `apps/web/.next` and
+`apps/admin/.next` build directories so an interrupted or overlapping build
+cannot leave stale route manifests. It starts NestJS, polls
+`http://127.0.0.1:4000/health`, and starts the customer and admin Next.js
+applications only after the health check succeeds. Startup is reported ready
+only after `/rentals`, `/api/cart`, and the Admin login also respond
+successfully.
 The default timeout is 120 seconds. To use a longer local compilation window:
 
 ```powershell
@@ -1022,6 +1028,12 @@ message instead of starting the frontend applications against an unavailable
 API. `API_INTERNAL_URL` and `DEV_API_HEALTH_URL` remain configurable for other
 environments; production process supervision must still report genuine API
 outages rather than use this development orchestrator.
+
+Do not run `pnpm build` while the development applications are running. Stop
+the development command with `Ctrl+C`, run the build, and then start again with
+`pnpm dev:safe`. If a public page unexpectedly shows the custom 404 while the
+homepage still works, stop all three applications and run `pnpm dev:safe`
+again; do not delete database volumes or reset either database.
 
 ### next-themes script warning on Next.js 16.2
 

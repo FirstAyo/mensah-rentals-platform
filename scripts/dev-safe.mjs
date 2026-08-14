@@ -1,11 +1,17 @@
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
+import {
+  assertDevelopmentTargetsAreFree,
+  clearNextBuildArtifacts,
+} from './dev-build-artifacts.mjs';
 import { waitForHttpReady } from './dev-readiness.mjs';
 
 const command = process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm';
 const healthUrl =
   process.env.DEV_API_HEALTH_URL ?? 'http://127.0.0.1:4000/health';
 const timeoutMs = Number(process.env.DEV_API_READY_TIMEOUT_MS ?? '120000');
+const repositoryRoot = fileURLToPath(new URL('..', import.meta.url));
 const children = new Set();
 let stopping = false;
 
@@ -34,6 +40,20 @@ process.once('SIGTERM', stopAll);
 
 if (!Number.isFinite(timeoutMs) || timeoutMs <= 0) {
   throw new Error('DEV_API_READY_TIMEOUT_MS must be a positive number.');
+}
+
+try {
+  await assertDevelopmentTargetsAreFree({
+    targets: ['http://127.0.0.1:3000', 'http://127.0.0.1:3001', healthUrl],
+  });
+  await clearNextBuildArtifacts({ repositoryRoot });
+  console.log('[dev:safe] Cleared stale customer and admin Next build output.');
+} catch (error) {
+  console.error(
+    `[dev:safe] ${error instanceof Error ? error.message : String(error)}`,
+  );
+  process.exitCode = 1;
+  process.exit();
 }
 
 console.log('[dev:safe] Starting API...');
@@ -72,6 +92,24 @@ const admin = start('admin dashboard', [
   '@mensah-rentals/admin',
   'dev',
 ]);
+
+try {
+  await Promise.all([
+    waitForHttpReady({ timeoutMs, url: 'http://127.0.0.1:3000/rentals' }),
+    waitForHttpReady({ timeoutMs, url: 'http://127.0.0.1:3000/api/cart' }),
+    waitForHttpReady({ timeoutMs, url: 'http://127.0.0.1:3001/login' }),
+  ]);
+  console.log(
+    '[dev:safe] Customer catalogue, cart BFF, and Admin login are ready.',
+  );
+} catch (error) {
+  stopAll();
+  console.error(
+    `[dev:safe] Public/Admin readiness failed: ${error instanceof Error ? error.message : String(error)}`,
+  );
+  process.exitCode = 1;
+  process.exit();
+}
 
 const exitCode = await new Promise((resolve) => {
   for (const child of [api, web, admin]) {

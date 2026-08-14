@@ -169,6 +169,7 @@ pnpm cleanup:expired         # Remove bounded expired access records
 pnpm test:e2e:smoke          # Verify all local services are ready
 pnpm test:e2e:catalogue      # Catalogue browser checks
 pnpm test:e2e:cart           # Guest-cart browser checks
+pnpm test:e2e:public-navigation # Guarded public route, link, BFF, and 404 checks
 pnpm test:e2e:requests       # Guest-request browser checks
 pnpm test:e2e:admin          # Admin login/protection browser checks
 pnpm test:e2e:admin-requests # Authenticated Phase 9 review browser checks
