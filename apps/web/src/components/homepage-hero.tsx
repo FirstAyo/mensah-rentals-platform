@@ -5,6 +5,24 @@ import type { PublicHomepageContent } from '@mensah-rentals/validation';
 import { ArrowLeft, ArrowRight, Pause, Play } from 'lucide-react';
 import Link from 'next/link';
 
+const heroOverlayClasses = {
+  LIGHT: {
+    tint: 'bg-slate-950/5',
+    gradient:
+      'bg-gradient-to-b from-slate-950/45 via-slate-950/40 to-slate-950/45 md:bg-gradient-to-r md:from-slate-950/55 md:via-slate-950/40 md:to-slate-950/15 lg:from-slate-950/60 lg:via-slate-950/35 lg:to-slate-950/10',
+  },
+  MEDIUM: {
+    tint: 'bg-slate-950/10',
+    gradient:
+      'bg-gradient-to-b from-slate-950/50 via-slate-950/45 to-slate-950/50 md:bg-gradient-to-r md:from-slate-950/60 md:via-slate-950/45 md:to-slate-950/20 lg:from-slate-950/70 lg:via-slate-950/45 lg:to-slate-950/20',
+  },
+  STRONG: {
+    tint: 'bg-slate-950/10',
+    gradient:
+      'bg-gradient-to-b from-slate-950/55 via-slate-950/50 to-slate-950/55 md:bg-gradient-to-r md:from-slate-950/65 md:via-slate-950/50 md:to-slate-950/20 lg:from-slate-950/75 lg:via-slate-950/50 lg:to-slate-950/20',
+  },
+} as const;
+
 export function HomepageHero({
   hero,
 }: {
@@ -27,6 +45,7 @@ export function HomepageHero({
     () => new Set(),
   );
   const section = useRef<HTMLElement>(null);
+  const overlayClasses = heroOverlayClasses[hero.overlayIntensity];
 
   useEffect(() => {
     const query = window.matchMedia('(max-width: 767px)');
@@ -149,15 +168,16 @@ export function HomepageHero({
       }}
       ref={section}
     >
-      <div className="absolute inset-0 -z-20 bg-[radial-gradient(circle_at_78%_18%,rgba(245,158,11,.28),transparent_35%),radial-gradient(circle_at_12%_90%,rgba(16,185,129,.18),transparent_40%)]" />
+      <div className="absolute inset-0 -z-30 bg-[radial-gradient(circle_at_78%_18%,rgba(245,158,11,.28),transparent_35%),radial-gradient(circle_at_12%_90%,rgba(16,185,129,.18),transparent_40%)]" />
       {slides.map((slide, slideIndex) => {
         if (slideIndex !== index && slideIndex !== previousIndex) return null;
         return (
           <div
             aria-hidden="true"
-            className={`absolute inset-0 -z-10 transition-opacity duration-700 ${slideIndex === index && incomingVisible ? 'opacity-100' : slideIndex === previousIndex ? 'opacity-100' : 'opacity-0'} ${reducedMotion ? 'duration-0' : ''}`}
+            className={`absolute inset-0 -z-20 transition-opacity duration-700 ${slideIndex === index && incomingVisible ? 'opacity-100' : slideIndex === previousIndex ? 'opacity-100' : 'opacity-0'} ${reducedMotion ? 'duration-0' : ''}`}
+            data-hero-layer="image"
             key={`${slide.desktopUrl}-${slideIndex}`}
-            style={{ zIndex: slideIndex === index ? -9 : -10 }}
+            style={{ zIndex: slideIndex === index ? -19 : -20 }}
           >
             <picture>
               {slide.mobileUrl ? (
@@ -183,22 +203,14 @@ export function HomepageHero({
         );
       })}
       <div
-        className={`absolute inset-0 -z-10 ${
-          hero.overlayIntensity === 'LIGHT'
-            ? 'bg-slate-950/35'
-            : hero.overlayIntensity === 'MEDIUM'
-              ? 'bg-slate-950/45'
-              : 'bg-slate-950/55'
-        }`}
+        aria-hidden="true"
+        className={`absolute inset-0 -z-10 ${overlayClasses.tint}`}
+        data-hero-overlay="tint"
       />
       <div
-        className={`absolute inset-0 -z-10 bg-gradient-to-r from-slate-950 ${
-          hero.overlayIntensity === 'LIGHT'
-            ? 'via-slate-950/65 to-slate-950/30'
-            : hero.overlayIntensity === 'MEDIUM'
-              ? 'via-slate-950/75 to-slate-950/40'
-              : 'via-slate-950/85 to-slate-950/45'
-        }`}
+        aria-hidden="true"
+        className={`absolute inset-0 -z-10 ${overlayClasses.gradient}`}
+        data-hero-overlay="gradient"
       />
       <div className="mx-auto flex min-h-[38rem] max-w-[1760px] items-center px-4 py-20 sm:min-h-[42rem] sm:px-6 lg:px-8">
         <div className="max-w-4xl">

@@ -282,19 +282,17 @@ function PreviewHero({
       <span
         className={`absolute inset-0 ${
           hero.overlayIntensity === 'LIGHT'
-            ? 'bg-slate-950/35'
-            : hero.overlayIntensity === 'MEDIUM'
-              ? 'bg-slate-950/45'
-              : 'bg-slate-950/55'
+            ? 'bg-slate-950/5'
+            : 'bg-slate-950/10'
         }`}
       />
       <span
-        className={`absolute inset-0 bg-gradient-to-r from-slate-950 ${
+        className={`absolute inset-0 bg-gradient-to-b ${
           hero.overlayIntensity === 'LIGHT'
-            ? 'via-slate-950/65 to-slate-950/30'
+            ? 'from-slate-950/45 via-slate-950/40 to-slate-950/45 md:bg-gradient-to-r md:from-slate-950/55 md:via-slate-950/40 md:to-slate-950/15 lg:from-slate-950/60 lg:via-slate-950/35 lg:to-slate-950/10'
             : hero.overlayIntensity === 'MEDIUM'
-              ? 'via-slate-950/75 to-slate-950/40'
-              : 'via-slate-950/85 to-slate-950/45'
+              ? 'from-slate-950/50 via-slate-950/45 to-slate-950/50 md:bg-gradient-to-r md:from-slate-950/60 md:via-slate-950/45 md:to-slate-950/20 lg:from-slate-950/70 lg:via-slate-950/45 lg:to-slate-950/20'
+              : 'from-slate-950/55 via-slate-950/50 to-slate-950/55 md:bg-gradient-to-r md:from-slate-950/65 md:via-slate-950/50 md:to-slate-950/20 lg:from-slate-950/75 lg:via-slate-950/50 lg:to-slate-950/20'
         }`}
       />
       <div className="relative max-w-4xl">

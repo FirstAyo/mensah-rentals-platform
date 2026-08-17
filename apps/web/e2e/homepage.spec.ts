@@ -64,6 +64,61 @@ async function expectNoDocumentOverflow(page: Page) {
   }
 }
 
+async function expectReadableHeroOverlay(page: Page, width: number) {
+  const layers = await page.evaluate(() => {
+    const image = document.querySelector<HTMLElement>(
+      '[data-hero-layer="image"]',
+    );
+    const tint = document.querySelector<HTMLElement>(
+      '[data-hero-overlay="tint"]',
+    );
+    const gradient = document.querySelector<HTMLElement>(
+      '[data-hero-overlay="gradient"]',
+    );
+    const heading = document.querySelector<HTMLElement>(
+      '[aria-label="Mensah Rentals introduction"] h1',
+    );
+    const description = document.querySelector<HTMLElement>(
+      '[aria-label="Mensah Rentals introduction"] h1 + p',
+    );
+    return {
+      imageZIndex: image ? Number(getComputedStyle(image).zIndex) : null,
+      tintZIndex: tint ? Number(getComputedStyle(tint).zIndex) : null,
+      gradientZIndex: gradient
+        ? Number(getComputedStyle(gradient).zIndex)
+        : null,
+      gradientImage: gradient?.style.backgroundImage
+        ? gradient.style.backgroundImage
+        : gradient
+          ? getComputedStyle(gradient).backgroundImage
+          : null,
+      tintColor: tint ? getComputedStyle(tint).backgroundColor : null,
+      headingColor: heading ? getComputedStyle(heading).color : null,
+      descriptionColor: description
+        ? getComputedStyle(description).color
+        : null,
+    };
+  });
+
+  expect(layers.imageZIndex).toBe(-19);
+  expect(layers.tintZIndex).toBe(-10);
+  expect(layers.gradientZIndex).toBe(-10);
+  expect(layers.tintColor).toBe('rgba(2, 6, 23, 0.1)');
+  if (width < 768) expect(layers.gradientImage).not.toContain('to right');
+  else expect(layers.gradientImage).toContain('to right');
+  expect(layers.gradientImage).toContain(
+    width < 768
+      ? 'rgba(2, 6, 23, 0.55)'
+      : width < 1024
+        ? 'rgba(2, 6, 23, 0.65)'
+        : 'rgba(2, 6, 23, 0.75)',
+  );
+  expect(layers.headingColor).toBe('rgb(255, 255, 255)');
+  expect(layers.descriptionColor).toBe('rgb(226, 232, 240)');
+  await expectNoDocumentOverflow(page);
+  await expectNoSeriousAxeViolations(page);
+}
+
 function assignment(page: Page, label: string) {
   return page
     .getByText(label, { exact: true })
@@ -244,6 +299,9 @@ test('@homepage-admin provides responsive fixed navigation, consistent controls,
   await publishSavedDraftFromBottom(page);
 
   await page.goto('http://localhost:3000/');
+  await page.evaluate(() => localStorage.setItem('theme', 'light'));
+  await page.reload();
+  await expect(page.locator('html')).not.toHaveClass(/dark/);
   await expect(page.getByRole('heading', { level: 1 })).toHaveText(
     'Three-image premium homepage',
   );
@@ -264,7 +322,36 @@ test('@homepage-admin provides responsive fixed navigation, consistent controls,
   await expect(
     page.getByRole('button', { name: 'Play hero images' }),
   ).toBeVisible();
-  await expectNoSeriousAxeViolations(page);
+
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 1024, height: 900 },
+    { width: 768, height: 900 },
+    { width: 430, height: 932 },
+    { width: 390, height: 844 },
+    { width: 375, height: 812 },
+    { width: 320, height: 720 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await expectReadableHeroOverlay(page, viewport.width);
+  }
+
+  await page.evaluate(() => localStorage.setItem('theme', 'dark'));
+  await page.reload();
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  await page.getByRole('button', { name: 'Pause hero images' }).click();
+  for (const viewport of [
+    { width: 1440, height: 900 },
+    { width: 1024, height: 900 },
+    { width: 768, height: 900 },
+    { width: 430, height: 932 },
+    { width: 390, height: 844 },
+    { width: 375, height: 812 },
+    { width: 320, height: 720 },
+  ]) {
+    await page.setViewportSize(viewport);
+    await expectReadableHeroOverlay(page, viewport.width);
+  }
 
   await page.setViewportSize({ width: 320, height: 720 });
   const indicatorTargets = await page
