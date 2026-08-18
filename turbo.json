@@ -3,6 +3,7 @@
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
+      "env": ["API_INTERNAL_URL", "SITE_INDEXING_ENABLED", "SITE_URL"],
       "outputs": [".next/**", "dist/**", "!.next/cache/**"]
     },
     "dev": {

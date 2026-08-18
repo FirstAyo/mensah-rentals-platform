@@ -60,7 +60,9 @@
     "test:e2e:runtime": "node ../../scripts/run-admin-decisions-e2e.mjs runtime-regression",
     "test:e2e:official-pdfs": "node ../../scripts/run-admin-decisions-e2e.mjs official-pdfs",
     "test:e2e:inventory-management": "node ../../scripts/run-admin-decisions-e2e.mjs inventory-management",
-    "test:e2e:admin-notifications": "node ../../scripts/run-admin-decisions-e2e.mjs admin-notifications"
+    "test:e2e:admin-notifications": "node ../../scripts/run-admin-decisions-e2e.mjs admin-notifications",
+    "test:e2e:seo": "node ../../scripts/run-admin-decisions-e2e.mjs seo",
+    "seo:audit": "vitest run src/lib/seo.test.ts src/lib/seo-audit.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "5.2.2",

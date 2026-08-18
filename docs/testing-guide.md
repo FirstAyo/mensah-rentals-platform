@@ -1,5 +1,38 @@
 # Testing Guide
 
+## Phase 18.4 SEO tests
+
+Start Docker Desktop, then run:
+
+```powershell
+docker compose up -d postgres postgres-test
+pnpm seo:audit
+pnpm test:e2e:seo
+```
+
+Success means the audit prints the number of public pages, active categories, and active products checked. The browser suite verifies production-origin canonical/Open Graph/JSON-LD output, sitemap and robots safety, query noindex, private response headers, true 404s, inactive/tombstoned exclusions, responsive overflow, and serious/critical Axe findings.
+
+Run the full regression set:
+
+```powershell
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm test:e2e:seo
+pnpm test:e2e:homepage-all
+pnpm test:e2e:public-navigation
+pnpm test:e2e:customer-orders
+pnpm test:e2e:official-pdfs
+pnpm test:e2e:inventory-management
+pnpm db:integrity
+pnpm rbac:verify
+git diff --check
+```
+
+Manually review `/`, `/rentals`, one category, two products, `/privacy`, `/terms`, one private customer page, an unknown route, `/sitemap.xml`, and `/robots.txt`. Public head output must use `https://mensahrentals.com`, include one meaningful H1, and contain no localhost, capability, staff, inventory, price, Offer, or availability data. Private responses must be noindex/private. Unknown and inactive catalogue URLs must return HTTP 404.
+
 ## Phase 18.3 inventory-management tests
 
 Run the guarded browser suite with normal development servers stopped:

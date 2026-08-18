@@ -1,5 +1,11 @@
 import Link from 'next/link';
 import { ArrowLeft } from 'lucide-react';
+import type { Metadata } from 'next';
+
+export const metadata: Metadata = {
+  title: 'Page not found',
+};
+
 export default function NotFound() {
   return (
     <section className="mx-auto max-w-3xl px-4 py-24 text-center">

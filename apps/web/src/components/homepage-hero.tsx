@@ -42,7 +42,7 @@ export function HomepageHero({
   const [documentHidden, setDocumentHidden] = useState(false);
   const [mobileViewport, setMobileViewport] = useState(false);
   const [loadedSlides, setLoadedSlides] = useState<ReadonlySet<number>>(
-    () => new Set(),
+    () => new Set([0]),
   );
   const section = useRef<HTMLElement>(null);
   const overlayClasses = heroOverlayClasses[hero.overlayIntensity];
@@ -55,39 +55,38 @@ export function HomepageHero({
     return () => query.removeEventListener('change', update);
   }, []);
   useEffect(() => {
+    // The current image is already rendered by the browser. Preserve that
+    // knowledge when the responsive source set changes so returning to it is
+    // never blocked by a cached image load event that fired before hydration.
+    setLoadedSlides(new Set([index]));
+    // `index` intentionally is not a dependency: normal slide changes retain
+    // every image confirmed during this responsive source set.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mobileViewport, slides]);
+
+  useEffect(() => {
+    if (slides.length < 2) return;
     let cancelled = false;
-    const timers: number[] = [];
-    setLoadedSlides(new Set());
-    slides.forEach((slide, slideIndex) => {
-      const source =
-        mobileViewport && slide.mobileUrl ? slide.mobileUrl : slide.desktopUrl;
-      timers.push(
-        window.setTimeout(
-          () => {
-            const image = new Image();
-            const markLoaded = () => {
-              if (cancelled) return;
-              setLoadedSlides((current) => {
-                if (current.has(slideIndex)) return current;
-                const next = new Set(current);
-                next.add(slideIndex);
-                return next;
-              });
-            };
-            image.onload = markLoaded;
-            image.onerror = () => undefined;
-            image.src = source;
-            if (image.complete && image.naturalWidth > 0) markLoaded();
-          },
-          slideIndex === 0 ? 0 : slideIndex * 600,
-        ),
-      );
-    });
+    const nextIndex = (index + 1) % slides.length;
+    if (loadedSlides.has(nextIndex)) return;
+    const nextSlide = slides[nextIndex];
+    if (!nextSlide) return;
+    const image = new Image();
+    const markLoaded = () => {
+      if (cancelled) return;
+      setLoadedSlides((current) => new Set(current).add(nextIndex));
+    };
+    image.onload = markLoaded;
+    image.onerror = () => undefined;
+    image.src =
+      mobileViewport && nextSlide.mobileUrl
+        ? nextSlide.mobileUrl
+        : nextSlide.desktopUrl;
+    if (image.complete && image.naturalWidth > 0) markLoaded();
     return () => {
       cancelled = true;
-      timers.forEach((timer) => window.clearTimeout(timer));
     };
-  }, [mobileViewport, slides]);
+  }, [index, loadedSlides, mobileViewport, slides]);
 
   const showSlide = (next: number) => {
     if (next === index || !loadedSlides.has(next)) return;
@@ -187,6 +186,7 @@ export function HomepageHero({
                 alt=""
                 className="absolute inset-0 h-full w-full object-cover"
                 loading={slideIndex === 0 ? 'eager' : 'lazy'}
+                fetchPriority={slideIndex === 0 ? 'high' : 'auto'}
                 onLoad={() =>
                   setLoadedSlides((current) => {
                     if (current.has(slideIndex)) return current;

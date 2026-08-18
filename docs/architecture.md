@@ -1,5 +1,11 @@
 # Architecture
 
+## Phase 18.4 SEO boundary
+
+The public Next.js application owns rendering and SEO composition; it consumes only explicit public catalogue and published-homepage DTOs. `SITE_URL` is the single SEO-visible origin and is deliberately separate from `WEB_ORIGIN`, API routing, and request headers. Indexing fails closed unless the configured origin is exactly `https://mensahrentals.com`. Metadata, canonical, sitemap, Open Graph, and JSON-LD generation never depend on the incoming Host header.
+
+Search-engine output is a projection, not a new business-data store. Active public product/category records feed canonical pages and the sitemap. Transactional/customer routes and documents remain capability/session protected, private/no-store, noindex, and absent from discovery outputs. Robots directives supplement rather than replace authorization. No database migration or caching layer was added.
+
 ## Phase 18.3 inventory-administration boundary
 
 The NestJS inventory module is the sole authority for metadata changes, stock acquisition and retirement, serialized-asset creation, lifecycle eligibility, archive/restore, and safe permanent deletion. Bulk physical quantities remain derived from append-only transactions and serialized quantities from exact assets. Admin submits fixed, validated commands through the inventory BFF; it never sends a replacement total. Inventory-root locking, transactional live permission checks, operation UUIDs, and payload conflict detection protect concurrent and retried mutations. Archive preserves every historical relationship; hard delete is restricted to an unused zero-stock definition. Public and customer DTOs remain inventory-free. See [Inventory management](inventory-management.md).

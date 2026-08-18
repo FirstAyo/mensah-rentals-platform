@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 
 import { rentalRequestConfig } from './rental-request-config';
+import { PRIVATE_RESPONSE_HEADERS } from './private-response';
 
 const ACCESS_HEADER = 'x-rental-request-token';
 const ACCESS_PATTERN = /^[A-Za-z0-9_-]{43}$/;
@@ -180,7 +181,7 @@ export async function proxyRentalChangeRequest(
   if (!upstreamPath)
     return Response.json(
       { message: 'Change request route not found' },
-      { status: 404 },
+      { status: 404, headers: PRIVATE_RESPONSE_HEADERS },
     );
   if (request.method === 'POST') {
     const mediaType = request.headers
@@ -191,12 +192,12 @@ export async function proxyRentalChangeRequest(
     if (request.headers.get('origin') !== config.webOrigin)
       return Response.json(
         { message: 'Request origin is not allowed' },
-        { status: 403 },
+        { status: 403, headers: PRIVATE_RESPONSE_HEADERS },
       );
     if (mediaType !== 'application/json')
       return Response.json(
         { message: 'JSON requests are required' },
-        { status: 415 },
+        { status: 415, headers: PRIVATE_RESPONSE_HEADERS },
       );
   }
   const headers = new Headers({ Accept: 'application/json' });
@@ -209,7 +210,7 @@ export async function proxyRentalChangeRequest(
     if (new TextEncoder().encode(body).byteLength > 48 * 1024)
       return Response.json(
         { message: 'Change request is too large' },
-        { status: 413 },
+        { status: 413, headers: PRIVATE_RESPONSE_HEADERS },
       );
     headers.set('Content-Type', 'application/json');
     headers.set('Origin', config.webOrigin);
@@ -228,7 +229,7 @@ export async function proxyRentalChangeRequest(
       } catch {
         return Response.json(
           { message: 'Change request service returned an unsafe response' },
-          { status: 502, headers: { 'Cache-Control': 'private, no-store' } },
+          { status: 502, headers: PRIVATE_RESPONSE_HEADERS },
         );
       }
     }
@@ -245,17 +246,13 @@ export async function proxyRentalChangeRequest(
           },
       {
         status: upstream.status,
-        headers: {
-          'Cache-Control': 'private, no-store',
-          'Referrer-Policy': 'no-referrer',
-          'X-Robots-Tag': 'noindex, noarchive',
-        },
+        headers: PRIVATE_RESPONSE_HEADERS,
       },
     );
   } catch {
     return Response.json(
       { message: 'Change request service is unavailable' },
-      { status: 503, headers: { 'Cache-Control': 'private, no-store' } },
+      { status: 503, headers: PRIVATE_RESPONSE_HEADERS },
     );
   }
 }

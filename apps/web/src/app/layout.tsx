@@ -12,8 +12,7 @@ export const metadata: Metadata = {
   description:
     'Browse equipment for events, productions, and projects, then request a custom rental quote from Mensah Rentals.',
   title: { default: 'Mensah Rentals', template: '%s | Mensah Rentals' },
-  alternates: { canonical: '/' },
-  openGraph: { type: 'website', siteName: 'Mensah Rentals', url: '/' },
+  openGraph: { type: 'website', siteName: 'Mensah Rentals' },
   twitter: { card: 'summary' },
   robots: indexingEnabled()
     ? { index: true, follow: true }

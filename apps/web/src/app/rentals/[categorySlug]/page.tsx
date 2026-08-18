@@ -8,6 +8,7 @@ import { ProductCard } from '@/components/product-card';
 import {
   catalogueApiQuery,
   catalogueHref,
+  hasCatalogueQueryParameters,
   parseCatalogueQuery,
 } from '@/lib/catalogue-query';
 import {
@@ -16,7 +17,8 @@ import {
   listProducts,
   PublicCatalogueNotFound,
 } from '@/lib/public-catalogue';
-import { siteOrigin } from '@/lib/site-config';
+import { publicPageRobots, siteOrigin } from '@/lib/site-config';
+import { serializeJsonLd } from '@/lib/structured-data';
 
 export const dynamic = 'force-dynamic';
 type Params = Record<string, string | string[] | undefined>;
@@ -38,28 +40,31 @@ export async function generateMetadata({
   searchParams: Promise<Params>;
 }): Promise<Metadata> {
   const { categorySlug } = await params;
-  const [category, state] = await Promise.all([
+  const [category, rawSearchParams] = await Promise.all([
     categoryOr404(categorySlug),
-    searchParams.then(parseCatalogueQuery),
+    searchParams,
   ]);
-  const filtered =
-    state.featured || Boolean(state.search) || state.sort !== 'featured';
+  const variant = hasCatalogueQueryParameters(rawSearchParams);
   const base = `/rentals/${category.slug}`;
-  const canonical =
-    !filtered && state.page > 1 ? `${base}?page=${state.page}` : base;
+  const canonical = base;
+  const description =
+    category.description ??
+    `Browse ${category.name.toLowerCase()} equipment available to request from Mensah Rentals.`;
   return {
     title: `${category.name} Rentals`,
-    description:
-      category.description ??
-      `Browse ${category.name.toLowerCase()} equipment from Mensah Rentals.`,
+    description,
     alternates: { canonical },
     openGraph: {
       title: `${category.name} Rentals | Mensah Rentals`,
-      description:
-        category.description ?? `Browse ${category.name} rental equipment.`,
+      description,
       url: canonical,
     },
-    robots: filtered ? { index: false, follow: true } : undefined,
+    twitter: {
+      card: 'summary',
+      title: `${category.name} Rentals | Mensah Rentals`,
+      description,
+    },
+    robots: publicPageRobots(!variant),
   };
 }
 
@@ -93,9 +98,7 @@ export default async function CategoryPage({
       <Breadcrumbs items={crumbs} />
       <script
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(
-            breadcrumbJsonLd(crumbs, siteOrigin()),
-          ).replace(/</g, '\\u003c'),
+          __html: serializeJsonLd(breadcrumbJsonLd(crumbs, siteOrigin())),
         }}
         type="application/ld+json"
       />

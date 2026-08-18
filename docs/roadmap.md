@@ -1,5 +1,7 @@
 # Development Roadmap
 
+- Phase 18.4 implements the full public SEO and indexability hardening pass: authoritative production-origin output, unique active-catalogue metadata audit, truthful Product/Organization/WebSite/Breadcrumb structured data, active-only sitemap, private noindex/header defense, 404 checks, hero LCP restraint, and guarded browser coverage. Phase 19 has not started.
+
 - Phase 18.3 completes staff-facing inventory metadata editing, audited bulk acquisition and retirement, discoverable serialized-asset creation, lifecycle-aware safe deletion, archive/restore, custom confirmation dialogs, and guarded browser coverage. It preserves Phase 18.2 shortfall/external coverage and Phase 18.1 official PDFs. Phase 19 has not started.
 
 - Focused reservation correction implemented: truthful partial/zero internal reservations, durable shortfall coverage, and source-safe fulfilment/returns. This does not begin Phase 19.

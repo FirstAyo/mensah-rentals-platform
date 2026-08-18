@@ -1,5 +1,7 @@
 # Mensah Rentals Platform
 
+Phase 18.4 hardens public SEO around the authoritative `https://mensahrentals.com` origin, unique catalogue metadata, truthful structured data, active-only sitemap generation, private-route index protection, and guarded SEO browser tests. See [Public SEO and indexability](docs/seo.md).
+
 Phase 18.3 inventory administration is documented in [Inventory management](docs/inventory-management.md). Physical quantities remain ledger/state driven: staff add or retire stock through audited commands, never by directly editing a total.
 
 Phase 18.3.1 makes lifecycle management and saved internal notes discoverable and adds consistent, accessible Admin mutation feedback. See [Admin notifications](docs/admin-notifications.md).

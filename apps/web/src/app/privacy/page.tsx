@@ -1,10 +1,24 @@
 import type { Metadata } from 'next';
+import { publicPageRobots } from '@/lib/site-config';
 
 export const metadata: Metadata = {
   title: 'Privacy policy',
   description:
     'How Mensah Rentals handles information on its website, including Google Maps review content.',
   alternates: { canonical: '/privacy' },
+  openGraph: {
+    title: 'Privacy policy | Mensah Rentals',
+    description:
+      'How Mensah Rentals handles information on its website and private rental-request workflows.',
+    url: '/privacy',
+  },
+  twitter: {
+    card: 'summary',
+    title: 'Privacy policy | Mensah Rentals',
+    description:
+      'How Mensah Rentals handles information on its website and private rental-request workflows.',
+  },
+  robots: publicPageRobots(),
 };
 
 export default function PrivacyPage() {

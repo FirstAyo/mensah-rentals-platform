@@ -7,7 +7,7 @@ import { ProductCard } from '@/components/product-card';
 import { ProductGallery } from '@/components/product-gallery';
 import { getProduct, PublicCatalogueNotFound } from '@/lib/public-catalogue';
 import { siteOrigin } from '@/lib/site-config';
-import { productJsonLd } from '@/lib/structured-data';
+import { productJsonLd, serializeJsonLd } from '@/lib/structured-data';
 import { AddToCartForm } from '@/components/add-to-cart-form';
 
 export const dynamic = 'force-dynamic';
@@ -34,20 +34,22 @@ export async function generateMetadata({
   const images = image?.url.startsWith('/media/products/')
     ? [{ url: image.url, alt: image.altText }]
     : undefined;
+  const title = `${product.name} Rental – ${product.category.name}`;
+  const description = `Explore ${product.name} in our ${product.category.name} rental catalogue. ${product.shortDescription}`;
   return {
-    title: product.name,
-    description: product.shortDescription,
+    title,
+    description,
     alternates: { canonical: path },
     openGraph: {
-      title: `${product.name} | Mensah Rentals`,
-      description: product.shortDescription,
+      title: `${title} | Mensah Rentals`,
+      description,
       images,
       url: path,
     },
     twitter: {
       card: images ? 'summary_large_image' : 'summary',
-      title: product.name,
-      description: product.shortDescription,
+      title: `${title} | Mensah Rentals`,
+      description,
       images: images?.map((item) => item.url),
     },
   };
@@ -73,19 +75,13 @@ export default async function ProductPage({
       <Breadcrumbs items={crumbs} />
       <script
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(breadcrumbJsonLd(crumbs, origin)).replace(
-            /</g,
-            '\\u003c',
-          ),
+          __html: serializeJsonLd(breadcrumbJsonLd(crumbs, origin)),
         }}
         type="application/ld+json"
       />
       <script
         dangerouslySetInnerHTML={{
-          __html: JSON.stringify(productJsonLd(product, origin)).replace(
-            /</g,
-            '\\u003c',
-          ),
+          __html: serializeJsonLd(productJsonLd(product, origin)),
         }}
         type="application/ld+json"
       />

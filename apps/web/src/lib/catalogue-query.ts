@@ -18,6 +18,10 @@ export interface CatalogueQueryState {
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
+export function hasCatalogueQueryParameters(params: SearchParams): boolean {
+  return Object.keys(params).length > 0;
+}
+
 function first(value: string | string[] | undefined): string | undefined {
   return Array.isArray(value) ? value[0] : value;
 }

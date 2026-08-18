@@ -22,6 +22,12 @@ import {
 } from '@/components/homepage-google-reviews';
 import { ProductCard } from '@/components/product-card';
 import { getPublicHomepage } from '@/lib/public-homepage';
+import { publicPageRobots, siteOrigin } from '@/lib/site-config';
+import {
+  organizationJsonLd,
+  serializeJsonLd,
+  websiteJsonLd,
+} from '@/lib/structured-data';
 
 export const dynamic = 'force-dynamic';
 
@@ -45,9 +51,28 @@ export async function generateMetadata(): Promise<Metadata> {
         description: content.seo.description,
         images: social ? [social] : undefined,
       },
+      robots: publicPageRobots(),
     };
   } catch {
-    return { title: 'Mensah Rentals', alternates: { canonical: '/' } };
+    const description =
+      'Browse equipment for events, productions, and projects, then submit a rental request for a custom quote from Mensah Rentals.';
+    return {
+      title: { absolute: 'Mensah Rentals | Equipment Rental Requests' },
+      description,
+      alternates: { canonical: '/' },
+      openGraph: {
+        title: 'Mensah Rentals | Equipment Rental Requests',
+        description,
+        type: 'website',
+        url: '/',
+      },
+      twitter: {
+        card: 'summary',
+        title: 'Mensah Rentals | Equipment Rental Requests',
+        description,
+      },
+      robots: publicPageRobots(),
+    };
   }
 }
 
@@ -71,6 +96,18 @@ export default async function HomePage() {
     await getPublicHomepage();
   return (
     <>
+      <script
+        dangerouslySetInnerHTML={{
+          __html: serializeJsonLd(organizationJsonLd(siteOrigin())),
+        }}
+        type="application/ld+json"
+      />
+      <script
+        dangerouslySetInnerHTML={{
+          __html: serializeJsonLd(websiteJsonLd(siteOrigin())),
+        }}
+        type="application/ld+json"
+      />
       <HomepageHero hero={content.hero} />
       <ul
         aria-label="Rental reassurance"

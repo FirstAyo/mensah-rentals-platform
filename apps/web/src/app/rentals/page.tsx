@@ -7,9 +7,11 @@ import { ProductCard } from '@/components/product-card';
 import {
   catalogueApiQuery,
   catalogueHref,
+  hasCatalogueQueryParameters,
   parseCatalogueQuery,
 } from '@/lib/catalogue-query';
 import { listCategories, listProducts } from '@/lib/public-catalogue';
+import { publicPageRobots } from '@/lib/site-config';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,23 +22,27 @@ export async function generateMetadata({
 }: {
   searchParams: Promise<Params>;
 }): Promise<Metadata> {
-  const state = parseCatalogueQuery(await searchParams);
-  const filtered =
-    state.featured || Boolean(state.search) || state.sort !== 'featured';
-  const canonical =
-    !filtered && state.page > 1 ? `/rentals?page=${state.page}` : '/rentals';
+  const rawSearchParams = await searchParams;
+  const variant = hasCatalogueQueryParameters(rawSearchParams);
+  const canonical = '/rentals';
   return {
     title: 'Equipment Rentals',
     description:
       'Browse equipment available to request from Mensah Rentals for events, productions, and projects.',
     alternates: { canonical },
     openGraph: {
-      title: 'Equipment Rentals | Mensah Rentals',
+      title: 'Equipment for Events, Productions, and Projects | Mensah Rentals',
       description:
         'Browse equipment and prepare a rental request for a custom quote.',
       url: canonical,
     },
-    robots: filtered ? { index: false, follow: true } : undefined,
+    twitter: {
+      card: 'summary',
+      title: 'Equipment for Events, Productions, and Projects | Mensah Rentals',
+      description:
+        'Browse equipment and prepare a rental request for a custom quote.',
+    },
+    robots: publicPageRobots(!variant),
   };
 }
 

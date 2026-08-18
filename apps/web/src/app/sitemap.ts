@@ -23,8 +23,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     allPages((page) => listCategories(`?page=${page}&pageSize=100`)),
     allPages((page) => listProducts(`?page=${page}&pageSize=100`)),
   ]);
-  return [
-    { url: origin },
+  const entries: MetadataRoute.Sitemap = [
+    { url: `${origin}/` },
     { url: `${origin}/rentals` },
     { url: `${origin}/privacy` },
     { url: `${origin}/terms` },
@@ -35,4 +35,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       url: `${origin}/rentals/${product.category.slug}/${product.slug}`,
     })),
   ];
+  return entries.filter(
+    (entry, index) =>
+      entries.findIndex((candidate) => candidate.url === entry.url) === index,
+  );
 }

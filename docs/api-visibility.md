@@ -1,5 +1,11 @@
 # API Data Visibility
 
+## Phase 18.4 search visibility
+
+SEO metadata and JSON-LD use the same explicit customer-safe homepage and catalogue projections as visible pages. They may include public names, descriptions, category identity, managed public media, and slugs. They must recursively exclude inventory/availability, reservations and shortfalls, internal pricing, staff/RBAC, maintenance, serial/asset identifiers, database-only IDs, tokens, capabilities, and session data.
+
+Sitemap reads active public endpoints only. API routes never enter the sitemap. Private web proxy and document responses retain authorization, `private,no-store`, and `X-Robots-Tag` protection; SEO is not used as an access-control mechanism.
+
 ## Phase 18.3 inventory-management visibility
 
 Inventory metadata, lifecycle state, physical totals, reservations, stock acquisitions/reductions, archive reasons, serialized identifiers, transaction history, and audit evidence are administrative data. They are available only through authenticated `/admin/inventory` routes with exact inventory permissions and private/no-store responses. Public catalogue, customer order, tracking, quote, and official PDF mappers remain explicit allowlists and expose none of these fields. There is no public inventory-management endpoint.

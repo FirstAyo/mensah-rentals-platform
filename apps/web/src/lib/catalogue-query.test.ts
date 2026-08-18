@@ -2,10 +2,19 @@ import { describe, expect, it } from 'vitest';
 import {
   catalogueApiQuery,
   catalogueHref,
+  hasCatalogueQueryParameters,
   parseCatalogueQuery,
 } from './catalogue-query';
 
 describe('public catalogue query state', () => {
+  it('treats every non-empty raw query as an SEO variant', () => {
+    expect(hasCatalogueQueryParameters({})).toBe(false);
+    expect(hasCatalogueQueryParameters({ view: 'grid' })).toBe(true);
+    expect(hasCatalogueQueryParameters({ filter: 'unknown' })).toBe(true);
+    expect(hasCatalogueQueryParameters({ page: 'abc' })).toBe(true);
+    expect(hasCatalogueQueryParameters({ sort: 'bogus' })).toBe(true);
+  });
+
   it('normalizes invalid public query values safely', () => {
     expect(
       parseCatalogueQuery({

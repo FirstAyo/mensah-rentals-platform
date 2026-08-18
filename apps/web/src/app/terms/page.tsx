@@ -1,10 +1,24 @@
 import type { Metadata } from 'next';
+import { publicPageRobots } from '@/lib/site-config';
 
 export const metadata: Metadata = {
   title: 'Terms of use',
   description:
     'Website terms for the Mensah Rentals rental-request platform and Google Maps content.',
   alternates: { canonical: '/terms' },
+  openGraph: {
+    title: 'Terms of use | Mensah Rentals',
+    description:
+      'Website terms for the Mensah Rentals rental-request platform and third-party content.',
+    url: '/terms',
+  },
+  twitter: {
+    card: 'summary',
+    title: 'Terms of use | Mensah Rentals',
+    description:
+      'Website terms for the Mensah Rentals rental-request platform and third-party content.',
+  },
+  robots: publicPageRobots(),
 };
 
 export default function TermsPage() {

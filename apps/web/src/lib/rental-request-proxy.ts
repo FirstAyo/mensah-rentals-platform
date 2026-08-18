@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { rentalRequestReferenceSchema } from '@mensah-rentals/validation';
 
 import { rentalRequestConfig } from './rental-request-config';
+import { PRIVATE_RESPONSE_HEADERS } from './private-response';
 import {
   assertRentalRequestCatalogueResponse,
   assertRentalRequestResponse,
@@ -69,13 +70,13 @@ export async function proxyRentalRequest(
   if (!upstreamPath)
     return Response.json(
       { message: 'Rental request route not found' },
-      { status: 404 },
+      { status: 404, headers: PRIVATE_RESPONSE_HEADERS },
     );
   if (request.method === 'POST') {
     if (request.headers.get('origin') !== config.webOrigin)
       return Response.json(
         { message: 'Request origin is not allowed' },
-        { status: 403 },
+        { status: 403, headers: PRIVATE_RESPONSE_HEADERS },
       );
     if (
       request.headers
@@ -86,7 +87,7 @@ export async function proxyRentalRequest(
     )
       return Response.json(
         { message: 'JSON requests are required' },
-        { status: 415 },
+        { status: 415, headers: PRIVATE_RESPONSE_HEADERS },
       );
     const declaredLength = request.headers.get('content-length');
     if (
@@ -95,7 +96,7 @@ export async function proxyRentalRequest(
     )
       return Response.json(
         { message: 'Rental request is too large' },
-        { status: 413 },
+        { status: 413, headers: PRIVATE_RESPONSE_HEADERS },
       );
   }
 
@@ -114,7 +115,7 @@ export async function proxyRentalRequest(
     if (new TextEncoder().encode(body).byteLength > 32 * 1024)
       return Response.json(
         { message: 'Rental request is too large' },
-        { status: 413 },
+        { status: 413, headers: PRIVATE_RESPONSE_HEADERS },
       );
   }
 
@@ -150,7 +151,7 @@ export async function proxyRentalRequest(
       } catch {
         return Response.json(
           { message: 'Rental request service returned an unsafe response' },
-          { status: 502, headers: { 'Cache-Control': 'private, no-store' } },
+          { status: 502, headers: PRIVATE_RESPONSE_HEADERS },
         );
       }
     }
@@ -159,9 +160,7 @@ export async function proxyRentalRequest(
       : { message: safeRentalRequestError(upstream.status) };
     const response = NextResponse.json(browserBody, {
       status: upstream.status,
-      headers: {
-        'Cache-Control': 'private, no-store',
-      },
+      headers: PRIVATE_RESPONSE_HEADERS,
     });
     const nextToken = upstream.headers.get(REQUEST_TOKEN_HEADER);
     if (nextToken && /^[A-Za-z0-9_-]{43}$/.test(nextToken))
@@ -184,7 +183,7 @@ export async function proxyRentalRequest(
   } catch {
     return Response.json(
       { message: 'Rental request service is unavailable' },
-      { status: 503, headers: { 'Cache-Control': 'private, no-store' } },
+      { status: 503, headers: PRIVATE_RESPONSE_HEADERS },
     );
   }
 }

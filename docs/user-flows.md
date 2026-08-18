@@ -1,5 +1,11 @@
 # User flows
 
+## Search discovery and private workflow boundary
+
+Search engines may discover the homepage, clean rental catalogue, active category/product pages, and legal pages. Catalogue query variants remain usable to customers but canonicalize to the clean route and are noindex. A product or category that is inactive or tombstoned leaves the sitemap and returns 404 publicly while historical operational records remain intact.
+
+Cart, rental submission, tracking results, amendments, change requests, quotes, confirmed orders, and official documents are transactional/private flows. They are never sitemap entries and use noindex headers/metadata. A public reference number or URL is never elevated into authentication, and capability material never appears in search metadata.
+
 ## Inventory administration
 
 1. An authorized Admin opens one inventory aggregate and selects a tracking-mode-appropriate action.

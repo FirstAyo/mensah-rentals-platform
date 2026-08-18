@@ -25,6 +25,7 @@ export default defineConfig({
           '**/reports.spec.ts',
           '**/inventory-management.spec.ts',
           '**/public-navigation.spec.ts',
+          '**/seo.spec.ts',
         ],
   timeout: 60_000,
   expect: { timeout: 30_000 },

@@ -1,5 +1,27 @@
 # Local Development on Windows
 
+## Phase 18.4 SEO checks
+
+Keep the safe local values in `.env`:
+
+```dotenv
+WEB_ORIGIN=http://localhost:3000
+SITE_URL=http://localhost:3000
+SITE_INDEXING_ENABLED=false
+```
+
+Then open PowerShell in the repository and run:
+
+```powershell
+docker compose up -d postgres postgres-test
+pnpm seo:audit
+pnpm test:e2e:seo
+```
+
+The audit reads active development catalogue metadata but never writes product/category data. The browser command refuses occupied application ports, resets only the guarded database whose name ends in `_test`, creates test-owned catalogue/media fixtures, builds with `SITE_URL=https://mensahrentals.com`, and removes its processes afterward.
+
+Never enable indexing with a localhost or staging `SITE_URL`; the application intentionally rejects that combination. Do not run `db:reset` for SEO work.
+
 ## Phase 18.3 inventory management
 
 Start the normal services and apply committed migrations without resetting development data:
