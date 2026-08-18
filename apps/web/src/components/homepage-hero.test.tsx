@@ -6,6 +6,7 @@ import { HomepageHero } from './homepage-hero';
 
 function hero(
   overlayIntensity: PublicHomepageContent['hero']['overlayIntensity'],
+  slideCount = 1,
 ): PublicHomepageContent['hero'] {
   return {
     eyebrow: 'Professional equipment rentals',
@@ -18,15 +19,13 @@ function hero(
     autoplayEnabled: true,
     intervalMs: 7000,
     overlayIntensity,
-    slides: [
-      {
-        description: 'A bright outdoor equipment scene',
-        focalPoint: 'center',
-        enabled: true,
-        desktopUrl: '/media/hero-desktop.webp',
-        mobileUrl: '/media/hero-mobile.webp',
-      },
-    ],
+    slides: Array.from({ length: slideCount }, (_, index) => ({
+      description: 'A bright outdoor equipment scene',
+      focalPoint: 'center',
+      enabled: true,
+      desktopUrl: `/media/hero-desktop-${index}.webp`,
+      mobileUrl: `/media/hero-mobile-${index}.webp`,
+    })),
   };
 }
 
@@ -62,5 +61,21 @@ describe('HomepageHero overlay', () => {
     expect(html).toContain('lg:from-slate-950/75');
     expect(html).toContain('lg:via-slate-950/50');
     expect(html).toContain('lg:to-slate-950/20');
+  });
+
+  it('reserves mobile space and renders compact, labelled slideshow controls', () => {
+    const html = renderToStaticMarkup(
+      <HomepageHero hero={hero('STRONG', 3)} />,
+    );
+
+    expect(html).toContain('min-h-[34rem]');
+    expect(html).toContain('pb-24');
+    expect(html).toContain('data-hero-controls="true"');
+    expect(html).toContain('aria-label="Previous slide"');
+    expect(html).toContain('aria-label="Next slide"');
+    expect(html).toContain('aria-label="Pause slideshow"');
+    expect(html).toContain('h-10 w-10');
+    expect(html).toContain('h-10 w-9');
+    expect(html).not.toContain('flex-wrap items-center justify-center gap-2');
   });
 });

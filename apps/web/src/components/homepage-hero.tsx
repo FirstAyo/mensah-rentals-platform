@@ -158,7 +158,7 @@ export function HomepageHero({
   return (
     <section
       aria-label="Mensah Rentals introduction"
-      className="relative isolate min-h-[38rem] overflow-hidden border-b border-white/10 bg-slate-950 text-white sm:min-h-[42rem]"
+      className="relative isolate min-h-[34rem] overflow-hidden border-b border-white/10 bg-slate-950 text-white min-[380px]:min-h-[36rem] sm:min-h-[40rem] lg:min-h-[42rem]"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onFocusCapture={() => setFocusWithin(true)}
@@ -212,29 +212,29 @@ export function HomepageHero({
         className={`absolute inset-0 -z-10 ${overlayClasses.gradient}`}
         data-hero-overlay="gradient"
       />
-      <div className="mx-auto flex min-h-[38rem] max-w-[1760px] items-center px-4 py-20 sm:min-h-[42rem] sm:px-6 lg:px-8">
+      <div className="mx-auto flex min-h-[34rem] max-w-[1760px] items-center px-4 pb-24 pt-12 min-[380px]:min-h-[36rem] sm:min-h-[40rem] sm:px-6 sm:pb-24 sm:pt-20 lg:min-h-[42rem] lg:px-8">
         <div className="max-w-4xl">
           {hero.eyebrow ? (
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-300">
               {hero.eyebrow}
             </p>
           ) : null}
-          <h1 className="mt-5 text-4xl font-bold tracking-[-0.04em] sm:text-6xl lg:text-7xl lg:leading-[1.02]">
+          <h1 className="mt-4 text-4xl font-bold leading-[1.08] tracking-[-0.04em] sm:mt-5 sm:text-6xl lg:text-7xl lg:leading-[1.02]">
             {hero.heading}
           </h1>
-          <p className="mt-6 max-w-2xl text-lg leading-8 text-slate-200 sm:text-xl">
+          <p className="mt-4 max-w-2xl text-base leading-7 text-slate-200 sm:mt-6 sm:text-xl sm:leading-8">
             {hero.description}
           </p>
-          <div className="mt-8 flex flex-col gap-3 min-[380px]:flex-row min-[380px]:flex-wrap">
+          <div className="mt-6 flex flex-col gap-2.5 sm:mt-8 sm:flex-row sm:flex-wrap sm:gap-3">
             <Link
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-amber-400 px-5 font-semibold text-slate-950 outline-none hover:bg-amber-300 focus-visible:ring-2 focus-visible:ring-white"
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-amber-400 px-4 font-semibold text-slate-950 outline-none hover:bg-amber-300 focus-visible:ring-2 focus-visible:ring-white sm:min-h-12 sm:w-auto sm:px-5"
               href={hero.primaryHref}
             >
               {hero.primaryLabel}
               <ArrowRight aria-hidden="true" className="h-4 w-4" />
             </Link>
             <Link
-              className="inline-flex min-h-12 items-center justify-center rounded-lg border border-white/35 bg-white/10 px-5 font-semibold outline-none backdrop-blur hover:bg-white/20 focus-visible:ring-2 focus-visible:ring-white"
+              className="inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-white/35 bg-white/10 px-4 font-semibold outline-none backdrop-blur hover:bg-white/20 focus-visible:ring-2 focus-visible:ring-white sm:min-h-12 sm:w-auto sm:px-5"
               href={hero.secondaryHref}
             >
               {hero.secondaryLabel}
@@ -243,22 +243,15 @@ export function HomepageHero({
         </div>
       </div>
       {slides.length > 1 ? (
-        <div className="absolute bottom-5 left-1/2 flex max-w-[calc(100%-2rem)] -translate-x-1/2 flex-wrap items-center justify-center gap-2 rounded-full border border-white/20 bg-slate-950/70 p-2 backdrop-blur">
+        <div
+          aria-label="Slideshow controls"
+          className="absolute bottom-4 left-1/2 flex max-w-[calc(100%-2rem)] -translate-x-1/2 items-center justify-center gap-0.5 rounded-2xl border border-white/20 bg-slate-950/55 p-1 shadow-lg backdrop-blur-md sm:bottom-5 sm:gap-1 sm:p-1.5"
+          data-hero-controls="true"
+          role="group"
+        >
           <button
-            aria-label={paused ? 'Play hero images' : 'Pause hero images'}
-            className="grid h-11 w-11 place-items-center rounded-full hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white"
-            onClick={() => setPaused((value) => !value)}
-            type="button"
-          >
-            {paused ? (
-              <Play className="h-4 w-4" />
-            ) : (
-              <Pause className="h-4 w-4" />
-            )}
-          </button>
-          <button
-            aria-label="Previous hero image"
-            className="grid h-11 w-11 place-items-center rounded-full hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white disabled:cursor-wait disabled:opacity-50"
+            aria-label="Previous slide"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white disabled:cursor-wait disabled:opacity-50 sm:h-11 sm:w-11"
             disabled={
               !loadedSlides.has((index - 1 + slides.length) % slides.length)
             }
@@ -273,7 +266,7 @@ export function HomepageHero({
             <button
               aria-current={slideIndex === index ? 'true' : undefined}
               aria-label={`Show hero image ${slideIndex + 1} of ${slides.length}`}
-              className="grid h-11 w-11 place-items-center rounded-full focus-visible:ring-2 focus-visible:ring-white disabled:cursor-wait disabled:opacity-50"
+              className="grid h-10 w-9 shrink-0 place-items-center rounded-lg focus-visible:ring-2 focus-visible:ring-white disabled:cursor-wait disabled:opacity-50 sm:h-11 sm:w-10"
               disabled={!loadedSlides.has(slideIndex)}
               key={slideIndex}
               onClick={() => showSlide(slideIndex)}
@@ -281,18 +274,30 @@ export function HomepageHero({
             >
               <span
                 aria-hidden="true"
-                className={`h-3 w-3 rounded-full border border-white ${slideIndex === index ? 'bg-white' : 'bg-transparent'}`}
+                className={`h-2 rounded-full border border-white transition-[width,background-color] ${slideIndex === index ? 'w-5 bg-white' : 'w-2 bg-transparent'}`}
               />
             </button>
           ))}
           <button
-            aria-label="Next hero image"
-            className="grid h-11 w-11 place-items-center rounded-full hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white disabled:cursor-wait disabled:opacity-50"
+            aria-label="Next slide"
+            className="grid h-10 w-10 shrink-0 place-items-center rounded-xl hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white disabled:cursor-wait disabled:opacity-50 sm:h-11 sm:w-11"
             disabled={!loadedSlides.has((index + 1) % slides.length)}
             onClick={() => showSlide((index + 1) % slides.length)}
             type="button"
           >
             <ArrowRight className="h-4 w-4" />
+          </button>
+          <button
+            aria-label={paused ? 'Play slideshow' : 'Pause slideshow'}
+            className="ml-0.5 grid h-10 w-10 shrink-0 place-items-center rounded-xl border-l border-white/15 hover:bg-white/10 focus-visible:ring-2 focus-visible:ring-white sm:ml-1 sm:h-11 sm:w-11"
+            onClick={() => setPaused((value) => !value)}
+            type="button"
+          >
+            {paused ? (
+              <Play aria-hidden="true" className="h-4 w-4" />
+            ) : (
+              <Pause aria-hidden="true" className="h-4 w-4" />
+            )}
           </button>
         </div>
       ) : null}

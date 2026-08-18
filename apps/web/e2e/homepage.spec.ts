@@ -119,6 +119,80 @@ async function expectReadableHeroOverlay(page: Page, width: number) {
   await expectNoSeriousAxeViolations(page);
 }
 
+async function expectResponsiveHeroLayout(page: Page, width: number) {
+  const layout = await page.evaluate(() => {
+    const hero = document.querySelector<HTMLElement>(
+      '[aria-label="Mensah Rentals introduction"]',
+    );
+    const controls = document.querySelector<HTMLElement>(
+      '[data-hero-controls="true"]',
+    );
+    const primaryCta = Array.from(document.querySelectorAll('a')).find((link) =>
+      link.textContent?.includes('Browse rental equipment'),
+    );
+    const image = document.querySelector<HTMLImageElement>(
+      '[data-hero-layer="image"] img',
+    );
+    const trust = document.querySelector<HTMLElement>(
+      '[aria-label="Rental reassurance"]',
+    );
+    const bounds = (element: Element | null | undefined) => {
+      if (!element) return null;
+      const box = element.getBoundingClientRect();
+      return {
+        top: box.top,
+        right: box.right,
+        bottom: box.bottom,
+        left: box.left,
+        width: box.width,
+        height: box.height,
+      };
+    };
+    return {
+      hero: bounds(hero),
+      controls: bounds(controls),
+      primaryCta: bounds(primaryCta),
+      imageFit: image ? getComputedStyle(image).objectFit : null,
+      imagePosition: image ? getComputedStyle(image).objectPosition : null,
+      trustColumns: trust
+        ? getComputedStyle(trust).gridTemplateColumns.split(' ').filter(Boolean)
+            .length
+        : 0,
+      trustItems: trust
+        ? Array.from(trust.children).map((item) => bounds(item))
+        : [],
+    };
+  });
+
+  expect(layout.hero).not.toBeNull();
+  expect(layout.controls).not.toBeNull();
+  expect(layout.primaryCta).not.toBeNull();
+  expect(layout.hero!.height).toBeGreaterThanOrEqual(540);
+  expect(layout.hero!.height).toBeLessThanOrEqual(680);
+  expect(layout.controls!.left).toBeGreaterThanOrEqual(16);
+  expect(layout.controls!.right).toBeLessThanOrEqual(width - 16);
+  expect(layout.controls!.bottom).toBeLessThanOrEqual(layout.hero!.bottom);
+  expect(layout.primaryCta!.bottom + 12).toBeLessThanOrEqual(
+    layout.controls!.top,
+  );
+  expect(layout.imageFit).toBe('cover');
+  expect(layout.imagePosition).not.toBe('');
+  expect(layout.trustColumns).toBe(width >= 1024 ? 4 : 2);
+  expect(layout.trustItems).toHaveLength(4);
+  expect(
+    layout.trustItems.every(
+      (item) => item && item.height >= 72 && item.height <= 80,
+    ),
+  ).toBe(true);
+
+  if (width < 640) {
+    expect(layout.primaryCta!.left).toBeGreaterThanOrEqual(16);
+    expect(layout.primaryCta!.right).toBeLessThanOrEqual(width - 16);
+    expect(layout.primaryCta!.width).toBeGreaterThanOrEqual(width - 33);
+    expect(layout.controls!.width).toBeLessThanOrEqual(270);
+  }
+}
+
 function assignment(page: Page, label: string) {
   return page
     .getByText(label, { exact: true })
@@ -311,16 +385,16 @@ test('@homepage-admin provides responsive fixed navigation, consistent controls,
   const selectedBefore = await page
     .locator('button[aria-current="true"]')
     .getAttribute('aria-label');
-  await page.getByRole('button', { name: 'Next hero image' }).click();
+  await page.getByRole('button', { name: 'Next slide' }).click();
   expect(
     await page
       .locator('button[aria-current="true"]')
       .getAttribute('aria-label'),
   ).not.toBe(selectedBefore);
-  await page.getByRole('button', { name: 'Previous hero image' }).click();
-  await page.getByRole('button', { name: 'Pause hero images' }).click();
+  await page.getByRole('button', { name: 'Previous slide' }).click();
+  await page.getByRole('button', { name: 'Pause slideshow' }).click();
   await expect(
-    page.getByRole('button', { name: 'Play hero images' }),
+    page.getByRole('button', { name: 'Play slideshow' }),
   ).toBeVisible();
 
   for (const viewport of [
@@ -334,12 +408,13 @@ test('@homepage-admin provides responsive fixed navigation, consistent controls,
   ]) {
     await page.setViewportSize(viewport);
     await expectReadableHeroOverlay(page, viewport.width);
+    await expectResponsiveHeroLayout(page, viewport.width);
   }
 
   await page.evaluate(() => localStorage.setItem('theme', 'dark'));
   await page.reload();
   await expect(page.locator('html')).toHaveClass(/dark/);
-  await page.getByRole('button', { name: 'Pause hero images' }).click();
+  await page.getByRole('button', { name: 'Pause slideshow' }).click();
   for (const viewport of [
     { width: 1440, height: 900 },
     { width: 1024, height: 900 },
@@ -351,6 +426,7 @@ test('@homepage-admin provides responsive fixed navigation, consistent controls,
   ]) {
     await page.setViewportSize(viewport);
     await expectReadableHeroOverlay(page, viewport.width);
+    await expectResponsiveHeroLayout(page, viewport.width);
   }
 
   await page.setViewportSize({ width: 320, height: 720 });
@@ -364,14 +440,14 @@ test('@homepage-admin provides responsive fixed navigation, consistent controls,
     );
   expect(indicatorTargets).toHaveLength(3);
   expect(
-    indicatorTargets.every(({ width, height }) => width >= 44 && height >= 44),
+    indicatorTargets.every(({ width, height }) => width >= 36 && height >= 40),
   ).toBe(true);
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth + 1,
     ),
   ).toBe(true);
-  await page.getByRole('button', { name: 'Play hero images' }).click();
+  await page.getByRole('button', { name: 'Play slideshow' }).click();
   await page.emulateMedia({ reducedMotion: 'reduce' });
   const reducedMotionBefore = await page
     .locator('button[aria-current="true"]')
@@ -381,7 +457,7 @@ test('@homepage-admin provides responsive fixed navigation, consistent controls,
     'aria-label',
     reducedMotionBefore!,
   );
-  await page.getByRole('button', { name: 'Next hero image' }).click();
+  await page.getByRole('button', { name: 'Next slide' }).click();
   expect(
     await page
       .locator('button[aria-current="true"]')

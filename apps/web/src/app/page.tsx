@@ -72,14 +72,17 @@ export default async function HomePage() {
   return (
     <>
       <HomepageHero hero={content.hero} />
-      <ul className="grid border-b border-border bg-card sm:grid-cols-2 lg:grid-cols-4">
+      <ul
+        aria-label="Rental reassurance"
+        className="grid grid-cols-2 gap-px border-b border-border bg-border lg:grid-cols-4"
+      >
         {content.trustItems
           .filter((item) => item.enabled)
           .map((item) => {
             const Icon = icons[item.icon];
             return (
               <li
-                className="flex min-h-20 items-center justify-center gap-2 border-border px-4 py-4 text-center text-sm font-medium sm:border-r"
+                className="flex min-h-[4.5rem] items-center justify-center gap-2 bg-card px-3 py-3 text-center text-sm font-medium leading-5 sm:min-h-20 sm:px-4 sm:py-4"
                 key={item.label}
               >
                 <Icon
