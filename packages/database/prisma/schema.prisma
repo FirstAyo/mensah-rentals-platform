@@ -443,6 +443,20 @@ enum HomepageActivityType {
   MEDIA_REMOVED
 }
 
+enum ContactEnquiryType {
+  GENERAL
+  RENTAL_PROJECT
+  DELIVERY_PICKUP
+  EXISTING_REQUEST
+  OTHER
+}
+
+enum ContactEnquiryStatus {
+  NEW
+  READ
+  RESOLVED
+}
+
 model User {
   id                               String                          @id @default(cuid())
   email                            String                          @unique
@@ -505,6 +519,7 @@ model User {
   categoryCoversUpdated            CategoryCover[]                 @relation("CategoryCoverUpdater")
   platformAuditEvents              PlatformAuditEvent[]            @relation("PlatformAuditEventActor")
   platformFeatureSettingsUpdated   PlatformFeatureSetting[]         @relation("PlatformFeatureSettingUpdater")
+  contactEnquiriesUpdated          ContactEnquiry[]                  @relation("ContactEnquiryStatusUpdater")
 }
 
 model StaffSession {
@@ -556,6 +571,29 @@ model PlatformFeatureSetting {
 
   @@index([state, key])
   @@index([updatedByUserId, updatedAt])
+}
+
+model ContactEnquiry {
+  id                    String               @id @default(cuid())
+  referenceNumber       String               @unique @db.VarChar(32)
+  name                  String               @db.VarChar(160)
+  email                 String               @db.VarChar(254)
+  phone                 String?              @db.VarChar(40)
+  company               String?              @db.VarChar(160)
+  enquiryType           ContactEnquiryType
+  message               String               @db.Text
+  status                ContactEnquiryStatus @default(NEW)
+  operationId           String               @unique @db.Uuid
+  payloadHash           String               @db.Char(64)
+  statusUpdatedByUserId String?
+  createdAt             DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime             @updatedAt @db.Timestamptz(3)
+  statusUpdatedBy       User?                @relation("ContactEnquiryStatusUpdater", fields: [statusUpdatedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([status, createdAt, id])
+  @@index([createdAt, id])
+  @@index([email, createdAt])
+  @@index([statusUpdatedByUserId, updatedAt])
 }
 
 model Role {

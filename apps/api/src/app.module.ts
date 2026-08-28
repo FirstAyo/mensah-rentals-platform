@@ -23,6 +23,7 @@ import { MaintenanceModule } from './maintenance/maintenance.module';
 import { ReportingModule } from './reporting/reporting.module';
 import { AuditModule } from './audit/audit.module';
 import { SystemStatusModule } from './system/system-status.module';
+import { ContactEnquiryModule } from './contact-enquiries/contact-enquiry.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { SystemStatusModule } from './system/system-status.module';
     ReportingModule,
     AuditModule,
     SystemStatusModule,
+    ContactEnquiryModule,
   ],
   controllers: [HealthController],
   providers: [DatabaseService, HealthService],

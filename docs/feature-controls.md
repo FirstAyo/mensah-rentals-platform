@@ -1,5 +1,9 @@
 # Feature controls and progressive rollout
 
+## Core company pages
+
+Homepage, Rentals catalogue, About, Contact, Privacy, Terms, sitemap, and robots are core public-web capabilities and are not toggleable. Contact enquiries remain available so visitors have a truthful fallback when rental requests are Disabled or production-hidden in Testing. About and global navigation do not render a broken request CTA: the catalogue remains available and About explains temporary request unavailability when applicable.
+
 Phase 18.5 adds durable global controls for optional rental-operation modules. Controls change runtime availability only: they never delete or rewrite business records, capabilities, snapshots, media, inventory, or audit history.
 
 ## States

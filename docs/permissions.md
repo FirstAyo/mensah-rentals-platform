@@ -1,5 +1,12 @@
 # Permissions and Roles
 
+## Phase 18.6 contact enquiries
+
+- `contact_enquiry.view` permits the protected list/detail queue.
+- `contact_enquiry.manage` permits audited status changes.
+
+SUPER_ADMIN has both through its all-permission mapping. ADMIN and SALES_PERSON receive both seeded defaults because enquiries are an operational sales/customer-contact workflow. EDITOR receives neither. Backend session and permission guards remain authoritative.
+
 ## Phase 18.3 inventory administration
 
 Phase 18.3 reuses `inventory.adjust` for inventory metadata updates, bulk acquisition/retirement, serialized-asset creation, archive, restore, and safe permanent deletion. Read access still requires `inventory.view`; confidential quantities additionally require `inventory.quantity.view`, and transaction history requires `inventory.transaction.view`. `SUPER_ADMIN` and `ADMIN` receive adjustment authority. `EDITOR` and `SALES_PERSON` do not. The API guard and a live permission check inside each mutation transaction are authoritative.

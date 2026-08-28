@@ -1,5 +1,13 @@
 # Architecture
 
+## Phase 18.6 public-company and enquiry boundary
+
+About, Contact, Terms, and Privacy are server-rendered core public pages and are not controlled by optional operational feature flags. Their metadata and JSON-LD are constructed from fixed verified facts. The conflicting street-address sources remain unresolved, so neither visible NAP nor structured data selects a street address.
+
+Contact submission crosses a fixed 8 KiB public Web BFF route into a dedicated NestJS module. Both layers enforce exact Origin/content type; shared Zod schemas bound and normalize input. The API applies bounded IP/email and global rate limits, ignores honeypot traffic without persistence, and creates one immutable `ContactEnquiry` per operation/payload. PostgreSQL is the durable acceptance queue. There is deliberately no SMTP/provider integration, Redis dependency, inventory call, rental request, reservation, or automatic customer account.
+
+Admin uses a separate fixed same-origin BFF and `contact_enquiry.view`/`contact_enquiry.manage`. Status updates are audited. Public receipts are explicit allowlists and cannot serialize the Prisma record.
+
 ## Phase 18.4 SEO boundary
 
 The public Next.js application owns rendering and SEO composition; it consumes only explicit public catalogue and published-homepage DTOs. `SITE_URL` is the single SEO-visible origin and is deliberately separate from `WEB_ORIGIN`, API routing, and request headers. Indexing fails closed unless the configured origin is exactly `https://mensahrentals.com`. Metadata, canonical, sitemap, Open Graph, and JSON-LD generation never depend on the incoming Host header.

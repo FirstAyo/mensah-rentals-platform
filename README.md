@@ -1,5 +1,7 @@
 # Mensah Rentals Platform
 
+Phase 18.6 adds truthful, responsive public [About and legal pages](docs/public-company-pages.md) plus a secure database-backed [contact enquiry queue](docs/contact-enquiries.md). Enquiries are stored for authorized Admin review; no outbound email provider is configured and the platform never claims email delivery.
+
 Phase 18.4 hardens public SEO around the authoritative `https://mensahrentals.com` origin, unique catalogue metadata, truthful structured data, active-only sitemap generation, private-route index protection, and guarded SEO browser tests. See [Public SEO and indexability](docs/seo.md).
 
 Phase 18.3 inventory administration is documented in [Inventory management](docs/inventory-management.md). Physical quantities remain ledger/state driven: staff add or retire stock through audited commands, never by directly editing a total.
@@ -138,10 +140,15 @@ Then open:
 
 - Customer website: http://localhost:3000
 - Public rentals: http://localhost:3000/rentals
+- Public About: http://localhost:3000/about
+- Public Contact: http://localhost:3000/contact
+- Public Terms: http://localhost:3000/terms
+- Public Privacy: http://localhost:3000/privacy
 - Guest rental request: http://localhost:3000/rental-request
 - Private request tracking: http://localhost:3000/track-request
 - Admin staff login: http://localhost:3001/login
 - Admin rental-request queue: http://localhost:3001/rental-requests
+- Admin contact enquiries: http://localhost:3001/contact-enquiries
 - Admin quotes: http://localhost:3001/quotes
 - Private customer quote: http://localhost:3000/quote (valid capability required)
 - Admin confirmed orders: http://localhost:3001/orders
@@ -172,6 +179,7 @@ pnpm test:e2e:smoke          # Verify all local services are ready
 pnpm test:e2e:catalogue      # Catalogue browser checks
 pnpm test:e2e:cart           # Guest-cart browser checks
 pnpm test:e2e:public-navigation # Guarded public route, link, BFF, and 404 checks
+pnpm test:e2e:public-company-pages # Company/legal, enquiry, Admin, responsive, theme, and Axe checks
 pnpm test:e2e:requests       # Guest-request browser checks
 pnpm test:e2e:admin          # Admin login/protection browser checks
 pnpm test:e2e:admin-requests # Authenticated Phase 9 review browser checks

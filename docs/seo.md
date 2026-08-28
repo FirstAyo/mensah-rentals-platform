@@ -22,7 +22,7 @@ JSON-LD is constructed from explicit customer-safe DTOs, serialized with `JSON.s
 
 ## Sitemap and robots
 
-`/sitemap.xml` contains only `/`, `/rentals`, `/privacy`, `/terms`, active categories, and active products whose category is also active. Entries are absolute, query-free, canonical, and de-duplicated. Inactive and tombstoned catalogue entries, APIs, Admin, cart/request flows, capabilities, quotes, orders, and customer documents are excluded. `lastModified` is omitted because the public DTO does not currently expose a semantically authoritative publication timestamp; the system never invents freshness.
+`/sitemap.xml` contains only `/`, `/rentals`, `/about`, `/contact`, `/privacy`, `/terms`, active categories, and active products whose category is also active. Entries are absolute, query-free, canonical, and de-duplicated. Inactive and tombstoned catalogue entries, APIs, Admin, cart/request flows, capabilities, quotes, orders, and customer documents are excluded. `lastModified` is omitted because the public DTO does not currently expose a semantically authoritative publication timestamp; the system never invents freshness.
 
 With indexing enabled, `/robots.txt` allows public content, advertises `https://mensahrentals.com/sitemap.xml`, and disallows known operational prefixes. It does not block `/rentals` or public media. With indexing disabled, it disallows all crawling. Robots rules are crawler guidance, never authorization.
 
@@ -41,6 +41,8 @@ Only the initial hero image is eager and high priority. The browser preloads the
 ## Geographic and NAP policy
 
 Regional terms may be used only where published business content supports them; Phase 18.4 does not create thin location pages or mechanically append city names. The official PDF source and current live website show different Richmond addresses. The phone is consistent, but the address conflict must be resolved by the business before adding visible NAP or address-bearing LocalBusiness schema.
+
+Phase 18.6 publishes the verified phone and email plus `Richmond, British Columbia`. Contact structured data uses Organization with telephone, email, and locality only. It deliberately omits the conflicting street/suite/postal details, opening hours, coordinates, and `LocalBusiness` claims.
 
 ## Local audit and browser checks
 

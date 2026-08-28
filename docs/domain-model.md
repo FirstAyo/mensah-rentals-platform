@@ -1,5 +1,11 @@
 # Planned Domain Model
 
+## Phase 18.6 contact enquiry
+
+`ContactEnquiry` is a small independent customer-contact aggregate, not a Rental Request, Quote, Order, Customer Account, or notification-delivery record. It stores one immutable normalized submission plus a mutable `NEW | READ | RESOLVED` staff-review status, the last status actor, operation UUID/payload hash for retry safety, and timestamps. A database trigger prevents submitted identity/content from being rewritten. Status changes create immutable platform audit events.
+
+No contact action reads or mutates inventory, calculates availability, creates a cart/request/reservation, or confirms commercial terms. A future email-delivery outbox must remain a separate aggregate with its own attempts and outcomes.
+
 ## Phase 18.3 inventory lifecycle
 
 `Inventory` remains the one operational aggregate for a product and carries only safe operational metadata and lifecycle state in addition to its immutable identity/tracking boundary. `InventoryTransaction` remains the append-only source of bulk state balances; purchase/acquisition and ownership-reduction operations are explicit ledger entries rather than total edits. `InventoryItem` remains the exact identity and state projection for serialized equipment. Archive is reversible retention, not deletion; permanent deletion is limited to an unused zero-stock aggregate with no domain references. `PlatformAuditEvent` retains a safe snapshot for every sensitive action, including a deletion event that cannot depend on the deleted row. See [Inventory management](inventory-management.md).

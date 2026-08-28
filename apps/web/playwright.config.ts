@@ -27,6 +27,7 @@ export default defineConfig({
           '**/feature-settings.spec.ts',
           '**/public-navigation.spec.ts',
           '**/seo.spec.ts',
+          '**/public-company-pages.spec.ts',
         ],
   timeout: 60_000,
   expect: { timeout: 30_000 },

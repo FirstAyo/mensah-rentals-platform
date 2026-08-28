@@ -89,7 +89,10 @@ test('@public-navigation follows desktop links, catalogue, cart, request, and fo
   await page.getByRole('link', { name: 'Browse rental equipment' }).click();
   await expect(page).toHaveURL(/\/rentals$/);
   await page.getByRole('link', { name: 'Mensah Rentals' }).first().click();
-  const categoryLink = page.locator('main a[href^="/rentals/"]').first();
+  const categoryLink = page
+    .locator('main a[href^="/rentals/"]')
+    .filter({ has: page.getByText(/^Category \d+$/) })
+    .first();
   await categoryLink.click();
   await expect(page).toHaveURL(/\/rentals\/[^/?#]+$/);
   const productLink = page.locator('article a[href^="/rentals/"]').first();
@@ -115,19 +118,19 @@ test('@public-navigation follows desktop links, catalogue, cart, request, and fo
   );
 
   await page
-    .getByRole('navigation', { name: 'Primary navigation' })
+    .getByRole('navigation', { name: 'Company links' })
     .getByRole('link', { name: 'Track request' })
     .click();
   await expect(page).toHaveURL(/\/track-request$/);
   await expect(page.getByLabel('Request reference')).toBeVisible();
 
   await page
-    .getByRole('navigation', { name: 'Footer navigation' })
+    .getByRole('navigation', { name: 'Legal links' })
     .getByRole('link', { name: 'Privacy' })
     .click();
   await expect(page).toHaveURL(/\/privacy$/);
   await page
-    .getByRole('navigation', { name: 'Footer navigation' })
+    .getByRole('navigation', { name: 'Legal links' })
     .getByRole('link', { name: 'Terms' })
     .click();
   await expect(page).toHaveURL(/\/terms$/);
@@ -137,8 +140,8 @@ test('@public-navigation follows desktop links, catalogue, cart, request, and fo
   await expect(page).toHaveURL(/\/terms$/);
 
   await page
-    .getByRole('navigation', { name: 'Footer navigation' })
-    .getByRole('link', { name: 'Rental catalogue' })
+    .getByRole('navigation', { name: 'Company links' })
+    .getByRole('link', { name: 'Rentals' })
     .click();
   await expect(page).toHaveURL(/\/rentals$/);
 
@@ -178,14 +181,18 @@ test('@public-navigation remains usable at 320px in dark mode and preserves genu
   await page.goto('/');
   await page.getByRole('button', { name: /switch to dark theme/i }).click();
   await expect(page.locator('html')).toHaveClass(/dark/);
-  await page.getByRole('link', { name: 'Open rental catalogue' }).click();
+  await page.getByLabel('Open navigation menu').click();
+  await page
+    .getByRole('navigation', { name: 'Mobile navigation' })
+    .getByRole('link', { name: 'Rentals' })
+    .click();
   await expect(page).toHaveURL(/\/rentals$/);
   await expectNoOverflowOrSeriousAxe(page);
   await page.reload();
   await expect(page.locator('html')).toHaveClass(/dark/);
 
   await page
-    .getByRole('navigation', { name: 'Footer navigation' })
+    .getByRole('navigation', { name: 'Company links' })
     .getByRole('link', { name: 'Track request' })
     .click();
   await expect(page).toHaveURL(/\/track-request$/);

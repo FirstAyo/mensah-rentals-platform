@@ -1,5 +1,48 @@
 # Testing Guide
 
+## Phase 18.6 public company and contact tests
+
+Start Docker Desktop, then run the complete gates from the repository root:
+
+```powershell
+docker compose up -d postgres postgres-test
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm seo:audit
+pnpm db:integrity
+git diff --check
+```
+
+Run the guarded browser suites only when ports 3000, 3001, and 4000 are free:
+
+```powershell
+pnpm test:e2e:public-company-pages
+pnpm test:e2e:seo
+pnpm test:e2e:homepage-all
+pnpm test:e2e:public-navigation
+```
+
+The focused command resets only the database whose name ends in `_test`, applies all migrations from empty, creates test-owned fixtures, builds and starts all three applications, checks 320/375/390/430/768/1024/1440 layouts, dark-theme persistence, serious/critical Axe findings, contact submission and honeypot behavior, Admin status review, legal text, metadata, and sitemap contents, then stops its processes. It must never target development, staging, or production.
+
+Successful manual behavior:
+
+1. About, Contact, Privacy, and Terms each show one meaningful H1 and no horizontal overflow.
+2. Contact shows `(604) 644-5265`, `info@mensahrentals.com`, and `Richmond, British Columbia`, but neither disputed street address.
+3. One valid form submission disables double-submit while pending and returns one enquiry reference.
+4. The Admin queue contains that exact stored message only for authorized staff; status changes persist and are audited.
+5. The public receipt recursively contains no staff, RBAC, authentication, capability, inventory, reservation, maintenance, operation, or payload data.
+6. Terms renders all eight controlled official clauses and the official acknowledgement. Privacy describes the current platform without claiming analytics, advertising, email delivery, or a fixed retention period.
+7. Sitemap contains the four canonical company/legal pages and no Admin/private/API routes.
+
 ## Phase 18.4 SEO tests
 
 Start Docker Desktop, then run:

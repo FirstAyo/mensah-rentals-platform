@@ -1,5 +1,13 @@
 # User flows
 
+## Public company and contact flow
+
+1. A visitor can open About, Contact, Privacy, or Terms regardless of optional rental-operation feature settings.
+2. Contact shows only verified phone/email/locality details and a bounded enquiry form.
+3. A valid submission is stored exactly once and returns a reference. It does not submit a rental request, reserve equipment, check availability, create a quote/order, or send an email.
+4. Authorized staff open Admin Contact Enquiries, search/filter the queue, read the message, and mark it NEW, READ, or RESOLVED. Status changes are audited.
+5. If the visitor already knows the required equipment, the catalogue remains the correct path for preparing a full rental request when that feature is available.
+
 ## Search discovery and private workflow boundary
 
 Search engines may discover the homepage, clean rental catalogue, active category/product pages, and legal pages. Catalogue query variants remain usable to customers but canonicalize to the clean route and are noindex. A product or category that is inactive or tombstoned leaves the sitemap and returns 404 publicly while historical operational records remain intact.

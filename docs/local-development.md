@@ -1,5 +1,36 @@
 # Local Development on Windows
 
+## Phase 18.6 company pages and contact enquiries
+
+From the repository root in PowerShell, make sure `.env` contains the four `PUBLIC_CONTACT_*` values shown in `.env.example`, then run:
+
+```powershell
+docker compose up -d postgres postgres-test
+pnpm install
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+pnpm dev:safe
+```
+
+Migration `20260828090000_phase18_6_public_company_contact` is additive. It creates the contact enquiry table/status/type and does not reset or rewrite existing development data. Never use `pnpm db:reset` on the normal development database.
+
+Open these public pages:
+
+- http://localhost:3000/about
+- http://localhost:3000/contact
+- http://localhost:3000/privacy
+- http://localhost:3000/terms
+
+Submit the Contact form with a test-owned email address. A success message and `ENQ-...` reference mean PostgreSQL accepted the enquiry; they do **not** mean an email was sent. Sign in at http://localhost:3001/login and open http://localhost:3001/contact-enquiries to search for the reference, open it, and move it from NEW to READ or RESOLVED.
+
+If `Contact enquiry service is temporarily unavailable` appears, confirm API health at http://localhost:4000/health/database, confirm migration status with `pnpm db:status`, and ensure Web and API use the same `WEB_ORIGIN=http://localhost:3000`. A `429` response means the bounded development rate limit was reached; wait for the configured window instead of weakening production defaults.
+
+No SMTP or transactional-email credentials are required in Phase 18.6. Production email delivery is a Phase 19 provider, sender-domain, privacy, retry, and monitoring decision.
+
 ## Phase 18.4 SEO checks
 
 Keep the safe local values in `.env`:

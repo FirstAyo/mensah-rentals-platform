@@ -67,6 +67,8 @@ export {
   EquipmentInspectionResult,
   PlatformFeatureKey,
   PlatformFeatureState,
+  ContactEnquiryStatus,
+  ContactEnquiryType,
   UserStatus,
   Prisma,
 } from '@prisma/client';

@@ -117,6 +117,8 @@ export const PERMISSION_CATALOGUE = [
   ['backup.view_status', 'View protected backup verification status.'],
   ['feature_settings.view', 'View operational feature controls.'],
   ['feature_settings.manage', 'Manage operational feature controls.'],
+  ['contact_enquiry.view', 'View customer contact enquiries.'],
+  ['contact_enquiry.manage', 'Update customer contact enquiry status.'],
 ] as const;
 
 export type PermissionKey = (typeof PERMISSION_CATALOGUE)[number][0];
@@ -239,6 +241,8 @@ const ADMIN_PERMISSIONS = [
   'backup.view_status',
   'feature_settings.view',
   'feature_settings.manage',
+  'contact_enquiry.view',
+  'contact_enquiry.manage',
 ] as const satisfies readonly PermissionKey[];
 
 const EDITOR_PERMISSIONS = [
@@ -281,6 +285,8 @@ const SALES_PERSON_PERMISSIONS = [
   'customer.update',
   'fulfilment.view',
   'return.view',
+  'contact_enquiry.view',
+  'contact_enquiry.manage',
 ] as const satisfies readonly PermissionKey[];
 
 export const DEFAULT_ROLE_PERMISSION_KEYS = {

@@ -25,6 +25,36 @@ export function websiteJsonLd(origin: string) {
   };
 }
 
+export function companyPageJsonLd(
+  origin: string,
+  path: '/about' | '/contact' | '/privacy' | '/terms',
+  name: string,
+  type: 'AboutPage' | 'ContactPage' | 'WebPage' = 'WebPage',
+) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': type,
+    '@id': `${origin}${path}#webpage`,
+    isPartOf: { '@id': `${origin}/#website` },
+    name,
+    url: `${origin}${path}`,
+  };
+}
+
+export function contactOrganizationJsonLd(origin: string) {
+  return {
+    ...organizationJsonLd(origin),
+    email: 'info@mensahrentals.com',
+    telephone: '+1-604-644-5265',
+    address: {
+      '@type': 'PostalAddress',
+      addressLocality: 'Richmond',
+      addressRegion: 'British Columbia',
+      addressCountry: 'CA',
+    },
+  };
+}
+
 export function productJsonLd(
   product: PublicProductDetailResponse,
   origin: string,

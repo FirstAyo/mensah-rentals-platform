@@ -1,5 +1,11 @@
 # API Data Visibility
 
+## Phase 18.6 contact boundary
+
+`POST /public/contact-enquiries` is public but mutation-protected. Its successful response contains only `accepted`, a customer-safe message, and a nullable enquiry reference. Honeypot submissions return the same acceptance shape with a null reference and create nothing. Public responses never contain message storage fields, operation/payload hashes, staff identity, RBAC, audit metadata, authentication/capability material, inventory, reservations, fulfilment, returns, or maintenance.
+
+`GET /admin/contact-enquiries`, `GET /admin/contact-enquiries/:id`, and `PUT /admin/contact-enquiries/:id/status` are staff-only and permission protected. They may expose submitted contact content needed for staff work but no password/session values. These routes are never proxied by the public application.
+
 ## Phase 18.4 search visibility
 
 SEO metadata and JSON-LD use the same explicit customer-safe homepage and catalogue projections as visible pages. They may include public names, descriptions, category identity, managed public media, and slugs. They must recursively exclude inventory/availability, reservations and shortfalls, internal pricing, staff/RBAC, maintenance, serial/asset identifiers, database-only IDs, tokens, capabilities, and session data.

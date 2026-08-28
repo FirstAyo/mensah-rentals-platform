@@ -92,16 +92,28 @@ try {
       title: 'Equipment Rentals | Mensah Rentals',
     },
     {
+      canonical: `${productionOrigin}/about`,
+      description:
+        'Learn how Mensah Rentals & Services supports events, film productions, and projects through a reviewed rental-request and custom-quote process.',
+      title: 'About Mensah Rentals & Services | Mensah Rentals',
+    },
+    {
+      canonical: `${productionOrigin}/contact`,
+      description:
+        'Contact Mensah Rentals & Services about equipment rentals for an event, production, or project in Richmond, British Columbia.',
+      title: 'Contact Mensah Rentals & Services | Mensah Rentals',
+    },
+    {
       canonical: `${productionOrigin}/privacy`,
       description:
-        'How Mensah Rentals handles information on its website, including private rental-request workflows.',
-      title: 'Privacy policy | Mensah Rentals',
+        'How Mensah Rentals & Services handles information submitted through contact enquiries, rental requests, quotes, orders, and this website.',
+      title: 'Privacy Policy | Mensah Rentals',
     },
     {
       canonical: `${productionOrigin}/terms`,
       description:
-        'Website terms for the Mensah Rentals rental-request platform and third-party content.',
-      title: 'Terms of use | Mensah Rentals',
+        'Terms for using the Mensah Rentals rental-request website, plus the controlled customer rental terms used on official order and return forms.',
+      title: 'Website and Rental Terms | Mensah Rentals',
     },
     ...categories.map((category) => ({
       canonical: `${productionOrigin}/rentals/${category.slug}`,

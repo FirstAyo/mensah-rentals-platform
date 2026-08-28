@@ -22,6 +22,7 @@ import {
   History,
   Activity,
   Settings,
+  MessagesSquare,
 } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -31,6 +32,12 @@ import { MobileAdminNavigation } from './mobile-admin-navigation';
 
 const links = [
   { href: '/', icon: LayoutDashboard, label: 'Dashboard' },
+  {
+    href: '/contact-enquiries',
+    icon: MessagesSquare,
+    label: 'Contact Enquiries',
+    permission: 'contact_enquiry.view',
+  },
   {
     href: '/website/homepage',
     icon: PanelsTopLeft,

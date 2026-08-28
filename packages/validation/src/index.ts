@@ -9,6 +9,7 @@ export * from './returns';
 export * from './homepage';
 export * from './google-reviews';
 export * from './maintenance';
+export * from './contact-enquiries';
 
 const environmentBoolean = z
   .enum(['true', 'false'])
@@ -161,6 +162,30 @@ export const apiEnvironmentSchema = z
       .max(10_000)
       .default(120),
     PUBLIC_GOOGLE_REVIEWS_RATE_WINDOW_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(3600)
+      .default(60),
+    PUBLIC_CONTACT_RATE_LIMIT: z.coerce
+      .number()
+      .int()
+      .min(1)
+      .max(1000)
+      .default(5),
+    PUBLIC_CONTACT_RATE_WINDOW_SECONDS: z.coerce
+      .number()
+      .int()
+      .min(60)
+      .max(86400)
+      .default(3600),
+    PUBLIC_CONTACT_GLOBAL_RATE_LIMIT: z.coerce
+      .number()
+      .int()
+      .min(10)
+      .max(100000)
+      .default(1000),
+    PUBLIC_CONTACT_GLOBAL_RATE_WINDOW_SECONDS: z.coerce
       .number()
       .int()
       .min(1)

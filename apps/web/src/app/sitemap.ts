@@ -26,6 +26,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const entries: MetadataRoute.Sitemap = [
     { url: `${origin}/` },
     { url: `${origin}/rentals` },
+    { url: `${origin}/about` },
+    { url: `${origin}/contact` },
     { url: `${origin}/privacy` },
     { url: `${origin}/terms` },
     ...categories.map((category) => ({

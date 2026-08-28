@@ -1500,3 +1500,45 @@ export interface AdminEquipmentInspectionResponse
 
 export type AdminEquipmentInspectionListResponse =
   PaginatedResponse<AdminEquipmentInspectionSummaryResponse>;
+
+export type ContactEnquiryTypeResponse =
+  | 'GENERAL'
+  | 'RENTAL_PROJECT'
+  | 'DELIVERY_PICKUP'
+  | 'EXISTING_REQUEST'
+  | 'OTHER';
+
+export type ContactEnquiryStatusResponse = 'NEW' | 'READ' | 'RESOLVED';
+
+export interface PublicContactEnquiryReceiptResponse {
+  accepted: true;
+  message: string;
+  referenceNumber: string | null;
+}
+
+export interface AdminContactEnquirySummaryResponse {
+  company: string | null;
+  createdAt: string;
+  email: string;
+  enquiryType: ContactEnquiryTypeResponse;
+  id: string;
+  name: string;
+  phone: string | null;
+  referenceNumber: string;
+  status: ContactEnquiryStatusResponse;
+  updatedAt: string;
+}
+
+export interface AdminContactEnquiryResponse
+  extends AdminContactEnquirySummaryResponse {
+  message: string;
+  statusUpdatedBy: {
+    firstName: string;
+    id: string;
+    lastName: string;
+  } | null;
+}
+
+export type AdminContactEnquiryListResponse =
+  PaginatedResponse<AdminContactEnquirySummaryResponse>;
+export * from './official-customer-form-terms';

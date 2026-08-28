@@ -60,6 +60,7 @@ const modes = new Set([
   'admin-notifications',
   'feature-settings',
   'seo',
+  'public-company-pages',
 ]);
 if (!modes.has(mode)) throw new Error(`Unknown decision browser mode: ${mode}`);
 
@@ -135,7 +136,7 @@ const browserEnvironment = {
   STAFF_BOOTSTRAP_PASSWORD: `${randomBytes(24).toString('base64url')}Aa1!`,
   PLATFORM_ENVIRONMENT: 'LOCAL',
 };
-if (mode === 'seo') {
+if (mode === 'seo' || mode === 'public-company-pages') {
   browserEnvironment.SITE_URL = 'https://mensahrentals.com';
   browserEnvironment.SITE_INDEXING_ENABLED = 'true';
 }
@@ -1232,6 +1233,7 @@ const inventoryManagementMode =
   mode === 'inventory-management' || mode === 'admin-notifications';
 const seoMode = mode === 'seo';
 const featureSettingsMode = mode === 'feature-settings';
+const publicCompanyMode = mode === 'public-company-pages';
 const productionPublicRegressionMode =
   mode === 'catalogue' || mode === 'public-navigation';
 if (
@@ -1250,7 +1252,8 @@ if (
   officialPdfMode ||
   inventoryManagementMode ||
   featureSettingsMode ||
-  seoMode
+  seoMode ||
+  publicCompanyMode
 )
   run(
     pnpm,
@@ -1276,6 +1279,7 @@ const usesProductionStart = (workspace) =>
   inventoryManagementMode ||
   featureSettingsMode ||
   seoMode ||
+  publicCompanyMode ||
   productionPublicRegressionMode ||
   ((fulfilmentMode ||
     returnMode ||
@@ -1367,91 +1371,93 @@ try {
       ? '@feature-settings'
       : seoMode
         ? '@seo'
-        : officialPdfMode
-          ? '@official-pdfs'
-          : categoryMode
-            ? '@categories'
-            : productMode
-              ? '@products'
-              : publicRegressionMode
-                ? mode === 'catalogue'
-                  ? '@catalogue'
-                  : mode === 'cart'
-                    ? '@cart'
-                    : '@public-navigation'
-                : isHomepageMode
-                  ? mode === 'homepage-admin'
-                    ? '@homepage-admin'
-                    : mode === 'homepage-media'
-                      ? '@homepage-media'
-                      : mode === 'homepage-google-live'
-                        ? '@homepage-google-live'
-                        : mode === 'homepage-google-timeout'
-                          ? '@homepage-google-timeout'
-                          : mode === 'homepage-google-quota'
-                            ? '@homepage-google-quota'
-                            : mode === 'homepage-google-reviews'
-                              ? '@homepage-google-live'
-                              : mode === 'homepage-all'
-                                ? '@homepage'
-                                : '@homepage-public'
-                  : runtimeRegressionMode
-                    ? '@runtime-regression'
-                    : phase18Mode
-                      ? mode === 'reports'
-                        ? '@reports'
-                        : mode === 'audit'
-                          ? '@audit'
-                          : mode === 'system-status'
-                            ? '@system-status'
-                            : '@reports|@audit|@system-status'
-                      : maintenanceMode
-                        ? mode === 'inspections'
-                          ? '@inspections'
-                          : mode === 'maintenance-all'
-                            ? '@maintenance|@inspections'
-                            : '@maintenance'
-                        : returnMode
-                          ? mode === 'returns-all'
-                            ? '@returns'
-                            : mode === 'returns-concurrency'
-                              ? '@return-concurrency'
-                              : mode === 'returns-issues'
-                                ? '@return-issues'
-                                : '@admin-returns'
-                          : fulfilmentMode
-                            ? mode === 'fulfilment-all'
-                              ? '@fulfilment'
-                              : mode === 'fulfilment-concurrency'
-                                ? '@fulfilment-concurrency'
-                                : mode === 'fulfilment-active-rentals'
-                                  ? '@active-rentals'
-                                  : '@admin-fulfilment'
-                            : reservationMode
-                              ? mode === 'reservations-all'
-                                ? '@reservations'
-                                : mode === 'reservations-concurrency'
-                                  ? '@reservation-concurrency'
-                                  : mode === 'reservations-shortfall'
-                                    ? '@reservation-shortfall'
-                                    : '@admin-reservations'
-                              : isPhase121
-                                ? '@phase12-1'
-                                : isOrderMode
-                                  ? mode === 'orders-all'
-                                    ? '@orders'
-                                    : mode === 'orders-admin'
-                                      ? '@admin-orders'
-                                      : '@customer-orders'
-                                  : isQuoteMode
-                                    ? mode === 'quotes-all'
-                                      ? '@quotes'
-                                      : mode === 'quotes-admin'
-                                        ? '@admin-quotes'
-                                        : '@customer-quotes'
-                                    : mode === 'all'
-                                      ? '@admin-decisions'
-                                      : `@admin-decisions-${mode}`;
+        : publicCompanyMode
+          ? '@public-company-pages'
+          : officialPdfMode
+            ? '@official-pdfs'
+            : categoryMode
+              ? '@categories'
+              : productMode
+                ? '@products'
+                : publicRegressionMode
+                  ? mode === 'catalogue'
+                    ? '@catalogue'
+                    : mode === 'cart'
+                      ? '@cart'
+                      : '@public-navigation'
+                  : isHomepageMode
+                    ? mode === 'homepage-admin'
+                      ? '@homepage-admin'
+                      : mode === 'homepage-media'
+                        ? '@homepage-media'
+                        : mode === 'homepage-google-live'
+                          ? '@homepage-google-live'
+                          : mode === 'homepage-google-timeout'
+                            ? '@homepage-google-timeout'
+                            : mode === 'homepage-google-quota'
+                              ? '@homepage-google-quota'
+                              : mode === 'homepage-google-reviews'
+                                ? '@homepage-google-live'
+                                : mode === 'homepage-all'
+                                  ? '@homepage'
+                                  : '@homepage-public'
+                    : runtimeRegressionMode
+                      ? '@runtime-regression'
+                      : phase18Mode
+                        ? mode === 'reports'
+                          ? '@reports'
+                          : mode === 'audit'
+                            ? '@audit'
+                            : mode === 'system-status'
+                              ? '@system-status'
+                              : '@reports|@audit|@system-status'
+                        : maintenanceMode
+                          ? mode === 'inspections'
+                            ? '@inspections'
+                            : mode === 'maintenance-all'
+                              ? '@maintenance|@inspections'
+                              : '@maintenance'
+                          : returnMode
+                            ? mode === 'returns-all'
+                              ? '@returns'
+                              : mode === 'returns-concurrency'
+                                ? '@return-concurrency'
+                                : mode === 'returns-issues'
+                                  ? '@return-issues'
+                                  : '@admin-returns'
+                            : fulfilmentMode
+                              ? mode === 'fulfilment-all'
+                                ? '@fulfilment'
+                                : mode === 'fulfilment-concurrency'
+                                  ? '@fulfilment-concurrency'
+                                  : mode === 'fulfilment-active-rentals'
+                                    ? '@active-rentals'
+                                    : '@admin-fulfilment'
+                              : reservationMode
+                                ? mode === 'reservations-all'
+                                  ? '@reservations'
+                                  : mode === 'reservations-concurrency'
+                                    ? '@reservation-concurrency'
+                                    : mode === 'reservations-shortfall'
+                                      ? '@reservation-shortfall'
+                                      : '@admin-reservations'
+                                : isPhase121
+                                  ? '@phase12-1'
+                                  : isOrderMode
+                                    ? mode === 'orders-all'
+                                      ? '@orders'
+                                      : mode === 'orders-admin'
+                                        ? '@admin-orders'
+                                        : '@customer-orders'
+                                    : isQuoteMode
+                                      ? mode === 'quotes-all'
+                                        ? '@quotes'
+                                        : mode === 'quotes-admin'
+                                          ? '@admin-quotes'
+                                          : '@customer-quotes'
+                                      : mode === 'all'
+                                        ? '@admin-decisions'
+                                        : `@admin-decisions-${mode}`;
   const grepArgument =
     process.platform === 'win32' && grep.includes('|') ? `"${grep}"` : grep;
   run(
@@ -1464,50 +1470,52 @@ try {
       'test',
       ...(seoMode
         ? ['e2e/seo.spec.ts']
-        : featureSettingsMode
-          ? ['e2e/feature-settings.spec.ts']
-          : categoryMode || productMode || publicRegressionMode
-            ? [
-                categoryMode
-                  ? 'e2e/categories.spec.ts'
-                  : productMode
-                    ? 'e2e/products.spec.ts'
-                    : mode === 'catalogue'
-                      ? 'e2e/catalogue.spec.ts'
-                      : mode === 'cart'
-                        ? 'e2e/cart.spec.ts'
-                        : 'e2e/public-navigation.spec.ts',
-              ]
-            : isHomepageMode
-              ? ['e2e/homepage.spec.ts']
-              : inventoryManagementMode
-                ? ['e2e/inventory-management.spec.ts']
-                : reservationMode ||
-                    fulfilmentMode ||
-                    returnMode ||
-                    officialPdfMode
-                  ? ['e2e/orders.spec.ts']
-                  : runtimeRegressionMode
-                    ? ['e2e/runtime-regression.spec.ts']
-                    : phase18Mode
-                      ? ['e2e/reports.spec.ts']
-                      : maintenanceMode
-                        ? ['e2e/maintenance.spec.ts']
-                        : isPhase121
-                          ? [
-                              isPhase121Layout
-                                ? 'e2e/phase12-1.spec.ts'
-                                : isPhase121Quote
-                                  ? 'e2e/quotes.spec.ts'
-                                  : 'e2e/orders.spec.ts',
-                            ]
-                          : [
-                              isOrderMode
-                                ? 'e2e/orders.spec.ts'
-                                : isQuoteMode
-                                  ? 'e2e/quotes.spec.ts'
-                                  : 'e2e/admin-decisions.spec.ts',
-                            ]),
+        : publicCompanyMode
+          ? ['e2e/public-company-pages.spec.ts']
+          : featureSettingsMode
+            ? ['e2e/feature-settings.spec.ts']
+            : categoryMode || productMode || publicRegressionMode
+              ? [
+                  categoryMode
+                    ? 'e2e/categories.spec.ts'
+                    : productMode
+                      ? 'e2e/products.spec.ts'
+                      : mode === 'catalogue'
+                        ? 'e2e/catalogue.spec.ts'
+                        : mode === 'cart'
+                          ? 'e2e/cart.spec.ts'
+                          : 'e2e/public-navigation.spec.ts',
+                ]
+              : isHomepageMode
+                ? ['e2e/homepage.spec.ts']
+                : inventoryManagementMode
+                  ? ['e2e/inventory-management.spec.ts']
+                  : reservationMode ||
+                      fulfilmentMode ||
+                      returnMode ||
+                      officialPdfMode
+                    ? ['e2e/orders.spec.ts']
+                    : runtimeRegressionMode
+                      ? ['e2e/runtime-regression.spec.ts']
+                      : phase18Mode
+                        ? ['e2e/reports.spec.ts']
+                        : maintenanceMode
+                          ? ['e2e/maintenance.spec.ts']
+                          : isPhase121
+                            ? [
+                                isPhase121Layout
+                                  ? 'e2e/phase12-1.spec.ts'
+                                  : isPhase121Quote
+                                    ? 'e2e/quotes.spec.ts'
+                                    : 'e2e/orders.spec.ts',
+                              ]
+                            : [
+                                isOrderMode
+                                  ? 'e2e/orders.spec.ts'
+                                  : isQuoteMode
+                                    ? 'e2e/quotes.spec.ts'
+                                    : 'e2e/admin-decisions.spec.ts',
+                              ]),
       '--grep',
       grepArgument,
       ...(maintenanceMode ||
@@ -1516,6 +1524,7 @@ try {
       inventoryManagementMode ||
       featureSettingsMode ||
       seoMode ||
+      publicCompanyMode ||
       mode === 'public-navigation'
         ? ['--project=mobile-320', '--project=wide-1440']
         : []),

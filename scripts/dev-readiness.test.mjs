@@ -11,7 +11,10 @@ test('waitForHttpReady waits until the API reports success', async () => {
       return new Response(null, { status: attempts === 3 ? 200 : 503 });
     },
     intervalMs: 1,
-    timeoutMs: 100,
+    // Creating the first undici Response can take more than 100 ms on a cold or
+    // busy Windows runner. Keep this comfortably below the real readiness
+    // timeout while testing retry behaviour rather than host startup speed.
+    timeoutMs: 1_000,
     url: 'http://127.0.0.1:4000/health',
   });
   assert.equal(attempts, 3);

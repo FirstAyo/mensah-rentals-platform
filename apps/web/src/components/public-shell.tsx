@@ -46,17 +46,18 @@ export function PublicShell({
               aria-label="Primary navigation"
               className="hidden items-center md:flex"
             >
-              <Link className={navLink} href="/#how-it-works">
-                How it works
-              </Link>
               <Link className={navLink} href="/rentals">
                 Rentals
               </Link>
-              {features.rentalRequests ? (
-                <Link className={navLink} href="/track-request">
-                  Track request
-                </Link>
-              ) : null}
+              <Link className={navLink} href="/#how-it-works">
+                How it works
+              </Link>
+              <Link className={navLink} href="/about">
+                About
+              </Link>
+              <Link className={navLink} href="/contact">
+                Contact
+              </Link>
             </nav>
             <ThemeToggle />
             {features.rentalRequests ? <CartHeaderLink /> : null}
@@ -67,13 +68,36 @@ export function PublicShell({
               Browse equipment
               <ArrowRight aria-hidden="true" className="h-4 w-4" />
             </Link>
-            <Link
-              aria-label="Open rental catalogue"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-card outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring md:hidden"
-              href="/rentals"
-            >
-              <Menu aria-hidden="true" className="h-5 w-5" />
-            </Link>
+            <details className="group relative md:hidden">
+              <summary
+                aria-label="Open navigation menu"
+                className="inline-flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-lg border border-border bg-card outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden"
+              >
+                <Menu aria-hidden="true" className="h-5 w-5" />
+              </summary>
+              <nav
+                aria-label="Mobile navigation"
+                className="absolute right-0 top-12 z-50 grid w-[min(19rem,calc(100vw-2rem))] gap-1 rounded-2xl border border-border bg-card p-3 shadow-xl"
+              >
+                <Link className={navLink} href="/rentals">
+                  Rentals
+                </Link>
+                <Link className={navLink} href="/#how-it-works">
+                  How it works
+                </Link>
+                <Link className={navLink} href="/about">
+                  About
+                </Link>
+                <Link className={navLink} href="/contact">
+                  Contact
+                </Link>
+                {features.rentalRequests ? (
+                  <Link className={navLink} href="/track-request">
+                    Track request
+                  </Link>
+                ) : null}
+              </nav>
+            </details>
           </div>
         </div>
       </header>
@@ -81,7 +105,7 @@ export function PublicShell({
         {children}
       </main>
       <footer className="mt-20 border-t border-border bg-card">
-        <div className="mx-auto grid max-w-[1760px] gap-8 px-4 py-10 sm:px-6 md:grid-cols-[1fr_auto] lg:px-8">
+        <div className="mx-auto grid max-w-[1760px] gap-10 px-4 py-12 sm:px-6 md:grid-cols-[1.2fr_.8fr] lg:px-8">
           <div>
             <p className="font-semibold text-foreground">
               Mensah Rentals &amp; Services
@@ -91,28 +115,37 @@ export function PublicShell({
               Our team reviews every request before confirming a custom quote.
             </p>
           </div>
-          <nav
-            aria-label="Footer navigation"
-            className="flex flex-wrap gap-2 md:justify-end"
-          >
-            <Link className={navLink} href="/">
-              Home
-            </Link>
-            <Link className={navLink} href="/rentals">
-              Rental catalogue
-            </Link>
-            {features.rentalRequests ? (
-              <Link className={navLink} href="/track-request">
-                Track request
+          <div className="grid grid-cols-2 gap-8">
+            <nav
+              aria-label="Company links"
+              className="grid content-start gap-1"
+            >
+              <p className="mb-2 text-sm font-semibold">Company</p>
+              <Link className={navLink} href="/about">
+                About
               </Link>
-            ) : null}
-            <Link className={navLink} href="/privacy">
-              Privacy
-            </Link>
-            <Link className={navLink} href="/terms">
-              Terms
-            </Link>
-          </nav>
+              <Link className={navLink} href="/contact">
+                Contact
+              </Link>
+              <Link className={navLink} href="/rentals">
+                Rentals
+              </Link>
+              {features.rentalRequests ? (
+                <Link className={navLink} href="/track-request">
+                  Track request
+                </Link>
+              ) : null}
+            </nav>
+            <nav aria-label="Legal links" className="grid content-start gap-1">
+              <p className="mb-2 text-sm font-semibold">Legal</p>
+              <Link className={navLink} href="/privacy">
+                Privacy
+              </Link>
+              <Link className={navLink} href="/terms">
+                Terms
+              </Link>
+            </nav>
+          </div>
         </div>
       </footer>
     </div>

@@ -12,7 +12,7 @@ describe('RBAC catalogue', () => {
     expect(new Set(SYSTEM_ROLES.map(({ name }) => name)).size).toBe(
       SYSTEM_ROLES.length,
     );
-    expect(PERMISSION_CATALOGUE).toHaveLength(97);
+    expect(PERMISSION_CATALOGUE).toHaveLength(99);
   });
   it('grants SUPER_ADMIN every seeded permission', () => {
     expect(DEFAULT_ROLE_PERMISSION_KEYS.SUPER_ADMIN).toEqual(
@@ -132,6 +132,17 @@ describe('RBAC catalogue', () => {
       expect(DEFAULT_ROLE_PERMISSION_KEYS.SALES_PERSON).not.toContain(
         permission,
       );
+    }
+  });
+  it('grants contact enquiry access to operational staff only', () => {
+    for (const permission of [
+      'contact_enquiry.view',
+      'contact_enquiry.manage',
+    ] as const) {
+      expect(DEFAULT_ROLE_PERMISSION_KEYS.ADMIN).toContain(permission);
+      expect(DEFAULT_ROLE_PERMISSION_KEYS.SALES_PERSON).toContain(permission);
+      expect(DEFAULT_ROLE_PERMISSION_KEYS.SUPER_ADMIN).toContain(permission);
+      expect(DEFAULT_ROLE_PERMISSION_KEYS.EDITOR).not.toContain(permission);
     }
   });
   it('grants homepage content authority without exposing it to sales', () => {

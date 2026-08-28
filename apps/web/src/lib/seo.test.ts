@@ -130,6 +130,8 @@ describe('robots and sitemap contracts', () => {
       expect.arrayContaining([
         'https://mensahrentals.com/',
         'https://mensahrentals.com/rentals',
+        'https://mensahrentals.com/about',
+        'https://mensahrentals.com/contact',
         'https://mensahrentals.com/rentals/tents/tent',
         'https://mensahrentals.com/privacy',
         'https://mensahrentals.com/terms',

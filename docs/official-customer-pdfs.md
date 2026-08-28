@@ -6,7 +6,7 @@ Phase 18.1 uses the supplied `MRS Order Form.pdf` and `MRS Return Form.pdf` as t
 
 The customer Order and Return form renderer accepts only customer-safe identity, event, date, reference, and equipment fields. Its input type has no price, currency, tax, discount, deposit, charge, assessed-damage, or total fields. The forms contain no price columns or financial summary. Internal quotes, order commercial snapshots, staff screens, and reporting remain unchanged.
 
-The exact eight official Terms and Conditions and the following acknowledgement remain controlled source constants. References to charges inside that authoritative legal copy are retained; no customer-specific monetary value is present.
+The exact eight official Terms and Conditions and the following acknowledgement remain controlled shared source constants in `packages/types/src/official-customer-form-terms.ts`. Both the official PDF renderer and public Terms page import that one source so they cannot silently drift. References to charges inside that authoritative legal copy are retained; no customer-specific monetary value is present.
 
 ## Field mapping
 
