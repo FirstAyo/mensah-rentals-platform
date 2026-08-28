@@ -23,11 +23,13 @@ import {
 
 import { CurrentStaffUser } from '../auth/current-staff-user.decorator';
 import { RequirePermissions } from '../authorization/require-permissions.decorator';
+import { RequireFeature } from '../feature-settings/requires-feature.decorator';
 import { RentalOrderNoStoreInterceptor } from './rental-order-no-store.interceptor';
 import { RentalOrderService } from './rental-order.service';
 import { RentalOrderZodPipe } from './rental-order-zod.pipe';
 
 @Controller('admin/orders')
+@RequireFeature('QUOTES_AND_ORDERS')
 @UseInterceptors(RentalOrderNoStoreInterceptor)
 export class AdminRentalOrderController {
   constructor(
@@ -116,6 +118,7 @@ export class AdminRentalOrderController {
 }
 
 @Controller('admin/quotes')
+@RequireFeature('QUOTES_AND_ORDERS')
 @UseInterceptors(RentalOrderNoStoreInterceptor)
 export class AdminQuoteOrderController {
   constructor(

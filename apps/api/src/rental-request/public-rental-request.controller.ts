@@ -31,6 +31,7 @@ import {
   PublicRentalRequestService,
 } from './public-rental-request.service';
 import { Public } from '../auth/public.decorator';
+import { RequireFeature } from '../feature-settings/requires-feature.decorator';
 import { ZodBodyPipe } from '../auth/zod-body.pipe';
 
 const CART_TOKEN_HEADER = 'x-rental-cart-token';
@@ -40,6 +41,7 @@ const REQUEST_TOKEN_HEADER = 'x-rental-request-token';
 @UseGuards(PublicRentalRequestRateLimitGuard)
 @UseInterceptors(AdminRentalRequestNoStoreInterceptor)
 @Controller('public/rental-requests')
+@RequireFeature('RENTAL_REQUESTS', 'PUBLIC')
 export class PublicRentalRequestController {
   constructor(
     @Inject(PublicRentalRequestService)

@@ -9,7 +9,7 @@ import { AccessibleDialog } from './accessible-dialog';
 export function MobileAdminNavigation({
   links,
 }: {
-  links: ReadonlyArray<{ href: string; label: string }>;
+  links: ReadonlyArray<{ href: string; label: string; testing?: boolean }>;
 }) {
   const [open, setOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -70,7 +70,14 @@ export function MobileAdminNavigation({
               onClick={() => setOpen(false)}
               ref={index === 0 ? firstLinkRef : undefined}
             >
-              {link.label}
+              <span className="flex items-center justify-between gap-3">
+                {link.label}
+                {link.testing ? (
+                  <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-xs font-semibold text-foreground">
+                    Testing
+                  </span>
+                ) : null}
+              </span>
             </Link>
           ))}
         </nav>

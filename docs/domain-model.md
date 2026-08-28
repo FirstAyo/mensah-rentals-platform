@@ -240,3 +240,7 @@ This append-only cross-cutting event records safe domain/action/entity reference
 # Official document derivation (Phase 18.1)
 
 Official customer forms are derived documents, not mutable business entities. The Order Form uses `RentalOrder`, immutable `RentalOrderItem` snapshots, and `OrderFulfilment.firstCheckedOutAt`. The final Return Form uses the same order snapshots plus completed `RentalReturn` and its aggregate `RentalReturnItem.receivedQuantity` values. PDF generation creates no database rows and changes no order, fulfilment, return, inventory, or media state.
+
+## Platform feature setting
+
+`PlatformFeatureSetting` has one typed global key, `DISABLED | INTERNAL_TESTING | ENABLED`, an optimistic version, timestamps, and an optional updating staff user. It is configuration, not a replacement for any rental domain entity. State changes preserve every request, quote, order, reservation, fulfilment, rental, return, issue, maintenance record, inspection, inventory transaction, customer capability, and media record. Append-only `PlatformAuditEvent` records each change or preset.

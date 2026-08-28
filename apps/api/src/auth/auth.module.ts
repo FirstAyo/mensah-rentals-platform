@@ -13,6 +13,8 @@ import { StaffAuthGuard } from './staff-auth.guard';
 import { StaffSessionCookieService } from './staff-session-cookie.service';
 import { AuthorizationModule } from '../authorization/authorization.module';
 import { PermissionGuard } from '../authorization/permission.guard';
+import { FeatureGuard } from '../feature-settings/feature.guard';
+import { FeatureSettingsModule } from '../feature-settings/feature-settings.module';
 
 @Module({
   imports: [
@@ -28,6 +30,7 @@ import { PermissionGuard } from '../authorization/permission.guard';
       ],
     }),
     AuthorizationModule,
+    FeatureSettingsModule,
   ],
   controllers: [AuthController],
   providers: [
@@ -38,6 +41,7 @@ import { PermissionGuard } from '../authorization/permission.guard';
     { provide: APP_GUARD, useClass: OriginGuard },
     { provide: APP_GUARD, useClass: StaffAuthGuard },
     { provide: APP_GUARD, useClass: PermissionGuard },
+    { provide: APP_GUARD, useClass: FeatureGuard },
   ],
   exports: [AuthService, StaffSessionCookieService],
 })

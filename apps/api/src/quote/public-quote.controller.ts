@@ -15,6 +15,7 @@ import {
 } from '@mensah-rentals/validation';
 
 import { Public } from '../auth/public.decorator';
+import { RequireFeature } from '../feature-settings/requires-feature.decorator';
 import { QuoteNoStoreInterceptor } from './quote-no-store.interceptor';
 import { QuoteService } from './quote.service';
 import { QuoteZodPipe } from './quote-zod.pipe';
@@ -23,6 +24,7 @@ const capabilityHeader = 'x-quote-capability';
 
 @Public()
 @Controller('public/quotes')
+@RequireFeature('CUSTOMER_ORDER_PORTAL', 'PUBLIC')
 @UseInterceptors(QuoteNoStoreInterceptor)
 export class PublicQuoteController {
   constructor(@Inject(QuoteService) private readonly quotes: QuoteService) {}

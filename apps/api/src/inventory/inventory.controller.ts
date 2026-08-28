@@ -38,10 +38,12 @@ import {
 import { CurrentStaffUser } from '../auth/current-staff-user.decorator';
 import { ZodBodyPipe } from '../auth/zod-body.pipe';
 import { RequirePermissions } from '../authorization/require-permissions.decorator';
+import { RequireFeature } from '../feature-settings/requires-feature.decorator';
 import { InventoryService } from './inventory.service';
 import { InventoryNoStoreInterceptor } from './inventory-no-store.interceptor';
 
 @Controller('admin/inventory')
+@RequireFeature('INVENTORY_TRACKING')
 @UseInterceptors(InventoryNoStoreInterceptor)
 export class InventoryController {
   constructor(

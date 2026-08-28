@@ -1,4 +1,8 @@
-import type { StaffUserResponse } from '@mensah-rentals/types';
+import type {
+  AdminFeatureAvailabilityResponse,
+  PlatformFeatureKey,
+  StaffUserResponse,
+} from '@mensah-rentals/types';
 import { ThemeToggle } from '@mensah-rentals/ui';
 import {
   Boxes,
@@ -17,6 +21,7 @@ import {
   BarChart3,
   History,
   Activity,
+  Settings,
 } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -43,54 +48,63 @@ const links = [
     icon: Warehouse,
     label: 'Inventory',
     permission: 'inventory.view',
+    feature: 'INVENTORY_TRACKING',
   },
   {
     href: '/rental-requests',
     icon: ClipboardList,
     label: 'Rental Requests',
     permission: 'rental_request.view',
+    feature: 'RENTAL_REQUESTS',
   },
   {
     href: '/quotes',
     icon: FileText,
     label: 'Quotes',
     permission: 'quote.view',
+    feature: 'QUOTES_AND_ORDERS',
   },
   {
     href: '/change-requests',
     icon: GitPullRequestArrow,
     label: 'Change Requests',
     permission: 'rental_change_request.view',
+    feature: 'QUOTES_AND_ORDERS',
   },
   {
     href: '/orders',
     icon: ShoppingBag,
     label: 'Rental Orders',
     permission: 'order.view',
+    feature: 'QUOTES_AND_ORDERS',
   },
   {
     href: '/active-rentals',
     icon: Clock3,
     label: 'Active Rentals',
     permission: 'active_rental.view',
+    feature: 'FULFILMENT',
   },
   {
     href: '/returns',
     icon: RotateCcw,
     label: 'Returns',
     permission: 'return.view',
+    feature: 'RETURNS',
   },
   {
     href: '/issues',
     icon: TriangleAlert,
     label: 'Return Issues',
     permission: 'rental_issue.view',
+    feature: 'DAMAGED_RETURN_HANDLING',
   },
   {
     href: '/maintenance/work-orders',
     icon: Wrench,
     label: 'Maintenance',
     permission: 'maintenance.view',
+    feature: 'MAINTENANCE',
   },
   {
     href: '/categories',
@@ -103,6 +117,13 @@ const links = [
     icon: BarChart3,
     label: 'Reports',
     permission: 'report.view',
+    feature: 'OPERATIONAL_REPORTING',
+  },
+  {
+    href: '/settings/features',
+    icon: Settings,
+    label: 'Settings',
+    permission: 'feature_settings.view',
   },
   {
     href: '/reports/audit',
@@ -120,14 +141,23 @@ const links = [
 
 export function AdminShell({
   children,
+  featureAvailability,
   user,
 }: {
   children: ReactNode;
+  featureAvailability?: AdminFeatureAvailabilityResponse;
   user: StaffUserResponse;
 }) {
   const permissions = new Set(user.permissionKeys);
+  const features = new Map(
+    featureAvailability?.features.map((feature) => [feature.key, feature]) ??
+      [],
+  );
   const visible = links.filter(
-    (item) => !('permission' in item) || permissions.has(item.permission),
+    (item) =>
+      (!('permission' in item) || permissions.has(item.permission)) &&
+      (!('feature' in item) ||
+        (features.get(item.feature as PlatformFeatureKey)?.available ?? false)),
   );
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -151,7 +181,7 @@ export function AdminShell({
             aria-label="Administrative sections"
             className="min-h-0 flex-1 space-y-1 overflow-y-auto px-5 pb-5 pt-4"
           >
-            {visible.map(({ href, icon: Icon, label }) => (
+            {visible.map(({ href, icon: Icon, label, ...item }) => (
               <Link
                 className="flex min-w-0 items-center gap-3 rounded-lg px-3 py-2.5 text-sm hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring"
                 href={href}
@@ -159,6 +189,12 @@ export function AdminShell({
               >
                 <Icon className="h-4 w-4" aria-hidden="true" />
                 <span className="min-w-0 flex-1 truncate">{label}</span>
+                {'feature' in item &&
+                features.get(item.feature as PlatformFeatureKey)?.testing ? (
+                  <span className="rounded-full bg-amber-500/20 px-2 py-0.5 text-[10px] font-semibold text-foreground">
+                    Testing
+                  </span>
+                ) : null}
                 {href === '/rental-requests' ? <ActionableWorkBadge /> : null}
                 {href === '/orders' &&
                 permissions.has('inventory.reservation.view') ? (
@@ -185,7 +221,15 @@ export function AdminShell({
           <header className="sticky top-0 z-20 border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-6 lg:px-8">
             <div className="flex flex-wrap items-center justify-between gap-3">
               <MobileAdminNavigation
-                links={visible.map(({ href, label }) => ({ href, label }))}
+                links={visible.map(({ href, label, ...item }) => ({
+                  href,
+                  label,
+                  testing:
+                    'feature' in item &&
+                    Boolean(
+                      features.get(item.feature as PlatformFeatureKey)?.testing,
+                    ),
+                }))}
               />
               <div className="ml-auto flex items-center gap-2">
                 <span className="hidden text-sm text-muted-foreground sm:inline">

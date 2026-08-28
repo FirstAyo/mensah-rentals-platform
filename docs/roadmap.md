@@ -63,6 +63,8 @@ database, API, authorization, UI, documentation, and tests where applicable.
 21. **Deployment:** local full-system verification, staging deployment/testing, then documented VPS production deployment.
 22. **Mobile:** React Native/Expo only after the web platform and API are stable and only when explicitly instructed.
 
+Phase 18.5 is complete as a pre-deployment hardening slice: durable feature controls, progressive rollout presets, environment-safe Testing semantics, operational blockers, feature-aware navigation/routes, global mutation notifications, and preservation tests. Phase 19 remains staging/deployment work and must use an intentional preset rather than changing production features ad hoc.
+
 Redis remains deferred until a concrete cache, queue, distributed locking, or
 session requirement justifies its operational cost.
 

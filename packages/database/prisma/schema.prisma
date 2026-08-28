@@ -396,6 +396,26 @@ enum EquipmentInspectionResult {
   FAILED
 }
 
+enum PlatformFeatureKey {
+  RENTAL_REQUESTS
+  QUOTES_AND_ORDERS
+  CUSTOMER_ORDER_PORTAL
+  INVENTORY_TRACKING
+  RESERVATIONS
+  FULFILMENT
+  RETURNS
+  DAMAGED_RETURN_HANDLING
+  MAINTENANCE
+  INSPECTIONS
+  OPERATIONAL_REPORTING
+}
+
+enum PlatformFeatureState {
+  DISABLED
+  INTERNAL_TESTING
+  ENABLED
+}
+
 enum FulfilmentHandoffType {
   PICKUP
   DELIVERY
@@ -484,6 +504,7 @@ model User {
   homepageMediaCreated             HomepageMedia[]                 @relation("HomepageMediaCreator")
   categoryCoversUpdated            CategoryCover[]                 @relation("CategoryCoverUpdater")
   platformAuditEvents              PlatformAuditEvent[]            @relation("PlatformAuditEventActor")
+  platformFeatureSettingsUpdated   PlatformFeatureSetting[]         @relation("PlatformFeatureSettingUpdater")
 }
 
 model StaffSession {
@@ -522,6 +543,19 @@ model PlatformAuditEvent {
   @@index([entityType, entityId, occurredAt, id])
   @@index([entityReference, occurredAt, id])
   @@index([requestId, occurredAt, id])
+}
+
+model PlatformFeatureSetting {
+  key             PlatformFeatureKey   @id
+  state           PlatformFeatureState @default(ENABLED)
+  version         Int                  @default(0)
+  updatedByUserId String?
+  createdAt       DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime             @updatedAt @db.Timestamptz(3)
+  updatedBy       User?                @relation("PlatformFeatureSettingUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([state, key])
+  @@index([updatedByUserId, updatedAt])
 }
 
 model Role {

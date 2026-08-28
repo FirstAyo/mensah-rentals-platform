@@ -45,11 +45,13 @@ import {
 
 import { CurrentStaffUser } from '../auth/current-staff-user.decorator';
 import { RequirePermissions } from '../authorization/require-permissions.decorator';
+import { RequireFeature } from '../feature-settings/requires-feature.decorator';
 import { RentalOrderZodPipe } from '../rental-order/rental-order-zod.pipe';
 import { MaintenanceNoStoreInterceptor } from './maintenance-no-store.interceptor';
 import { MaintenanceService } from './maintenance.service';
 
 @Controller('admin/maintenance')
+@RequireFeature('MAINTENANCE')
 @UseInterceptors(MaintenanceNoStoreInterceptor)
 export class AdminMaintenanceController {
   constructor(
@@ -87,6 +89,7 @@ export class AdminMaintenanceController {
 }
 
 @Controller('admin/maintenance/work-orders')
+@RequireFeature('MAINTENANCE')
 @UseInterceptors(MaintenanceNoStoreInterceptor)
 export class AdminMaintenanceWorkOrderController {
   constructor(
@@ -238,6 +241,7 @@ export class AdminMaintenanceWorkOrderController {
 }
 
 @Controller('admin/maintenance/inspections')
+@RequireFeature('INSPECTIONS')
 @UseInterceptors(MaintenanceNoStoreInterceptor)
 export class AdminEquipmentInspectionController {
   constructor(

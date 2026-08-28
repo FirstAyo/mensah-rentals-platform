@@ -29,11 +29,13 @@ import {
 
 import { CurrentStaffUser } from '../auth/current-staff-user.decorator';
 import { RequirePermissions } from '../authorization/require-permissions.decorator';
+import { RequireFeature } from '../feature-settings/requires-feature.decorator';
 import { RentalOrderNoStoreInterceptor } from '../rental-order/rental-order-no-store.interceptor';
 import { RentalOrderZodPipe } from '../rental-order/rental-order-zod.pipe';
 import { FulfilmentService } from './fulfilment.service';
 
 @Controller('admin/orders/:orderId/fulfilment')
+@RequireFeature('FULFILMENT')
 @UseInterceptors(RentalOrderNoStoreInterceptor)
 export class AdminFulfilmentController {
   constructor(
@@ -122,6 +124,7 @@ export class AdminFulfilmentController {
 }
 
 @Controller('admin/active-rentals')
+@RequireFeature('FULFILMENT')
 @UseInterceptors(RentalOrderNoStoreInterceptor)
 export class AdminActiveRentalController {
   constructor(

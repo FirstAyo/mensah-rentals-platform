@@ -16,6 +16,7 @@ import type { StaffUserResponse } from '@mensah-rentals/types';
 
 import { CurrentStaffUser } from '../auth/current-staff-user.decorator';
 import { RequirePermissions } from '../authorization/require-permissions.decorator';
+import { RequireFeature } from '../feature-settings/requires-feature.decorator';
 import type { CorrelatedRequest } from '../common/request-correlation';
 import { PrivateNoStoreInterceptor } from '../common/private-no-store.interceptor';
 import { ReportingService } from './reporting.service';
@@ -38,6 +39,7 @@ import {
 const REPORT_EXPORT = 'report.export' as PermissionKey;
 
 @Controller('admin/reports')
+@RequireFeature('OPERATIONAL_REPORTING')
 @UseInterceptors(PrivateNoStoreInterceptor)
 export class ReportingController {
   private readonly logger = new Logger(ReportingController.name);

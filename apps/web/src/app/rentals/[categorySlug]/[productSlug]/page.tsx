@@ -9,6 +9,7 @@ import { getProduct, PublicCatalogueNotFound } from '@/lib/public-catalogue';
 import { siteOrigin } from '@/lib/site-config';
 import { productJsonLd, serializeJsonLd } from '@/lib/structured-data';
 import { AddToCartForm } from '@/components/add-to-cart-form';
+import { getPublicFeatures } from '@/lib/public-features';
 
 export const dynamic = 'force-dynamic';
 
@@ -62,6 +63,7 @@ export default async function ProductPage({
 }) {
   const value = await params;
   const product = await productOr404(value.categorySlug, value.productSlug);
+  const features = await getPublicFeatures();
   const origin = siteOrigin();
   const crumbs = [
     { href: '/', label: 'Home' },
@@ -133,10 +135,22 @@ export default async function ProductPage({
             </div>
           </aside>
 
-          <AddToCartForm
-            productName={product.name}
-            productSlug={product.slug}
-          />
+          {features.rentalRequests ? (
+            <AddToCartForm
+              productName={product.name}
+              productSlug={product.slug}
+            />
+          ) : (
+            <div className="mt-7 rounded-2xl border border-border bg-card p-5 shadow-sm">
+              <h2 className="font-semibold">
+                Rental requests are currently offline
+              </h2>
+              <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                You can continue browsing equipment while Mensah Rentals
+                prepares its online request service.
+              </p>
+            </div>
+          )}
 
           {product.specifications.length ? (
             <section className="mt-8">
@@ -163,13 +177,15 @@ export default async function ProductPage({
               <ArrowLeft aria-hidden="true" className="h-4 w-4" />
               Browse {product.category.name}
             </Link>
-            <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
-              <CheckCircle2
-                aria-hidden="true"
-                className="h-4 w-4 text-primary"
-              />
-              Cart selections do not reserve inventory
-            </span>
+            {features.rentalRequests ? (
+              <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
+                <CheckCircle2
+                  aria-hidden="true"
+                  className="h-4 w-4 text-primary"
+                />
+                Cart selections do not reserve inventory
+              </span>
+            ) : null}
           </div>
         </article>
       </div>

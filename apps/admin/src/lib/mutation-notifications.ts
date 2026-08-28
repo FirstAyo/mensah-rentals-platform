@@ -78,6 +78,20 @@ const INVENTORY_MESSAGES: Array<{
 
 const DOMAIN_MESSAGES: Array<[string, MutationNotification]> = [
   [
+    '/api/feature-settings/presets',
+    {
+      success: 'Feature preset applied successfully',
+      error: 'Feature preset could not be applied',
+    },
+  ],
+  [
+    '/api/feature-settings',
+    {
+      success: 'Feature updated successfully',
+      error: 'Feature could not be updated',
+    },
+  ],
+  [
     '/api/catalogue',
     {
       success: 'Catalogue updated successfully',
@@ -148,6 +162,7 @@ export function mutationNotificationFor(method: string, path: string) {
   if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(normalizedMethod))
     return null;
   if (!path.startsWith('/api/') || path.startsWith('/api/auth/')) return null;
+  if (path.endsWith('/preview')) return null;
   if (path.startsWith('/api/inventory')) {
     return INVENTORY_MESSAGES.find(({ matches }) =>
       matches(normalizedMethod, path),

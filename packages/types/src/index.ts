@@ -8,6 +8,66 @@ export interface DatabaseHealthResponse {
   status: 'ok';
 }
 
+export type PlatformFeatureKey =
+  | 'RENTAL_REQUESTS'
+  | 'QUOTES_AND_ORDERS'
+  | 'CUSTOMER_ORDER_PORTAL'
+  | 'INVENTORY_TRACKING'
+  | 'RESERVATIONS'
+  | 'FULFILMENT'
+  | 'RETURNS'
+  | 'DAMAGED_RETURN_HANDLING'
+  | 'MAINTENANCE'
+  | 'INSPECTIONS'
+  | 'OPERATIONAL_REPORTING';
+export type PlatformFeatureState = 'DISABLED' | 'INTERNAL_TESTING' | 'ENABLED';
+export type PlatformFeaturePreset =
+  | 'WEBSITE_ONLY'
+  | 'WEBSITE_AND_RENTAL_REQUESTS'
+  | 'STAGED_OPERATIONS_TEST'
+  | 'FULL_OPERATIONS';
+
+export interface AdminFeatureSettingResponse {
+  dependencies: PlatformFeatureKey[];
+  dependents: PlatformFeatureKey[];
+  description: string;
+  key: PlatformFeatureKey;
+  label: string;
+  state: PlatformFeatureState;
+  updatedAt: string;
+  version: number;
+}
+
+export interface AdminFeatureSettingsResponse {
+  environment: 'LOCAL' | 'STAGING' | 'PRODUCTION';
+  features: AdminFeatureSettingResponse[];
+}
+
+export interface AdminFeatureAvailabilityResponse {
+  features: Array<{
+    available: boolean;
+    key: PlatformFeatureKey;
+    testing: boolean;
+  }>;
+}
+
+export interface FeatureTransitionChangeResponse {
+  featureKey: PlatformFeatureKey;
+  from: PlatformFeatureState;
+  to: PlatformFeatureState;
+}
+
+export interface FeatureTransitionPreviewResponse {
+  blockers: string[];
+  changes: FeatureTransitionChangeResponse[];
+  requiresReason: boolean;
+}
+
+export interface PublicPlatformCapabilitiesResponse {
+  customerOrderPortal: boolean;
+  rentalRequests: boolean;
+}
+
 export type StaffUserStatus = 'ACTIVE' | 'DISABLED';
 
 export interface StaffRoleSummary {

@@ -26,11 +26,13 @@ import {
 
 import { CurrentStaffUser } from '../auth/current-staff-user.decorator';
 import { RequirePermissions } from '../authorization/require-permissions.decorator';
+import { RequireFeature } from '../feature-settings/requires-feature.decorator';
 import { QuoteNoStoreInterceptor } from './quote-no-store.interceptor';
 import { QuoteService } from './quote.service';
 import { QuoteZodPipe } from './quote-zod.pipe';
 
 @Controller('admin/quotes')
+@RequireFeature('QUOTES_AND_ORDERS')
 @UseInterceptors(QuoteNoStoreInterceptor)
 export class AdminQuoteController {
   constructor(@Inject(QuoteService) private readonly quotes: QuoteService) {}
@@ -142,6 +144,7 @@ export class AdminQuoteController {
 }
 
 @Controller('admin/rental-requests')
+@RequireFeature('QUOTES_AND_ORDERS')
 @UseInterceptors(QuoteNoStoreInterceptor)
 export class AdminRequestQuoteController {
   constructor(@Inject(QuoteService) private readonly quotes: QuoteService) {}

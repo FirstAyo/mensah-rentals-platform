@@ -13,6 +13,7 @@ import {
 import { orderCustomerAccessSchema } from '@mensah-rentals/validation';
 
 import { Public } from '../auth/public.decorator';
+import { RequireFeature } from '../feature-settings/requires-feature.decorator';
 import { RentalOrderNoStoreInterceptor } from './rental-order-no-store.interceptor';
 import { RentalOrderService } from './rental-order.service';
 
@@ -20,6 +21,7 @@ const capabilityHeader = 'x-order-capability';
 
 @Public()
 @Controller('public/orders')
+@RequireFeature('CUSTOMER_ORDER_PORTAL', 'PUBLIC')
 @UseInterceptors(RentalOrderNoStoreInterceptor)
 export class PublicRentalOrderController {
   constructor(

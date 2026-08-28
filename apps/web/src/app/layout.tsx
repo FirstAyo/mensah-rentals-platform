@@ -4,6 +4,7 @@ import { ThemeProvider } from '@mensah-rentals/ui';
 import { PublicShell } from '@/components/public-shell';
 import { AppProviders } from '@/components/app-providers';
 import { indexingEnabled, siteOrigin } from '@/lib/site-config';
+import { getPublicFeatures } from '@/lib/public-features';
 
 import './globals.css';
 
@@ -19,15 +20,16 @@ export const metadata: Metadata = {
     : { index: false, follow: false },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
+  const features = await getPublicFeatures();
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
         <ThemeProvider>
           <AppProviders>
-            <PublicShell>{children}</PublicShell>
+            <PublicShell features={features}>{children}</PublicShell>
           </AppProviders>
         </ThemeProvider>
       </body>

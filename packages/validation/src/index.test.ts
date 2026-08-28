@@ -122,6 +122,13 @@ describe('public rental cart validation', () => {
 });
 
 describe('authentication environment validation', () => {
+  it('defaults feature rollout classification to production-safe behavior', () => {
+    const parsed = apiEnvironmentSchema.parse({
+      DATABASE_URL: 'postgresql://example.invalid/database',
+    });
+    expect(parsed.PLATFORM_ENVIRONMENT).toBe('PRODUCTION');
+  });
+
   it('rejects insecure production cookie settings', () => {
     expect(
       apiEnvironmentSchema.safeParse({

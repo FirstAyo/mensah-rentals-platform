@@ -1,12 +1,18 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
 import { prisma, QuoteRevisionState } from '@mensah-rentals/database';
 import type {
   AdminWorkSummaryResponse,
   StaffUserResponse,
 } from '@mensah-rentals/types';
+import { FeatureSettingsService } from '../feature-settings/feature-settings.service';
 
 @Injectable()
 export class WorkSummaryService {
+  constructor(
+    @Inject(FeatureSettingsService)
+    private readonly features: FeatureSettingsService,
+  ) {}
+
   async get(actor: StaffUserResponse): Promise<AdminWorkSummaryResponse> {
     const permissions = new Set(actor.permissionKeys);
     const now = new Date();
@@ -375,6 +381,27 @@ export class WorkSummaryService {
       response.inspections = { failedRequiringAction, overdue, upcoming };
     }
 
+    const availability = new Map(
+      (await this.features.adminAvailability()).features.map((feature) => [
+        feature.key,
+        feature.available,
+      ]),
+    );
+    if (!availability.get('RENTAL_REQUESTS')) delete response.rentalRequests;
+    if (!availability.get('QUOTES_AND_ORDERS')) {
+      delete response.quotes;
+      delete response.orders;
+    }
+    if (!availability.get('RESERVATIONS')) delete response.reservations;
+    if (!availability.get('FULFILMENT')) {
+      delete response.fulfilment;
+      delete response.activeRentals;
+    }
+    if (!availability.get('RETURNS')) delete response.returns;
+    if (!availability.get('DAMAGED_RETURN_HANDLING'))
+      delete response.returnIssues;
+    if (!availability.get('MAINTENANCE')) delete response.maintenance;
+    if (!availability.get('INSPECTIONS')) delete response.inspections;
     return response;
   }
 }

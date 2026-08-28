@@ -443,3 +443,7 @@ Reporting is a read-only NestJS boundary over authoritative operational tables; 
 # Phase 18.1 official customer PDF boundary
 
 Customer Order and Return forms use a dedicated, dependency-free A4 renderer in the API. A narrow allowlisted projection is constructed from immutable order snapshots and lifecycle records before rendering, so commercial fields cannot enter the PDF data path. Order Form eligibility is based on the first checkout timestamp; Return Form eligibility is based on final return completion. Staff authorization and opaque customer order capabilities remain the only access paths. See [official-customer-pdfs.md](official-customer-pdfs.md).
+
+## Phase 18.5 feature-control boundary
+
+Optional operational modules are governed by durable `PlatformFeatureSetting` rows. NestJS resolves the current database state for guarded requests; `FeatureGuard` runs after staff authentication and permission enforcement and holds a request lease against concurrent state changes. Admin receives only authenticated availability needed for navigation, while Web receives only two public booleans. Missing configuration and capability reads fail closed, and Testing is public only under explicit LOCAL/STAGING classification, never by hostname. Core website, security, audit, integrity, health, backup, and SEO boundaries do not have switches. See [feature-controls.md](feature-controls.md).

@@ -71,3 +71,7 @@ Analytics is a separate deployment and business decision; Phase 18.4 does not ad
 ## Phase 19 redirect inventory
 
 The existing public site uses `/about/`, `/gear/`, `/contact/`, and `/product/{slug}/`. Phase 19 must verify the final migrated destination for each real legacy URL and add explicit permanent redirects where a matching destination exists. It must also enforce HTTP-to-HTTPS and www-to-non-www redirects. Phase 18.4 deliberately does not add speculative wildcard redirects for legacy product slugs.
+
+## Feature-control preservation
+
+Feature settings never remove the homepage, `/rentals`, active category/product pages, legal pages, sitemap, robots, canonical metadata, or structured-data architecture. Disabled transactional routes remain noindex/noarchive and are never added to the sitemap. Public capabilities and structured data contain no feature configuration or inventory availability. Production treats Testing rental/customer flows as unavailable and non-discoverable.

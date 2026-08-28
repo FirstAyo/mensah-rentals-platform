@@ -24,6 +24,7 @@ export default defineConfig({
           '**/homepage.spec.ts',
           '**/reports.spec.ts',
           '**/inventory-management.spec.ts',
+          '**/feature-settings.spec.ts',
           '**/public-navigation.spec.ts',
           '**/seo.spec.ts',
         ],

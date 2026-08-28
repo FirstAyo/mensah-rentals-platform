@@ -212,3 +212,10 @@ The permission catalogue adds `return.view`, `return.create`, `return.partial`, 
 ## Phase 18 operations
 
 `report.view` opens allowed reports; `report.export` additionally permits export but grants no domain data. `audit_log.view` reads safe immutable history; `audit_log.export` adds export. `observability.view` reads safe status. `backup.view_status` reads verification metadata only. SUPER_ADMIN and ADMIN receive these; EDITOR and SALES_PERSON do not by default.
+
+## Phase 18.5 feature settings
+
+- `feature_settings.view`: open Settings → Features and view the internal configuration.
+- `feature_settings.manage`: preview and apply state or preset changes.
+
+SUPER_ADMIN and ADMIN receive both. EDITOR and SALES_PERSON receive neither. Feature availability is an additional backend condition and never replaces a domain permission; enabling a module does not grant its permissions.

@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { RentalCart } from '@/components/rental-cart';
+import { PublicFeatureUnavailable } from '@/components/public-feature-unavailable';
+import { getPublicFeatures } from '@/lib/public-features';
 
 export const metadata: Metadata = {
   title: 'Rental Cart',
@@ -9,7 +11,10 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true },
 };
 
-export default function CartPage() {
+export default async function CartPage() {
+  const features = await getPublicFeatures();
+  if (!features.rentalRequests)
+    return <PublicFeatureUnavailable title="Rental cart" />;
   return (
     <div className="mx-auto max-w-[1760px] px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
       <div className="max-w-3xl">

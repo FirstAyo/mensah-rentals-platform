@@ -249,3 +249,7 @@ Permission-aware operational reports, immutable audit history, safe CSV exports,
 # Official customer forms
 
 Picked-up orders and completed returns provide official customer Order and Return PDFs modeled on the company forms. These PDFs intentionally contain no customer-specific prices or monetary totals. See [docs/official-customer-pdfs.md](docs/official-customer-pdfs.md).
+
+## Phase 18.5 feature controls
+
+Authorized Admin/Super Admin staff can progressively roll out optional operations from Settings → Features using Disabled, Testing, and Enabled states or four atomic presets. Core website, catalogue, security, audit, health, backup, legal, confidentiality, and SEO behavior remain permanently available. Feature changes never delete historical data. See [feature controls](docs/feature-controls.md).

@@ -42,3 +42,7 @@ Authorized staff select a bounded date period and see only reports allowed by re
 # Official document downloads
 
 After the first confirmed pickup or delivery handoff, the private customer order page offers **Download Order Form**. Before that event it explains that the form is not yet available. After the return is finally completed, the same private page offers **Download Return Form**. Partial returns do not produce a final Return Form.
+
+## Progressive rollout flow
+
+An authorized administrator opens Settings → Features, selects a single state or preset, reviews every dependency/dependent transition and live blocker, supplies a reason when disabling, and confirms. The control remains pending until the backend transaction succeeds; success refreshes authoritative state and shows the global toast. A conflict asks the administrator to refresh. Disabled public rental-request/cart or private portal entry points show a controlled unavailable state while the catalogue remains usable.

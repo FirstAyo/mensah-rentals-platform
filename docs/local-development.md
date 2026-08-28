@@ -1593,3 +1593,49 @@ docker compose down
 3. Record all return intake, reconcile it, and complete the rental. The return detail and private customer page then allow the official Return Form download.
 4. A form requested before its authoritative lifecycle event is intentionally unavailable.
 5. Run `pnpm test:e2e:official-pdfs` with normal development servers stopped. This command resets only the guarded `_test` database, never the development database.
+
+## Phase 18.5 feature controls on Windows
+
+1. Open Docker Desktop and wait until it says the engine is running.
+2. Open PowerShell in the repository root.
+3. Ensure the ignored `.env` contains `PLATFORM_ENVIRONMENT=LOCAL`. Use `STAGING` only in the future protected staging environment and `PRODUCTION` only for production.
+4. Start both safe local databases:
+
+   ```powershell
+   docker compose up -d postgres postgres-test
+   docker compose ps
+   ```
+
+5. Apply the additive migration and refresh generated types:
+
+   ```powershell
+   pnpm db:validate
+   pnpm db:generate
+   pnpm db:migrate
+   pnpm db:status
+   pnpm rbac:seed
+   pnpm rbac:verify
+   ```
+
+   Success reports 53 migrations and 97 permissions. Never use `prisma migrate reset`, forced `db push`, table truncation, or Docker volume deletion against development.
+
+6. Start the platform with `pnpm dev`, sign in at `http://localhost:3001/login`, and open `http://localhost:3001/settings/features`.
+7. Preview a state or preset before confirming. A disable requires a meaningful internal reason. Blocked live work must be completed, or the feature can remain Testing where safe.
+8. Confirm public behavior at `http://localhost:3000/` and `http://localhost:3000/rentals`. Website Only keeps these pages available but removes online request/cart entry points.
+9. After manual QA, apply **Full Operations** to return the development environment to the pre-Phase-18.5 behavior unless you intentionally need another local rollout.
+
+Run the guarded browser suite with:
+
+```powershell
+pnpm test:e2e:feature-settings
+```
+
+This command owns and resets only `mensah_rentals_test`. Stop ordinary `pnpm dev` processes first because the isolated harness needs ports 3000, 3001, and 4000.
+
+Troubleshooting:
+
+- `FEATURE_SETTINGS_STALE`: another Admin changed settings; refresh the page and retry.
+- `FEATURE_TRANSITION_BLOCKED`: read the business-safe blocker list and complete the live work; no rows were changed.
+- `FEATURE_UNAVAILABLE`: the direct route/API is correctly blocked; use Settings → Features if authorized.
+- Missing Settings navigation: the staff user needs `feature_settings.view`; rerun `pnpm rbac:seed` after migration.
+- Testing works locally but not publicly in production: this is intentional. Check `PLATFORM_ENVIRONMENT`, not the hostname.

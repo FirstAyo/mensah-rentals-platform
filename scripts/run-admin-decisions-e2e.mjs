@@ -58,6 +58,7 @@ const modes = new Set([
   'official-pdfs',
   'inventory-management',
   'admin-notifications',
+  'feature-settings',
   'seo',
 ]);
 if (!modes.has(mode)) throw new Error(`Unknown decision browser mode: ${mode}`);
@@ -132,6 +133,7 @@ const browserEnvironment = {
   STAFF_BOOTSTRAP_FIRST_NAME: 'Phase Ten',
   STAFF_BOOTSTRAP_LAST_NAME: 'Browser',
   STAFF_BOOTSTRAP_PASSWORD: `${randomBytes(24).toString('base64url')}Aa1!`,
+  PLATFORM_ENVIRONMENT: 'LOCAL',
 };
 if (mode === 'seo') {
   browserEnvironment.SITE_URL = 'https://mensahrentals.com';
@@ -228,6 +230,13 @@ if (
   ))
 )
   throw new Error('The isolated browser staff fixture failed verification.');
+if (mode === 'feature-settings') {
+  const product = await prisma.product.findFirstOrThrow({
+    where: { isActive: true, inventory: null },
+    orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
+  });
+  browserEnvironment.PHASE185_PRODUCT_ID = product.id;
+}
 if (
   mode.startsWith('reservations-') ||
   mode.startsWith('fulfilment-') ||
@@ -1222,6 +1231,7 @@ const officialPdfMode = mode === 'official-pdfs';
 const inventoryManagementMode =
   mode === 'inventory-management' || mode === 'admin-notifications';
 const seoMode = mode === 'seo';
+const featureSettingsMode = mode === 'feature-settings';
 const productionPublicRegressionMode =
   mode === 'catalogue' || mode === 'public-navigation';
 if (
@@ -1239,6 +1249,7 @@ if (
   runtimeRegressionMode ||
   officialPdfMode ||
   inventoryManagementMode ||
+  featureSettingsMode ||
   seoMode
 )
   run(
@@ -1263,6 +1274,7 @@ const usesProductionStart = (workspace) =>
   homepageMode ||
   phase18Mode ||
   inventoryManagementMode ||
+  featureSettingsMode ||
   seoMode ||
   productionPublicRegressionMode ||
   ((fulfilmentMode ||
@@ -1270,6 +1282,7 @@ const usesProductionStart = (workspace) =>
     maintenanceMode ||
     phase18Mode ||
     inventoryManagementMode ||
+    featureSettingsMode ||
     officialPdfMode ||
     mode.startsWith('orders-')) &&
     workspace !== '@mensah-rentals/web');
@@ -1308,6 +1321,7 @@ try {
         maintenanceMode ||
         phase18Mode ||
         inventoryManagementMode ||
+        featureSettingsMode ||
         officialPdfMode
         ? 300_000
         : 90_000,
@@ -1321,6 +1335,7 @@ try {
         maintenanceMode ||
         phase18Mode ||
         inventoryManagementMode ||
+        featureSettingsMode ||
         officialPdfMode
         ? 300_000
         : 90_000,
@@ -1348,93 +1363,95 @@ try {
     ? mode === 'admin-notifications'
       ? '@admin-notifications'
       : '@inventory-management'
-    : seoMode
-      ? '@seo'
-      : officialPdfMode
-        ? '@official-pdfs'
-        : categoryMode
-          ? '@categories'
-          : productMode
-            ? '@products'
-            : publicRegressionMode
-              ? mode === 'catalogue'
-                ? '@catalogue'
-                : mode === 'cart'
-                  ? '@cart'
-                  : '@public-navigation'
-              : isHomepageMode
-                ? mode === 'homepage-admin'
-                  ? '@homepage-admin'
-                  : mode === 'homepage-media'
-                    ? '@homepage-media'
-                    : mode === 'homepage-google-live'
-                      ? '@homepage-google-live'
-                      : mode === 'homepage-google-timeout'
-                        ? '@homepage-google-timeout'
-                        : mode === 'homepage-google-quota'
-                          ? '@homepage-google-quota'
-                          : mode === 'homepage-google-reviews'
-                            ? '@homepage-google-live'
-                            : mode === 'homepage-all'
-                              ? '@homepage'
-                              : '@homepage-public'
-                : runtimeRegressionMode
-                  ? '@runtime-regression'
-                  : phase18Mode
-                    ? mode === 'reports'
-                      ? '@reports'
-                      : mode === 'audit'
-                        ? '@audit'
-                        : mode === 'system-status'
-                          ? '@system-status'
-                          : '@reports|@audit|@system-status'
-                    : maintenanceMode
-                      ? mode === 'inspections'
-                        ? '@inspections'
-                        : mode === 'maintenance-all'
-                          ? '@maintenance|@inspections'
-                          : '@maintenance'
-                      : returnMode
-                        ? mode === 'returns-all'
-                          ? '@returns'
-                          : mode === 'returns-concurrency'
-                            ? '@return-concurrency'
-                            : mode === 'returns-issues'
-                              ? '@return-issues'
-                              : '@admin-returns'
-                        : fulfilmentMode
-                          ? mode === 'fulfilment-all'
-                            ? '@fulfilment'
-                            : mode === 'fulfilment-concurrency'
-                              ? '@fulfilment-concurrency'
-                              : mode === 'fulfilment-active-rentals'
-                                ? '@active-rentals'
-                                : '@admin-fulfilment'
-                          : reservationMode
-                            ? mode === 'reservations-all'
-                              ? '@reservations'
-                              : mode === 'reservations-concurrency'
-                                ? '@reservation-concurrency'
-                                : mode === 'reservations-shortfall'
-                                  ? '@reservation-shortfall'
-                                  : '@admin-reservations'
-                            : isPhase121
-                              ? '@phase12-1'
-                              : isOrderMode
-                                ? mode === 'orders-all'
-                                  ? '@orders'
-                                  : mode === 'orders-admin'
-                                    ? '@admin-orders'
-                                    : '@customer-orders'
-                                : isQuoteMode
-                                  ? mode === 'quotes-all'
-                                    ? '@quotes'
-                                    : mode === 'quotes-admin'
-                                      ? '@admin-quotes'
-                                      : '@customer-quotes'
-                                  : mode === 'all'
-                                    ? '@admin-decisions'
-                                    : `@admin-decisions-${mode}`;
+    : featureSettingsMode
+      ? '@feature-settings'
+      : seoMode
+        ? '@seo'
+        : officialPdfMode
+          ? '@official-pdfs'
+          : categoryMode
+            ? '@categories'
+            : productMode
+              ? '@products'
+              : publicRegressionMode
+                ? mode === 'catalogue'
+                  ? '@catalogue'
+                  : mode === 'cart'
+                    ? '@cart'
+                    : '@public-navigation'
+                : isHomepageMode
+                  ? mode === 'homepage-admin'
+                    ? '@homepage-admin'
+                    : mode === 'homepage-media'
+                      ? '@homepage-media'
+                      : mode === 'homepage-google-live'
+                        ? '@homepage-google-live'
+                        : mode === 'homepage-google-timeout'
+                          ? '@homepage-google-timeout'
+                          : mode === 'homepage-google-quota'
+                            ? '@homepage-google-quota'
+                            : mode === 'homepage-google-reviews'
+                              ? '@homepage-google-live'
+                              : mode === 'homepage-all'
+                                ? '@homepage'
+                                : '@homepage-public'
+                  : runtimeRegressionMode
+                    ? '@runtime-regression'
+                    : phase18Mode
+                      ? mode === 'reports'
+                        ? '@reports'
+                        : mode === 'audit'
+                          ? '@audit'
+                          : mode === 'system-status'
+                            ? '@system-status'
+                            : '@reports|@audit|@system-status'
+                      : maintenanceMode
+                        ? mode === 'inspections'
+                          ? '@inspections'
+                          : mode === 'maintenance-all'
+                            ? '@maintenance|@inspections'
+                            : '@maintenance'
+                        : returnMode
+                          ? mode === 'returns-all'
+                            ? '@returns'
+                            : mode === 'returns-concurrency'
+                              ? '@return-concurrency'
+                              : mode === 'returns-issues'
+                                ? '@return-issues'
+                                : '@admin-returns'
+                          : fulfilmentMode
+                            ? mode === 'fulfilment-all'
+                              ? '@fulfilment'
+                              : mode === 'fulfilment-concurrency'
+                                ? '@fulfilment-concurrency'
+                                : mode === 'fulfilment-active-rentals'
+                                  ? '@active-rentals'
+                                  : '@admin-fulfilment'
+                            : reservationMode
+                              ? mode === 'reservations-all'
+                                ? '@reservations'
+                                : mode === 'reservations-concurrency'
+                                  ? '@reservation-concurrency'
+                                  : mode === 'reservations-shortfall'
+                                    ? '@reservation-shortfall'
+                                    : '@admin-reservations'
+                              : isPhase121
+                                ? '@phase12-1'
+                                : isOrderMode
+                                  ? mode === 'orders-all'
+                                    ? '@orders'
+                                    : mode === 'orders-admin'
+                                      ? '@admin-orders'
+                                      : '@customer-orders'
+                                  : isQuoteMode
+                                    ? mode === 'quotes-all'
+                                      ? '@quotes'
+                                      : mode === 'quotes-admin'
+                                        ? '@admin-quotes'
+                                        : '@customer-quotes'
+                                    : mode === 'all'
+                                      ? '@admin-decisions'
+                                      : `@admin-decisions-${mode}`;
   const grepArgument =
     process.platform === 'win32' && grep.includes('|') ? `"${grep}"` : grep;
   run(
@@ -1447,54 +1464,57 @@ try {
       'test',
       ...(seoMode
         ? ['e2e/seo.spec.ts']
-        : categoryMode || productMode || publicRegressionMode
-          ? [
-              categoryMode
-                ? 'e2e/categories.spec.ts'
-                : productMode
-                  ? 'e2e/products.spec.ts'
-                  : mode === 'catalogue'
-                    ? 'e2e/catalogue.spec.ts'
-                    : mode === 'cart'
-                      ? 'e2e/cart.spec.ts'
-                      : 'e2e/public-navigation.spec.ts',
-            ]
-          : isHomepageMode
-            ? ['e2e/homepage.spec.ts']
-            : inventoryManagementMode
-              ? ['e2e/inventory-management.spec.ts']
-              : reservationMode ||
-                  fulfilmentMode ||
-                  returnMode ||
-                  officialPdfMode
-                ? ['e2e/orders.spec.ts']
-                : runtimeRegressionMode
-                  ? ['e2e/runtime-regression.spec.ts']
-                  : phase18Mode
-                    ? ['e2e/reports.spec.ts']
-                    : maintenanceMode
-                      ? ['e2e/maintenance.spec.ts']
-                      : isPhase121
-                        ? [
-                            isPhase121Layout
-                              ? 'e2e/phase12-1.spec.ts'
-                              : isPhase121Quote
-                                ? 'e2e/quotes.spec.ts'
-                                : 'e2e/orders.spec.ts',
-                          ]
-                        : [
-                            isOrderMode
-                              ? 'e2e/orders.spec.ts'
-                              : isQuoteMode
-                                ? 'e2e/quotes.spec.ts'
-                                : 'e2e/admin-decisions.spec.ts',
-                          ]),
+        : featureSettingsMode
+          ? ['e2e/feature-settings.spec.ts']
+          : categoryMode || productMode || publicRegressionMode
+            ? [
+                categoryMode
+                  ? 'e2e/categories.spec.ts'
+                  : productMode
+                    ? 'e2e/products.spec.ts'
+                    : mode === 'catalogue'
+                      ? 'e2e/catalogue.spec.ts'
+                      : mode === 'cart'
+                        ? 'e2e/cart.spec.ts'
+                        : 'e2e/public-navigation.spec.ts',
+              ]
+            : isHomepageMode
+              ? ['e2e/homepage.spec.ts']
+              : inventoryManagementMode
+                ? ['e2e/inventory-management.spec.ts']
+                : reservationMode ||
+                    fulfilmentMode ||
+                    returnMode ||
+                    officialPdfMode
+                  ? ['e2e/orders.spec.ts']
+                  : runtimeRegressionMode
+                    ? ['e2e/runtime-regression.spec.ts']
+                    : phase18Mode
+                      ? ['e2e/reports.spec.ts']
+                      : maintenanceMode
+                        ? ['e2e/maintenance.spec.ts']
+                        : isPhase121
+                          ? [
+                              isPhase121Layout
+                                ? 'e2e/phase12-1.spec.ts'
+                                : isPhase121Quote
+                                  ? 'e2e/quotes.spec.ts'
+                                  : 'e2e/orders.spec.ts',
+                            ]
+                          : [
+                              isOrderMode
+                                ? 'e2e/orders.spec.ts'
+                                : isQuoteMode
+                                  ? 'e2e/quotes.spec.ts'
+                                  : 'e2e/admin-decisions.spec.ts',
+                            ]),
       '--grep',
       grepArgument,
       ...(maintenanceMode ||
       phase18Mode ||
       runtimeRegressionMode ||
       inventoryManagementMode ||
+      featureSettingsMode ||
       seoMode ||
       mode === 'public-navigation'
         ? ['--project=mobile-320', '--project=wide-1440']

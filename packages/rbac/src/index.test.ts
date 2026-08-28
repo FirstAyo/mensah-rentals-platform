@@ -12,7 +12,7 @@ describe('RBAC catalogue', () => {
     expect(new Set(SYSTEM_ROLES.map(({ name }) => name)).size).toBe(
       SYSTEM_ROLES.length,
     );
-    expect(PERMISSION_CATALOGUE).toHaveLength(95);
+    expect(PERMISSION_CATALOGUE).toHaveLength(97);
   });
   it('grants SUPER_ADMIN every seeded permission', () => {
     expect(DEFAULT_ROLE_PERMISSION_KEYS.SUPER_ADMIN).toEqual(
@@ -113,6 +113,19 @@ describe('RBAC catalogue', () => {
       'backup.view_status',
     ] as const;
     for (const permission of phase18Permissions) {
+      expect(DEFAULT_ROLE_PERMISSION_KEYS.ADMIN).toContain(permission);
+      expect(DEFAULT_ROLE_PERMISSION_KEYS.SUPER_ADMIN).toContain(permission);
+      expect(DEFAULT_ROLE_PERMISSION_KEYS.EDITOR).not.toContain(permission);
+      expect(DEFAULT_ROLE_PERMISSION_KEYS.SALES_PERSON).not.toContain(
+        permission,
+      );
+    }
+  });
+  it('grants feature settings only to administrative roles', () => {
+    for (const permission of [
+      'feature_settings.view',
+      'feature_settings.manage',
+    ] as const) {
       expect(DEFAULT_ROLE_PERMISSION_KEYS.ADMIN).toContain(permission);
       expect(DEFAULT_ROLE_PERMISSION_KEYS.SUPER_ADMIN).toContain(permission);
       expect(DEFAULT_ROLE_PERMISSION_KEYS.EDITOR).not.toContain(permission);

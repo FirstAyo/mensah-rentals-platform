@@ -2,12 +2,19 @@ import { ThemeToggle } from '@mensah-rentals/ui';
 import { ArrowRight, Menu, PackageOpen } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
+import type { PublicPlatformCapabilitiesResponse } from '@mensah-rentals/types';
 import { CartHeaderLink } from './cart-header-link';
 
 const navLink =
   'rounded-lg px-3 py-2 text-sm font-medium outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring';
 
-export function PublicShell({ children }: { children: ReactNode }) {
+export function PublicShell({
+  children,
+  features = { customerOrderPortal: true, rentalRequests: true },
+}: {
+  children: ReactNode;
+  features?: PublicPlatformCapabilitiesResponse;
+}) {
   return (
     <div className="min-h-screen bg-background text-foreground">
       <a
@@ -45,12 +52,14 @@ export function PublicShell({ children }: { children: ReactNode }) {
               <Link className={navLink} href="/rentals">
                 Rentals
               </Link>
-              <Link className={navLink} href="/track-request">
-                Track request
-              </Link>
+              {features.rentalRequests ? (
+                <Link className={navLink} href="/track-request">
+                  Track request
+                </Link>
+              ) : null}
             </nav>
             <ThemeToggle />
-            <CartHeaderLink />
+            {features.rentalRequests ? <CartHeaderLink /> : null}
             <Link
               className="hidden min-h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground outline-none transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:inline-flex"
               href="/rentals"
@@ -92,9 +101,11 @@ export function PublicShell({ children }: { children: ReactNode }) {
             <Link className={navLink} href="/rentals">
               Rental catalogue
             </Link>
-            <Link className={navLink} href="/track-request">
-              Track request
-            </Link>
+            {features.rentalRequests ? (
+              <Link className={navLink} href="/track-request">
+                Track request
+              </Link>
+            ) : null}
             <Link className={navLink} href="/privacy">
               Privacy
             </Link>

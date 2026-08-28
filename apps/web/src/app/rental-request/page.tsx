@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 
 import { RentalRequestForm } from '@/components/rental-request-form';
+import { PublicFeatureUnavailable } from '@/components/public-feature-unavailable';
+import { getPublicFeatures } from '@/lib/public-features';
 
 export const metadata: Metadata = {
   title: 'Submit Rental Request',
@@ -9,7 +11,10 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true },
 };
 
-export default function RentalRequestPage() {
+export default async function RentalRequestPage() {
+  const features = await getPublicFeatures();
+  if (!features.rentalRequests)
+    return <PublicFeatureUnavailable title="Rental requests" />;
   return (
     <div className="mx-auto max-w-[1440px] px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
       <div className="max-w-3xl">

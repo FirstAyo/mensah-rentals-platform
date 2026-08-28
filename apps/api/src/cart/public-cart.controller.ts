@@ -19,6 +19,7 @@ import {
 import type { Response } from 'express';
 
 import { Public } from '../auth/public.decorator';
+import { RequireFeature } from '../feature-settings/requires-feature.decorator';
 import { ZodBodyPipe } from '../auth/zod-body.pipe';
 import {
   type CartOperationResult,
@@ -31,6 +32,7 @@ const TOKEN_HEADER = 'x-rental-cart-token';
 @Public()
 @UseGuards(PublicCartRateLimitGuard)
 @Controller('public/cart')
+@RequireFeature('RENTAL_REQUESTS', 'PUBLIC')
 export class PublicCartController {
   constructor(
     @Inject(PublicCartService) private readonly cart: PublicCartService,

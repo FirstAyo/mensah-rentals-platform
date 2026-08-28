@@ -23,11 +23,13 @@ import {
 
 import { CurrentStaffUser } from '../auth/current-staff-user.decorator';
 import { RequirePermissions } from '../authorization/require-permissions.decorator';
+import { RequireFeature } from '../feature-settings/requires-feature.decorator';
 import { InventoryReservationService } from './inventory-reservation.service';
 import { RentalOrderNoStoreInterceptor } from './rental-order-no-store.interceptor';
 import { RentalOrderZodPipe } from './rental-order-zod.pipe';
 
 @Controller('admin/orders/:orderId')
+@RequireFeature('RESERVATIONS')
 @UseInterceptors(RentalOrderNoStoreInterceptor)
 export class InventoryReservationController {
   constructor(

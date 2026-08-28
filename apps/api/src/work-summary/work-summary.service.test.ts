@@ -40,6 +40,23 @@ vi.mock('@mensah-rentals/database', () => ({
 
 import { WorkSummaryService } from './work-summary.service';
 
+function service() {
+  return new WorkSummaryService({
+    adminAvailability: vi.fn().mockResolvedValue({
+      features: [
+        'RENTAL_REQUESTS',
+        'QUOTES_AND_ORDERS',
+        'RESERVATIONS',
+        'FULFILMENT',
+        'RETURNS',
+        'DAMAGED_RETURN_HANDLING',
+        'MAINTENANCE',
+        'INSPECTIONS',
+      ].map((key) => ({ available: true, key, testing: false })),
+    }),
+  } as never);
+}
+
 function actor(permissionKeys: string[]): StaffUserResponse {
   return {
     createdAt: '2026-07-27T00:00:00.000Z',
@@ -71,7 +88,7 @@ describe('WorkSummaryService', () => {
     quoteCount.mockResolvedValueOnce(3).mockResolvedValueOnce(5);
     rentalOrderCount.mockResolvedValueOnce(7);
 
-    const result = await new WorkSummaryService().get(
+    const result = await service().get(
       actor([
         'rental_request.view',
         'quote.create',
@@ -105,9 +122,7 @@ describe('WorkSummaryService', () => {
       { shortfallQuantity: 6 },
     ]);
     inventoryReservationCount.mockResolvedValueOnce(5);
-    const result = await new WorkSummaryService().get(
-      actor(['inventory.reservation.view']),
-    );
+    const result = await service().get(actor(['inventory.reservation.view']));
     expect(result.reservations).toEqual({
       awaitingReservation: 2,
       fullyReserved: 4,
@@ -135,7 +150,7 @@ describe('WorkSummaryService', () => {
   });
 
   it('does not query or disclose sections without their view permission', async () => {
-    await expect(new WorkSummaryService().get(actor([]))).resolves.toEqual({
+    await expect(service().get(actor([]))).resolves.toEqual({
       generatedAt: expect.any(String),
     });
     expect(rentalRequestCount).not.toHaveBeenCalled();
@@ -149,9 +164,7 @@ describe('WorkSummaryService', () => {
       .mockResolvedValueOnce(4)
       .mockResolvedValueOnce(2)
       .mockResolvedValueOnce(1);
-    const result = await new WorkSummaryService().get(
-      actor(['active_rental.view']),
-    );
+    const result = await service().get(actor(['active_rental.view']));
     expect(result.activeRentals).toEqual({
       active: 4,
       expectedReturnsToday: 2,
@@ -162,5 +175,18 @@ describe('WorkSummaryService', () => {
         in: ['PARTIALLY_ACTIVE', 'ACTIVE'],
       });
     }
+  });
+
+  it('does not disclose dashboard work for a disabled feature', async () => {
+    rentalRequestCount.mockResolvedValueOnce(4).mockResolvedValueOnce(2);
+    const disabled = new WorkSummaryService({
+      adminAvailability: vi.fn().mockResolvedValue({
+        features: [
+          { available: false, key: 'RENTAL_REQUESTS', testing: false },
+        ],
+      }),
+    } as never);
+    const result = await disabled.get(actor(['rental_request.view']));
+    expect(result.rentalRequests).toBeUndefined();
   });
 });

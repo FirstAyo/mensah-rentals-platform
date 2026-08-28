@@ -1,5 +1,7 @@
 import { z } from 'zod';
 
+export * from './feature-settings';
+
 export * from './quote';
 export * from './order';
 export * from './fulfilment';
@@ -97,6 +99,9 @@ export type StaffBootstrapEnvironment = z.infer<
 
 export const apiEnvironmentSchema = z
   .object({
+    PLATFORM_ENVIRONMENT: z
+      .enum(['LOCAL', 'STAGING', 'PRODUCTION'])
+      .default('PRODUCTION'),
     ADMIN_ORIGIN: z.string().url().default('http://localhost:3001'),
     API_PORT: z.coerce.number().int().min(1).max(65535).default(4000),
     AUTH_COOKIE_SECURE: environmentBoolean.default('false'),

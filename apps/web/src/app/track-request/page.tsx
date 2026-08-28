@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 
 import { TrackRequestForm } from '@/components/track-request-form';
+import { PublicFeatureUnavailable } from '@/components/public-feature-unavailable';
+import { getPublicFeatures } from '@/lib/public-features';
 
 export const metadata: Metadata = {
   title: 'Track Rental Request',
@@ -8,7 +10,10 @@ export const metadata: Metadata = {
   robots: { index: false, follow: false, nocache: true },
 };
 
-export default function TrackRequestPage() {
+export default async function TrackRequestPage() {
+  const features = await getPublicFeatures();
+  if (!features.rentalRequests)
+    return <PublicFeatureUnavailable title="Request tracking" />;
   return (
     <div className="mx-auto max-w-2xl px-4 py-14 sm:px-6 lg:py-20">
       <div className="rounded-2xl border bg-card p-6 shadow-sm sm:p-8">

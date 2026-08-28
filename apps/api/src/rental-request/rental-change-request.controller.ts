@@ -26,6 +26,7 @@ import { CurrentStaffUser } from '../auth/current-staff-user.decorator';
 import { Public } from '../auth/public.decorator';
 import { ZodBodyPipe } from '../auth/zod-body.pipe';
 import { RequirePermissions } from '../authorization/require-permissions.decorator';
+import { RequireFeature } from '../feature-settings/requires-feature.decorator';
 import {
   type AdminRentalChangeRequestResponse,
   RentalChangeRequestService,
@@ -37,6 +38,7 @@ const REQUEST_TOKEN_HEADER = 'x-rental-request-token';
 
 @Public()
 @Controller('public/rental-change-requests')
+@RequireFeature('CUSTOMER_ORDER_PORTAL', 'PUBLIC')
 @UseInterceptors(AdminRentalRequestNoStoreInterceptor)
 @UseGuards(PublicRentalRequestRateLimitGuard)
 export class PublicRentalChangeRequestController {
@@ -71,6 +73,7 @@ export class PublicRentalChangeRequestController {
 }
 
 @Controller('admin/change-requests')
+@RequireFeature('QUOTES_AND_ORDERS')
 @UseInterceptors(AdminRentalRequestNoStoreInterceptor)
 export class AdminRentalChangeRequestController {
   constructor(

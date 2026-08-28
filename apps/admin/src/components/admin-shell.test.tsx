@@ -31,6 +31,18 @@ import { AdminShell } from './admin-shell';
 function render(permissionKeys: string[]) {
   return renderToStaticMarkup(
     <AdminShell
+      featureAvailability={{
+        features: ['RENTAL_REQUESTS', 'QUOTES_AND_ORDERS', 'RESERVATIONS'].map(
+          (key) => ({
+            available: true,
+            key: key as
+              | 'RENTAL_REQUESTS'
+              | 'QUOTES_AND_ORDERS'
+              | 'RESERVATIONS',
+            testing: false,
+          }),
+        ),
+      }}
       user={{
         createdAt: '2026-07-27T00:00:00.000Z',
         email: 'staff@example.com',

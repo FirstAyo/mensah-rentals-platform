@@ -1406,3 +1406,52 @@ pnpm test:e2e:official-pdfs
 ```
 
 Success means the 320px pickup and completed-return flows download safe `Mensah-Rentals-Order-...pdf` and `Mensah-Rentals-Return-...pdf` files through staff and customer capability paths. API tests also verify lifecycle gating, exact controlled legal content, inclusive duration, continuation pages, safe metadata, and absence of price labels, currencies, sentinel amounts, serial identifiers, and internal fields.
+
+## Phase 18.5 feature-control testing
+
+First start Docker Desktop, then run:
+
+```powershell
+docker compose up -d postgres postgres-test
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+git diff --check
+```
+
+Successful database output reports 53 migrations and an up-to-date schema. RBAC verification reports four roles and 97 permissions. Static, test, and build commands must exit with code 0.
+
+Focused browser coverage:
+
+```powershell
+pnpm test:e2e:feature-settings
+```
+
+The suite verifies Website Only, catalogue preservation, hidden operational entry points, atomic dependency activation, a real maintenance live-work blocker, Testing badges, top-right success/error toasts, dark-mode persistence, 320px containment, and zero serious/critical Axe findings. It restores Full Operations in its guarded test database.
+
+Run the required regressions individually:
+
+```powershell
+pnpm test:e2e:homepage-all
+pnpm test:e2e:public-navigation
+pnpm test:e2e:inventory-management
+pnpm test:e2e:admin-reservations
+pnpm test:e2e:admin-fulfilment
+pnpm test:e2e:returns
+pnpm test:e2e:official-pdfs
+pnpm test:e2e:customer-orders
+pnpm test:e2e:seo
+pnpm seo:audit
+pnpm db:integrity
+pnpm rbac:verify
+```
+
+Each browser command resets only the guarded `_test` database. Stop local app servers first. A failed transition must leave the previous states selected, stop the spinner, and show an error toast. Public responses should contain only safe booleans and never inventory quantities, feature reasons, versions, actor IDs, or dependency data.

@@ -34,12 +34,14 @@ import {
 import { CurrentStaffUser } from '../auth/current-staff-user.decorator';
 import { ZodBodyPipe } from '../auth/zod-body.pipe';
 import { RequirePermissions } from '../authorization/require-permissions.decorator';
+import { RequireFeature } from '../feature-settings/requires-feature.decorator';
 import { AdminRentalRequestNoStoreInterceptor } from './admin-rental-request-no-store.interceptor';
 import { AdminRentalRequestService } from './admin-rental-request.service';
 import { RentalRequestDecisionService } from './rental-request-decision.service';
 import { RentalRequestRevisionService } from './rental-request-revision.service';
 
 @Controller('admin/rental-requests')
+@RequireFeature('RENTAL_REQUESTS')
 @UseInterceptors(AdminRentalRequestNoStoreInterceptor)
 export class AdminRentalRequestController {
   constructor(

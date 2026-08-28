@@ -30,14 +30,21 @@ import {
 
 import { CurrentStaffUser } from '../auth/current-staff-user.decorator';
 import { RequirePermissions } from '../authorization/require-permissions.decorator';
+import { RequireFeature } from '../feature-settings/requires-feature.decorator';
+import { FeatureSettingsService } from '../feature-settings/feature-settings.service';
 import { RentalOrderNoStoreInterceptor } from '../rental-order/rental-order-no-store.interceptor';
 import { RentalOrderZodPipe } from '../rental-order/rental-order-zod.pipe';
 import { ReturnService } from './return.service';
 
 @Controller('admin/active-rentals/:activeRentalId/return')
+@RequireFeature('RETURNS')
 @UseInterceptors(RentalOrderNoStoreInterceptor)
 export class AdminActiveRentalReturnController {
-  constructor(@Inject(ReturnService) private readonly returns: ReturnService) {}
+  constructor(
+    @Inject(ReturnService) private readonly returns: ReturnService,
+    @Inject(FeatureSettingsService)
+    private readonly features: FeatureSettingsService,
+  ) {}
 
   @Get()
   @RequirePermissions('return.view')
@@ -51,20 +58,27 @@ export class AdminActiveRentalReturnController {
 
   @Post()
   @RequirePermissions('return.create', 'return.inspect')
-  record(
+  async record(
     @CurrentStaffUser() actor: StaffUserResponse,
     @Param('activeRentalId', new RentalOrderZodPipe(cuidParamSchema))
     activeRentalId: string,
     @Body(new RentalOrderZodPipe(recordReturnSchema)) input: RecordReturnInput,
   ): Promise<unknown> {
+    if (requiresIssueHandling(input))
+      await this.features.assertAvailable('DAMAGED_RETURN_HANDLING', 'ADMIN');
     return this.returns.record(actor.id, activeRentalId, input);
   }
 }
 
 @Controller('admin/returns')
+@RequireFeature('RETURNS')
 @UseInterceptors(RentalOrderNoStoreInterceptor)
 export class AdminReturnController {
-  constructor(@Inject(ReturnService) private readonly returns: ReturnService) {}
+  constructor(
+    @Inject(ReturnService) private readonly returns: ReturnService,
+    @Inject(FeatureSettingsService)
+    private readonly features: FeatureSettingsService,
+  ) {}
 
   @Get()
   @RequirePermissions('return.view')
@@ -87,11 +101,13 @@ export class AdminReturnController {
 
   @Post(':id/operations')
   @RequirePermissions('return.create', 'return.inspect')
-  operation(
+  async operation(
     @CurrentStaffUser() actor: StaffUserResponse,
     @Param('id', new RentalOrderZodPipe(cuidParamSchema)) id: string,
     @Body(new RentalOrderZodPipe(recordReturnSchema)) input: RecordReturnInput,
   ): Promise<unknown> {
+    if (requiresIssueHandling(input))
+      await this.features.assertAvailable('DAMAGED_RETURN_HANDLING', 'ADMIN');
     return this.returns
       .detail(actor.id, id)
       .then((current) =>
@@ -123,12 +139,13 @@ export class AdminReturnController {
 
   @Post(':id/issues')
   @RequirePermissions('rental_issue.update')
-  createIssue(
+  async createIssue(
     @CurrentStaffUser() actor: StaffUserResponse,
     @Param('id', new RentalOrderZodPipe(cuidParamSchema)) id: string,
     @Body(new RentalOrderZodPipe(createRentalIssueSchema))
     input: CreateRentalIssueInput,
   ): Promise<unknown> {
+    await this.features.assertAvailable('DAMAGED_RETURN_HANDLING', 'ADMIN');
     return this.returns.createManualIssue(actor.id, id, input);
   }
 
@@ -190,7 +207,18 @@ export class AdminReturnController {
   }
 }
 
+function requiresIssueHandling(input: RecordReturnInput) {
+  return input.items.some(
+    (item) =>
+      item.quantityDamaged > 0 ||
+      item.quantityMaintenance > 0 ||
+      item.quantityMissing > 0 ||
+      item.externalQuantityMissing > 0,
+  );
+}
+
 @Controller('admin/rental-issues')
+@RequireFeature('DAMAGED_RETURN_HANDLING')
 @UseInterceptors(RentalOrderNoStoreInterceptor)
 export class AdminRentalIssueController {
   constructor(@Inject(ReturnService) private readonly returns: ReturnService) {}

@@ -115,6 +115,8 @@ export const PERMISSION_CATALOGUE = [
   ['audit_log.export', 'Export bounded audit-history data.'],
   ['observability.view', 'View protected operational system status.'],
   ['backup.view_status', 'View protected backup verification status.'],
+  ['feature_settings.view', 'View operational feature controls.'],
+  ['feature_settings.manage', 'Manage operational feature controls.'],
 ] as const;
 
 export type PermissionKey = (typeof PERMISSION_CATALOGUE)[number][0];
@@ -235,6 +237,8 @@ const ADMIN_PERMISSIONS = [
   'audit_log.export',
   'observability.view',
   'backup.view_status',
+  'feature_settings.view',
+  'feature_settings.manage',
 ] as const satisfies readonly PermissionKey[];
 
 const EDITOR_PERMISSIONS = [

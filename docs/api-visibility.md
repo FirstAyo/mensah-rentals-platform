@@ -258,3 +258,7 @@ Reports, audit history, exports, detailed system status, and backup verification
 # Official customer PDF visibility
 
 Customer Order and Return PDF renderers receive no monetary, inventory, reservation, preparation, serialized-asset, issue-internal, staff, operation, audit, session, or capability fields. `GET /public/orders/current/pdf` and `GET /public/orders/current/return-pdf` require the existing order capability and return private/no-store responses. There is no public raw-ID return PDF endpoint.
+
+## Phase 18.5 capability visibility
+
+`GET /public/features` is explicitly mapped to `{ rentalRequests, customerOrderPortal }`. It never serializes feature rows and omits state names, Testing detail, dependencies, versions, reasons, actors, audit fields, RBAC data, inventory, or internal workflow state. Authenticated staff navigation receives only key/available/testing values. Full settings, previews, blockers, and mutations require the new settings permissions.
