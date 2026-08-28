@@ -250,3 +250,7 @@ Official customer forms are derived documents, not mutable business entities. Th
 ## Platform feature setting
 
 `PlatformFeatureSetting` has one typed global key, `DISABLED | INTERNAL_TESTING | ENABLED`, an optimistic version, timestamps, and an optional updating staff user. It is configuration, not a replacement for any rental domain entity. State changes preserve every request, quote, order, reservation, fulfilment, rental, return, issue, maintenance record, inspection, inventory transaction, customer capability, and media record. Append-only `PlatformAuditEvent` records each change or preset.
+
+## Public page content models
+
+`PublicPage` identifies ABOUT, CONTACT, TERMS, or PRIVACY and stores optimistic lock state plus nullable current draft/published pointers. `PublicPageRevision` is an immutable full content and SEO snapshot with version, kind, authorship, publication data, basis/restore links, and idempotency metadata. `PublicPageMediaPlacement` is an immutable, allowlisted slot reference to exactly one managed homepage image or product image. Historical revisions and placements are never overwritten.

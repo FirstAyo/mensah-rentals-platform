@@ -38,6 +38,7 @@ export class HomepageMediaService {
     originalFilename: string,
     description: string,
     actorUserId: string,
+    permission = 'homepage.media.manage',
   ) {
     const normalized = await this.productMedia.normalizeImage(source);
     const contentHash = createHash('sha256')
@@ -52,11 +53,7 @@ export class HomepageMediaService {
     try {
       const media = await prisma.$transaction(async (tx) => {
         await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${contentHash}))`;
-        await this.requireActorPermission(
-          tx,
-          actorUserId,
-          'homepage.media.manage',
-        );
+        await this.requireActorPermission(tx, actorUserId, permission);
         const duplicate = await tx.homepageMedia.findUnique({
           where: { contentHash },
         });
@@ -111,6 +108,7 @@ export class HomepageMediaService {
               placements: true,
               homepageCategoryOverrides: true,
               categoryCovers: true,
+              publicPagePlacements: true,
             },
           },
         },
@@ -119,7 +117,8 @@ export class HomepageMediaService {
       if (
         media._count.placements > 0 ||
         media._count.homepageCategoryOverrides > 0 ||
-        media._count.categoryCovers > 0
+        media._count.categoryCovers > 0 ||
+        media._count.publicPagePlacements > 0
       )
         throw new ConflictException(
           'This image is used by homepage history and cannot be removed',
@@ -182,6 +181,7 @@ export class HomepageMediaService {
               placements: true,
               homepageCategoryOverrides: true,
               categoryCovers: true,
+              publicPagePlacements: true,
             },
           },
         },
@@ -197,6 +197,7 @@ export class HomepageMediaService {
               homepagePlacements: true,
               homepageCategoryOverrides: true,
               categoryCovers: true,
+              publicPagePlacements: true,
             },
           },
         },
@@ -218,7 +219,8 @@ export class HomepageMediaService {
         usageCount:
           item._count.placements +
           item._count.homepageCategoryOverrides +
-          item._count.categoryCovers,
+          item._count.categoryCovers +
+          item._count.publicPagePlacements,
         productName: null,
       })),
       ...(query.source === 'HOMEPAGE' ? [] : product).map((item) => ({
@@ -234,7 +236,8 @@ export class HomepageMediaService {
         usageCount:
           item._count.homepagePlacements +
           item._count.homepageCategoryOverrides +
-          item._count.categoryCovers,
+          item._count.categoryCovers +
+          item._count.publicPagePlacements,
         productName: item.product.name,
       })),
     ];
@@ -281,6 +284,13 @@ export class HomepageMediaService {
                   categoryCovers: {
                     some: {
                       category: { isActive: true, deletedAt: null },
+                    },
+                  },
+                },
+                {
+                  publicPagePlacements: {
+                    some: {
+                      revision: { publishedHeadOf: { isNot: null } },
                     },
                   },
                 },

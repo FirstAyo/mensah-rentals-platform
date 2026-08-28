@@ -26,6 +26,25 @@ async function expectAccessibleAndContained(page: Page) {
   ).toEqual([]);
 }
 
+function findForbiddenPublicKeys(value: unknown, path = '$'): string[] {
+  if (Array.isArray(value))
+    return value.flatMap((item, index) =>
+      findForbiddenPublicKeys(item, `${path}[${index}]`),
+    );
+  if (!value || typeof value !== 'object') return [];
+
+  return Object.entries(value).flatMap(([key, nested]) => {
+    const currentPath = `${path}.${key}`;
+    const current =
+      /^(mediaRef|draftRevision|createdBy|publishedBy|operationId|payloadHash|inventory|reservation|password|session|permission)$/i.test(
+        key,
+      )
+        ? [currentPath]
+        : [];
+    return [...current, ...findForbiddenPublicKeys(nested, currentPath)];
+  });
+}
+
 async function login(page: Page) {
   await page.goto('http://localhost:3001/login');
   await page.getByLabel(/email/i).fill(required('STAFF_BOOTSTRAP_EMAIL'));
@@ -191,4 +210,52 @@ test('@public-company-pages safely ignores honeypot submissions', async ({
   );
   expect(response.status()).toBe(202);
   expect((await response.json()).referenceNumber).toBeNull();
+});
+
+test('@public-company-pages keeps drafts private and publishes/restores immutable revisions', async ({
+  page,
+  request,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'wide-1440');
+  const publicBefore = await (
+    await request.get('http://localhost:4000/public/pages/ABOUT')
+  ).json();
+  const originalTitle = publicBefore.content.hero.title as string;
+  expect(findForbiddenPublicKeys(publicBefore)).toEqual([]);
+
+  await login(page);
+  await page.goto('http://localhost:3001/website/public-pages/about');
+  await expect(page.getByRole('heading', { name: 'About page' })).toBeVisible();
+  const hero = page.getByRole('group', { name: 'Hero' });
+  const draftTitle = `Phase 18.6.1 draft ${Date.now()}`;
+  await hero.getByLabel('Title', { exact: true }).fill(draftTitle);
+  await page.getByRole('button', { name: 'Save draft' }).click();
+  await expect(page.getByText('Page draft saved.').first()).toBeVisible();
+
+  const stillPublished = await (
+    await request.get('http://localhost:4000/public/pages/ABOUT')
+  ).json();
+  expect(stillPublished.content.hero.title).toBe(originalTitle);
+
+  await page.getByRole('link', { name: 'Preview' }).first().click();
+  await expect(page.getByRole('heading', { name: draftTitle })).toBeVisible();
+  await page.goBack();
+  await page.getByRole('button', { name: 'Publish' }).click();
+  await expect(page.getByText('Page published.').first()).toBeVisible();
+  await page.goto('http://localhost:3000/about');
+  await expect(page.getByRole('heading', { name: draftTitle })).toBeVisible();
+
+  await page.goto('http://localhost:3001/website/public-pages/about');
+  const originalRevision = page
+    .locator('div')
+    .filter({ hasText: /^Revision 1 · published/ })
+    .first();
+  await originalRevision.getByRole('button', { name: 'Restore' }).click();
+  await expect(
+    page.getByText('Published revision restored.').first(),
+  ).toBeVisible();
+  await page.goto('http://localhost:3000/about');
+  await expect(
+    page.getByRole('heading', { name: originalTitle }),
+  ).toBeVisible();
 });

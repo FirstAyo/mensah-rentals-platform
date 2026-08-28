@@ -1542,3 +1542,4 @@ export interface AdminContactEnquiryResponse
 export type AdminContactEnquiryListResponse =
   PaginatedResponse<AdminContactEnquirySummaryResponse>;
 export * from './official-customer-form-terms';
+export * from './public-pages';

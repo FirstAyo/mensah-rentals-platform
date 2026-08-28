@@ -23,6 +23,7 @@ import {
   Activity,
   Settings,
   MessagesSquare,
+  Files,
 } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -41,8 +42,14 @@ const links = [
   {
     href: '/website/homepage',
     icon: PanelsTopLeft,
-    label: 'Website Content',
+    label: 'Homepage',
     permission: 'homepage.view',
+  },
+  {
+    href: '/website/public-pages',
+    icon: Files,
+    label: 'Public Pages',
+    permission: 'public_pages.view',
   },
   {
     href: '/products',

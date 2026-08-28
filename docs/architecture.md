@@ -455,3 +455,7 @@ Customer Order and Return forms use a dedicated, dependency-free A4 renderer in 
 ## Phase 18.5 feature-control boundary
 
 Optional operational modules are governed by durable `PlatformFeatureSetting` rows. NestJS resolves the current database state for guarded requests; `FeatureGuard` runs after staff authentication and permission enforcement and holds a request lease against concurrent state changes. Admin receives only authenticated availability needed for navigation, while Web receives only two public booleans. Missing configuration and capability reads fail closed, and Testing is public only under explicit LOCAL/STAGING classification, never by hostname. Core website, security, audit, integrity, health, backup, and SEO boundaries do not have switches. See [feature-controls.md](feature-controls.md).
+
+## Phase 18.6.1 public page boundary
+
+`PublicPage` is a small CMS aggregate separate from `HomepageSite`. Both reuse the same normalized managed-media files, while public pages have independent locks, draft/published pointers, schemas, permissions, and audit events. Admin uses a fixed-route same-origin BFF; the API rechecks live permissions and performs serializable mutations. Public web reads only explicit published DTOs through `/public/pages/:key`. See [public pages CMS](public-pages-cms.md).

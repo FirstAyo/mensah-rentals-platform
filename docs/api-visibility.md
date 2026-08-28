@@ -268,3 +268,7 @@ Customer Order and Return PDF renderers receive no monetary, inventory, reservat
 ## Phase 18.5 capability visibility
 
 `GET /public/features` is explicitly mapped to `{ rentalRequests, customerOrderPortal }`. It never serializes feature rows and omits state names, Testing detail, dependencies, versions, reasons, actors, audit fields, RBAC data, inventory, or internal workflow state. Authenticated staff navigation receives only key/available/testing values. Full settings, previews, blockers, and mutations require the new settings permissions.
+
+## Published public pages
+
+`GET /public/pages/:key` maps the current published revision to an explicit page-specific DTO. It resolves media to public URLs and recursively excludes draft state, staff identity, media references, storage details, operations, audit data, credentials, inventory, availability, reservations, and all other administrative fields. Admin draft/history/media endpoints require staff authentication and `public_pages.*` permissions.

@@ -64,6 +64,7 @@
     "test:e2e:feature-settings": "node ../../scripts/run-admin-decisions-e2e.mjs feature-settings",
     "test:e2e:seo": "node ../../scripts/run-admin-decisions-e2e.mjs seo",
     "test:e2e:public-company-pages": "node ../../scripts/run-admin-decisions-e2e.mjs public-company-pages",
+    "test:e2e:public-pages-cms": "node ../../scripts/run-admin-decisions-e2e.mjs public-company-pages",
     "seo:audit": "vitest run src/lib/seo.test.ts src/lib/seo-audit.test.ts"
   },
   "dependencies": {

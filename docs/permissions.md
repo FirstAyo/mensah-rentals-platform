@@ -226,3 +226,11 @@ The permission catalogue adds `return.view`, `return.create`, `return.partial`, 
 - `feature_settings.manage`: preview and apply state or preset changes.
 
 SUPER_ADMIN and ADMIN receive both. EDITOR and SALES_PERSON receive neither. Feature availability is an additional backend condition and never replaces a domain permission; enabling a module does not grant its permissions.
+
+## Phase 18.6.1 public pages
+
+- `public_pages.view` reads the page dashboard, current content, history, media library, and authenticated previews.
+- `public_pages.edit` saves structured drafts and uploads normalized page media.
+- `public_pages.publish` publishes the current draft and restores prior published content as a new revision.
+
+SUPER_ADMIN, ADMIN, and EDITOR receive all three. SALES_PERSON receives none. Homepage permissions do not implicitly authorize public-page mutations, and frontend visibility is never the authorization boundary.

@@ -12,7 +12,7 @@ describe('RBAC catalogue', () => {
     expect(new Set(SYSTEM_ROLES.map(({ name }) => name)).size).toBe(
       SYSTEM_ROLES.length,
     );
-    expect(PERMISSION_CATALOGUE).toHaveLength(99);
+    expect(PERMISSION_CATALOGUE).toHaveLength(102);
   });
   it('grants SUPER_ADMIN every seeded permission', () => {
     expect(DEFAULT_ROLE_PERMISSION_KEYS.SUPER_ADMIN).toEqual(
@@ -157,6 +157,18 @@ describe('RBAC catalogue', () => {
     }
     expect(DEFAULT_ROLE_PERMISSION_KEYS.SALES_PERSON).not.toContain(
       'homepage.view',
+    );
+  });
+  it('grants public page CMS authority to website editors without exposing it to sales', () => {
+    for (const role of ['SUPER_ADMIN', 'ADMIN', 'EDITOR'] as const) {
+      expect(DEFAULT_ROLE_PERMISSION_KEYS[role]).toContain('public_pages.view');
+      expect(DEFAULT_ROLE_PERMISSION_KEYS[role]).toContain('public_pages.edit');
+      expect(DEFAULT_ROLE_PERMISSION_KEYS[role]).toContain(
+        'public_pages.publish',
+      );
+    }
+    expect(DEFAULT_ROLE_PERMISSION_KEYS.SALES_PERSON).not.toContain(
+      'public_pages.view',
     );
   });
 });

@@ -36,6 +36,6 @@ import { PublicGoogleReviewsRateLimitGuard } from './public-google-reviews-rate-
     PublicGoogleReviewsRateLimitGuard,
     { provide: GOOGLE_PLACES_FETCH, useFactory: () => fetch },
   ],
-  exports: [HomepageService],
+  exports: [HomepageService, HomepageMediaService],
 })
 export class HomepageModule {}

@@ -443,6 +443,18 @@ enum HomepageActivityType {
   MEDIA_REMOVED
 }
 
+enum PublicPageKey {
+  ABOUT
+  CONTACT
+  TERMS
+  PRIVACY
+}
+
+enum PublicPageRevisionKind {
+  DRAFT
+  PUBLISHED
+}
+
 enum ContactEnquiryType {
   GENERAL
   RENTAL_PROJECT
@@ -520,6 +532,8 @@ model User {
   platformAuditEvents              PlatformAuditEvent[]            @relation("PlatformAuditEventActor")
   platformFeatureSettingsUpdated   PlatformFeatureSetting[]         @relation("PlatformFeatureSettingUpdater")
   contactEnquiriesUpdated          ContactEnquiry[]                  @relation("ContactEnquiryStatusUpdater")
+  publicPageRevisionsCreated       PublicPageRevision[]              @relation("PublicPageRevisionCreator")
+  publicPageRevisionsPublished     PublicPageRevision[]              @relation("PublicPageRevisionPublisher")
 }
 
 model StaffSession {
@@ -2165,6 +2179,7 @@ model ProductImage {
   homepagePlacements        HomepageMediaPlacement[]   @relation("HomepagePlacementProductImage")
   homepageCategoryOverrides HomepageFeaturedCategory[] @relation("HomepageCategoryOverrideProductImage")
   categoryCovers            CategoryCover[]            @relation("CategoryCoverProductImage")
+  publicPagePlacements      PublicPageMediaPlacement[] @relation("PublicPagePlacementProductImage")
 
   @@unique([productId, sortOrder])
   @@index([productId, sortOrder, id])
@@ -2277,8 +2292,72 @@ model HomepageMedia {
   placements                HomepageMediaPlacement[]
   homepageCategoryOverrides HomepageFeaturedCategory[] @relation("HomepageCategoryOverrideMedia")
   categoryCovers            CategoryCover[]            @relation("CategoryCoverHomepageMedia")
+  publicPagePlacements      PublicPageMediaPlacement[]
 
   @@index([createdByUserId, createdAt])
+}
+
+model PublicPage {
+  id                  String               @id @default(cuid())
+  key                 PublicPageKey        @unique
+  draftRevisionId     String?              @unique
+  publishedRevisionId String?              @unique
+  lockVersion         Int                  @default(0)
+  createdAt           DateTime             @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime             @updatedAt @db.Timestamptz(3)
+  revisions           PublicPageRevision[] @relation("PublicPageRevisions")
+  draftRevision       PublicPageRevision?  @relation("PublicPageDraftHead", fields: [draftRevisionId], references: [id], onDelete: Restrict)
+  publishedRevision   PublicPageRevision?  @relation("PublicPagePublishedHead", fields: [publishedRevisionId], references: [id], onDelete: Restrict)
+
+  @@index([updatedAt, key])
+}
+
+model PublicPageRevision {
+  id                     String                     @id @default(cuid())
+  pageId                 String
+  version                Int
+  kind                   PublicPageRevisionKind
+  content                Json
+  seo                    Json
+  basedOnRevisionId      String?
+  restoredFromRevisionId String?
+  operationId            String?                    @unique @db.Uuid
+  payloadHash            String?                    @db.Char(64)
+  createdByUserId        String?
+  publishedByUserId      String?
+  createdAt              DateTime                   @default(now()) @db.Timestamptz(3)
+  publishedAt            DateTime?                  @db.Timestamptz(3)
+  page                   PublicPage                 @relation("PublicPageRevisions", fields: [pageId], references: [id], onDelete: Restrict)
+  basedOnRevision        PublicPageRevision?        @relation("PublicPageRevisionBasis", fields: [basedOnRevisionId], references: [id], onDelete: Restrict)
+  basedRevisions         PublicPageRevision[]       @relation("PublicPageRevisionBasis")
+  restoredFromRevision   PublicPageRevision?        @relation("PublicPageRevisionRestore", fields: [restoredFromRevisionId], references: [id], onDelete: Restrict)
+  restoredRevisions      PublicPageRevision[]       @relation("PublicPageRevisionRestore")
+  createdBy              User?                      @relation("PublicPageRevisionCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  publishedBy            User?                      @relation("PublicPageRevisionPublisher", fields: [publishedByUserId], references: [id], onDelete: Restrict)
+  draftHeadOf            PublicPage?                @relation("PublicPageDraftHead")
+  publishedHeadOf        PublicPage?                @relation("PublicPagePublishedHead")
+  mediaPlacements        PublicPageMediaPlacement[]
+
+  @@unique([pageId, version])
+  @@index([pageId, kind, createdAt])
+  @@index([createdByUserId, createdAt])
+  @@index([publishedByUserId, publishedAt])
+}
+
+model PublicPageMediaPlacement {
+  revisionId     String
+  slotKey        String                     @db.VarChar(120)
+  mediaId        String?
+  productImageId String?
+  altText        String                     @db.VarChar(240)
+  focalPoint     String                     @default("center") @db.VarChar(20)
+  revision       PublicPageRevision         @relation(fields: [revisionId], references: [id], onDelete: Restrict)
+  media          HomepageMedia?             @relation(fields: [mediaId], references: [id], onDelete: Restrict)
+  productImage   ProductImage?              @relation("PublicPagePlacementProductImage", fields: [productImageId], references: [id], onDelete: Restrict)
+
+  @@id([revisionId, slotKey])
+  @@index([mediaId])
+  @@index([productImageId])
 }
 
 model HomepageMediaPlacement {

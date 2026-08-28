@@ -69,6 +69,8 @@ export {
   PlatformFeatureState,
   ContactEnquiryStatus,
   ContactEnquiryType,
+  PublicPageKey,
+  PublicPageRevisionKind,
   UserStatus,
   Prisma,
 } from '@prisma/client';

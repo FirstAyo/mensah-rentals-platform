@@ -5,6 +5,7 @@ export interface AdminNavigationItem {
 
 export const ADMIN_NAVIGATION: readonly AdminNavigationItem[] = [
   { label: 'Dashboard' },
+  { label: 'Public Pages', requiredPermission: 'public_pages.view' },
   { label: 'Products', requiredPermission: 'product.view' },
   { label: 'Inventory', requiredPermission: 'inventory.view' },
   { label: 'Rental Requests', requiredPermission: 'rental_request.view' },

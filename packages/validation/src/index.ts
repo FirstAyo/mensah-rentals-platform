@@ -10,6 +10,7 @@ export * from './homepage';
 export * from './google-reviews';
 export * from './maintenance';
 export * from './contact-enquiries';
+export * from './public-pages';
 
 const environmentBoolean = z
   .enum(['true', 'false'])

@@ -67,6 +67,8 @@ database, API, authorization, UI, documentation, and tests where applicable.
 
 Phase 18.5 is complete as a pre-deployment hardening slice: durable feature controls, progressive rollout presets, environment-safe Testing semantics, operational blockers, feature-aware navigation/routes, global mutation notifications, and preservation tests. Phase 19 remains staging/deployment work and must use an intentional preset rather than changing production features ad hoc.
 
+Phase 18.6.1 is complete as a public-page design and CMS slice: premium About, Contact, Terms, and Privacy layouts; shared managed media; structured drafts; private previews; immutable publication history; restore; page SEO; and dedicated permissions. Phase 19 remains unstarted.
+
 Redis remains deferred until a concrete cache, queue, distributed locking, or
 session requirement justifies its operational cost.
 

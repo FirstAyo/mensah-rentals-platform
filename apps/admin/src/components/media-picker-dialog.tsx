@@ -22,16 +22,25 @@ export type MediaLibraryItem = {
   productName: string | null;
 };
 
-export function mediaPreviewUrl(item: MediaLibraryItem) {
+export function mediaPreviewUrl(
+  item: MediaLibraryItem,
+  endpoint = '/api/homepage/media',
+) {
+  const filename = item.url.split('/').at(-1);
   return item.source === 'PRODUCT'
     ? item.url
-    : adminHomepageMediaUrl({ id: item.id, url: item.url });
+    : endpoint === '/api/homepage/media'
+      ? adminHomepageMediaUrl({ id: item.id, url: item.url })
+      : filename && /^[a-f0-9]{64}\.webp$/.test(filename)
+        ? `${endpoint}/${item.id}/${filename}`
+        : '';
 }
 
 export function MediaAssignmentField({
   canEdit,
   canUpload,
   current,
+  endpoint = '/api/homepage/media',
   label,
   onNotice,
   onRemove,
@@ -40,6 +49,7 @@ export function MediaAssignmentField({
   canEdit: boolean;
   canUpload: boolean;
   current: MediaLibraryItem | null;
+  endpoint?: string;
   label: string;
   onNotice: (message: string) => void;
   onRemove: () => void;
@@ -86,7 +96,7 @@ export function MediaAssignmentField({
               className="object-cover"
               fill
               sizes="128px"
-              src={mediaPreviewUrl(current)}
+              src={mediaPreviewUrl(current, endpoint)}
             />
           </div>
           <div className="min-w-0 text-sm">
@@ -111,6 +121,7 @@ export function MediaAssignmentField({
       )}
       <MediaPickerDialog
         canUpload={canUpload}
+        endpoint={endpoint}
         label={label}
         onClose={() => setOpen(false)}
         onNotice={onNotice}
@@ -128,6 +139,7 @@ export function MediaAssignmentField({
 
 export function MediaPickerDialog({
   canUpload,
+  endpoint = '/api/homepage/media',
   label,
   onClose,
   onNotice,
@@ -136,6 +148,7 @@ export function MediaPickerDialog({
   returnFocusRef,
 }: {
   canUpload: boolean;
+  endpoint?: string;
   label: string;
   onClose: () => void;
   onNotice: (message: string) => void;
@@ -161,7 +174,7 @@ export function MediaPickerDialog({
           search,
           source,
         });
-        const response = await fetch(`/api/homepage/media/library?${params}`, {
+        const response = await fetch(`${endpoint}/library?${params}`, {
           cache: 'no-store',
           signal: controller.signal,
         });
@@ -182,7 +195,7 @@ export function MediaPickerDialog({
       controller.abort();
       window.clearTimeout(timer);
     };
-  }, [open, search, source]);
+  }, [endpoint, open, search, source]);
 
   async function upload(file?: File) {
     if (!file) return;
@@ -193,7 +206,7 @@ export function MediaPickerDialog({
       const form = new FormData();
       form.set('file', optimized);
       form.set('description', file.name);
-      const response = await fetch('/api/homepage/media', {
+      const response = await fetch(endpoint, {
         method: 'POST',
         body: form,
       });
@@ -347,7 +360,7 @@ export function MediaPickerDialog({
                   className="object-cover"
                   fill
                   sizes="260px"
-                  src={mediaPreviewUrl(item)}
+                  src={mediaPreviewUrl(item, endpoint)}
                 />
               </div>
               <div className="space-y-2 p-3 text-sm">

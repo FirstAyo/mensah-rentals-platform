@@ -1498,3 +1498,7 @@ pnpm rbac:verify
 ```
 
 Each browser command resets only the guarded `_test` database. Stop local app servers first. A failed transition must leave the previous states selected, stop the spinner, and show an error toast. Public responses should contain only safe booleans and never inventory quantities, feature reasons, versions, actor IDs, or dependency data.
+
+## Phase 18.6.1 checks
+
+Run `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check`. Then run `pnpm db:validate`, `pnpm db:generate`, `pnpm db:migrate`, `pnpm db:status`, `pnpm rbac:seed`, and `pnpm rbac:verify`. Manually verify draft isolation, preview, publish, restore, media reuse/upload, contact submission, the exact official Terms clauses, light/dark themes, keyboard focus, and 320/375/390/430/768/1024/1440 layouts. Public JSON must contain no `mediaRef`, draft, actor, operation, inventory, reservation, availability, credential, or storage-path field.

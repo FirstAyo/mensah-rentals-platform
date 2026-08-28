@@ -83,6 +83,7 @@
     "test:e2e:feature-settings": "pnpm --filter @mensah-rentals/web test:e2e:feature-settings",
     "test:e2e:seo": "pnpm --filter @mensah-rentals/web test:e2e:seo",
     "test:e2e:public-company-pages": "pnpm --filter @mensah-rentals/web test:e2e:public-company-pages",
+    "test:e2e:public-pages-cms": "pnpm --filter @mensah-rentals/web test:e2e:public-pages-cms",
     "seo:audit": "pnpm --filter @mensah-rentals/web seo:audit && node scripts/seo-audit.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

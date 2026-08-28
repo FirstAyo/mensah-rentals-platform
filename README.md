@@ -261,3 +261,7 @@ Picked-up orders and completed returns provide official customer Order and Retur
 ## Phase 18.5 feature controls
 
 Authorized Admin/Super Admin staff can progressively roll out optional operations from Settings → Features using Disabled, Testing, and Enabled states or four atomic presets. Core website, catalogue, security, audit, health, backup, legal, confidentiality, and SEO behavior remain permanently available. Feature changes never delete historical data. See [feature controls](docs/feature-controls.md).
+
+## Phase 18.6.1 public pages CMS
+
+About, Contact, Terms, and Privacy now use premium managed-image layouts backed by structured drafts, authenticated previews, immutable publication history, and restore-as-new-revision behavior. The contact enquiry form and controlled official customer-form terms remain intact. See [public pages CMS](docs/public-pages-cms.md).

@@ -1670,3 +1670,7 @@ Troubleshooting:
 - `FEATURE_UNAVAILABLE`: the direct route/API is correctly blocked; use Settings → Features if authorized.
 - Missing Settings navigation: the staff user needs `feature_settings.view`; rerun `pnpm rbac:seed` after migration.
 - Testing works locally but not publicly in production: this is intentional. Check `PLATFORM_ENVIRONMENT`, not the hostname.
+
+## Phase 18.6.1 public pages
+
+After pulling this phase, run `pnpm db:migrate`, `pnpm db:status`, `pnpm rbac:seed`, and `pnpm rbac:verify`. The expected repository migration count is 55 and the seeded permission count is 102. Start with `pnpm dev`, sign in at `http://localhost:3001/login`, and open `http://localhost:3001/website/public-pages`. Existing approved media is referenced automatically on first access; no files or business records are copied or reset. Public routes are `/about`, `/contact`, `/terms`, and `/privacy` on port 3000.

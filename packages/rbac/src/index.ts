@@ -119,6 +119,9 @@ export const PERMISSION_CATALOGUE = [
   ['feature_settings.manage', 'Manage operational feature controls.'],
   ['contact_enquiry.view', 'View customer contact enquiries.'],
   ['contact_enquiry.manage', 'Update customer contact enquiry status.'],
+  ['public_pages.view', 'View public page drafts and revision history.'],
+  ['public_pages.edit', 'Create and edit structured public page drafts.'],
+  ['public_pages.publish', 'Publish or restore public page revisions.'],
 ] as const;
 
 export type PermissionKey = (typeof PERMISSION_CATALOGUE)[number][0];
@@ -243,6 +246,9 @@ const ADMIN_PERMISSIONS = [
   'feature_settings.manage',
   'contact_enquiry.view',
   'contact_enquiry.manage',
+  'public_pages.view',
+  'public_pages.edit',
+  'public_pages.publish',
 ] as const satisfies readonly PermissionKey[];
 
 const EDITOR_PERMISSIONS = [
@@ -262,6 +268,9 @@ const EDITOR_PERMISSIONS = [
   'homepage.media.manage',
   'homepage.preview',
   'homepage.google_reviews.view_status',
+  'public_pages.view',
+  'public_pages.edit',
+  'public_pages.publish',
 ] as const satisfies readonly PermissionKey[];
 
 const SALES_PERSON_PERMISSIONS = [
