@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   apiEnvironmentSchema,
   staffBootstrapEnvironmentSchema,
+  staffOperatorBootstrapEnvironmentSchema,
   staffLoginSchema,
   setCartItemSchema,
   submitRentalRequestSchema,
@@ -150,6 +151,27 @@ describe('authentication environment validation', () => {
         STAFF_BOOTSTRAP_PASSWORD: 'long-enough-password',
       }).success,
     ).toBe(true);
+  });
+
+  it('requires an explicit matching environment for operator bootstrap', () => {
+    const values = {
+      NODE_ENV: 'production',
+      PLATFORM_ENVIRONMENT: 'STAGING',
+      STAFF_BOOTSTRAP_CONFIRM_ENVIRONMENT: 'STAGING',
+      STAFF_BOOTSTRAP_EMAIL: 'operator@example.com',
+      STAFF_BOOTSTRAP_FIRST_NAME: 'First',
+      STAFF_BOOTSTRAP_LAST_NAME: 'Operator',
+      STAFF_BOOTSTRAP_PASSWORD: 'a-long-operator-password',
+    };
+    expect(
+      staffOperatorBootstrapEnvironmentSchema.safeParse(values).success,
+    ).toBe(true);
+    expect(
+      staffOperatorBootstrapEnvironmentSchema.safeParse({
+        ...values,
+        STAFF_BOOTSTRAP_CONFIRM_ENVIRONMENT: 'PRODUCTION',
+      }).success,
+    ).toBe(false);
   });
 
   it('accepts safe optional Google Places server configuration and defaults', () => {

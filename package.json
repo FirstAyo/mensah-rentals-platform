@@ -107,7 +107,9 @@
     "staff:bootstrap": "pnpm rbac:seed && pnpm --filter @mensah-rentals/database staff:bootstrap",
     "catalogue:seed": "turbo run build --filter=@mensah-rentals/database && pnpm --filter @mensah-rentals/database catalogue:seed",
     "cleanup:expired": "turbo run build --filter=@mensah-rentals/database && pnpm --filter @mensah-rentals/database cleanup:expired",
-    "cleanup:expired:dry-run": "turbo run build --filter=@mensah-rentals/database && pnpm --filter @mensah-rentals/database cleanup:expired --dry-run"
+    "cleanup:expired:dry-run": "turbo run build --filter=@mensah-rentals/database && pnpm --filter @mensah-rentals/database cleanup:expired --dry-run",
+    "deploy:preflight": "node scripts/deployment-preflight.mjs",
+    "test:deployment": "node --test scripts/deployment-preflight.test.mjs"
   },
   "devDependencies": {
     "@eslint/js": "9.35.0",

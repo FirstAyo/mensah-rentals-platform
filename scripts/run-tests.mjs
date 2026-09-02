@@ -18,6 +18,7 @@ run(process.execPath, [
   'scripts/test-database.test.mjs',
   'scripts/dev-readiness.test.mjs',
   'scripts/dev-build-artifacts.test.mjs',
+  'scripts/deployment-preflight.test.mjs',
 ]);
 const { environment } = loadTestEnvironment();
 run('docker', ['compose', 'up', '-d', 'postgres-test'], environment);

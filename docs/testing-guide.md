@@ -1,5 +1,25 @@
 # Testing Guide
 
+## Deployment-foundation checks
+
+Run these from the repository root before committing a staging deployment change:
+
+```powershell
+pnpm test:deployment
+pnpm deploy:preflight -- path\to\a\completed\staging.env
+$env:DEPLOY_ENV_FILE = "path\to\a\completed\staging.env"
+docker compose --env-file $env:DEPLOY_ENV_FILE -f compose.deploy.yml config --quiet
+Remove-Item Env:DEPLOY_ENV_FILE
+```
+
+The deployment test must pass, preflight must identify `STAGING` without printing secrets, and Compose must return without an error. A template containing `CHANGE_ME` must fail preflight by design. Building the production targets requires a running Docker engine:
+
+```powershell
+docker compose --env-file path\to\a\completed\staging.env -f compose.deploy.yml build migrate api web admin
+```
+
+The full staging and rollback procedure is in [VPS deployment](deployment.md). These checks do not deploy, change DNS, or touch the live VPS.
+
 ## Phase 18.6 public company and contact tests
 
 Start Docker Desktop, then run the complete gates from the repository root:

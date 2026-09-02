@@ -1,5 +1,7 @@
 # Development Roadmap
 
+- Phase 19 deployment foundation is in progress: production container targets, isolated staging/production Compose projects, a single shared Caddy network, guarded environment preflight, private non-indexable staging, and an operator-only first-user bootstrap are prepared. The live VPS has not been changed. Production remains gated on staging acceptance, trusted-proxy review, and scheduled encrypted off-host backup/restore verification.
+
 - Phase 18.6 implements premium truthful About, Contact, Terms, and Privacy pages; verified company contact presentation without choosing the conflicting street address; durable secure contact enquiries and a protected Admin queue; feature-aware CTAs; complete metadata/JSON-LD/sitemap integration; and responsive accessibility coverage. Phase 19 has not started. Production legal review and outbound email-provider selection remain explicit Phase 19 decisions.
 
 - Phase 18.4 implements the full public SEO and indexability hardening pass: authoritative production-origin output, unique active-catalogue metadata audit, truthful Product/Organization/WebSite/Breadcrumb structured data, active-only sitemap, private noindex/header defense, 404 checks, hero LCP restraint, and guarded browser coverage. Phase 19 has not started.

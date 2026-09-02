@@ -1,0 +1,160 @@
+name: ${COMPOSE_PROJECT_NAME:?Set COMPOSE_PROJECT_NAME in the deployment environment file}
+
+x-runtime-environment: &runtime-environment
+  env_file:
+    - ${DEPLOY_ENV_FILE:-.env}
+
+x-app-build: &app-build
+  context: .
+  args:
+    API_INTERNAL_URL: http://api:4000
+    SITE_INDEXING_ENABLED: ${SITE_INDEXING_ENABLED:?Set SITE_INDEXING_ENABLED}
+    SITE_URL: ${SITE_URL:?Set SITE_URL}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER}
+    healthcheck:
+      test:
+        ['CMD-SHELL', 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"']
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 10s
+    networks:
+      - private
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  migrate:
+    <<: *runtime-environment
+    build:
+      <<: *app-build
+      target: operator
+    command:
+      [
+        'pnpm',
+        '--filter',
+        '@mensah-rentals/database',
+        'exec',
+        'prisma',
+        'migrate',
+        'deploy',
+        '--schema',
+        '/workspace/packages/database/prisma/schema.prisma',
+      ]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - private
+    restart: 'no'
+
+  api:
+    <<: *runtime-environment
+    build:
+      <<: *app-build
+      target: api
+    restart: unless-stopped
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+    expose:
+      - '4000'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:4000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
+    networks:
+      private:
+      caddy_proxy:
+        aliases:
+          - ${CADDY_API_ALIAS:?Set CADDY_API_ALIAS}
+    volumes:
+      - media_data:/app/storage/media
+      - backup_status:/app/.backup-status
+
+  web:
+    <<: *runtime-environment
+    build:
+      <<: *app-build
+      target: web
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    expose:
+      - '3000'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3000/').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      private:
+      caddy_proxy:
+        aliases:
+          - ${CADDY_WEB_ALIAS:?Set CADDY_WEB_ALIAS}
+
+  admin:
+    <<: *runtime-environment
+    build:
+      <<: *app-build
+      target: admin
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    expose:
+      - '3001'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3001/login').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    networks:
+      private:
+      caddy_proxy:
+        aliases:
+          - ${CADDY_ADMIN_ALIAS:?Set CADDY_ADMIN_ALIAS}
+
+networks:
+  private:
+    internal: true
+  caddy_proxy:
+    external: true
+    name: caddy_proxy
+
+volumes:
+  postgres_data:
+  media_data:
+  backup_status:

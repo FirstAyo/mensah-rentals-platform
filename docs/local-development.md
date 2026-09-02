@@ -1,5 +1,7 @@
 # Local Development on Windows
 
+> VPS staging uses optimized production containers and a separate environment; it does not replace this Windows workflow. Follow [VPS deployment](deployment.md) only after all local gates pass. Never reuse local `.env` credentials or local database data on the VPS.
+
 ## Phase 18.6 company pages and contact enquiries
 
 From the repository root in PowerShell, make sure `.env` contains the four `PUBLIC_CONTACT_*` values shown in `.env.example`, then run:

@@ -1,0 +1,19 @@
+# Add only after staging approval. These blocks use the existing shared Caddy.
+
+www.mensahrentals.com {
+	redir https://mensahrentals.com{uri} permanent
+}
+
+mensahrentals.com {
+	reverse_proxy mensah-production-web:3000
+}
+
+admin.mensahrentals.com {
+	header X-Robots-Tag "noindex, nofollow, noarchive"
+	reverse_proxy mensah-production-admin:3001
+}
+
+api.mensahrentals.com {
+	header X-Robots-Tag "noindex, nofollow, noarchive"
+	reverse_proxy mensah-production-api:4000
+}

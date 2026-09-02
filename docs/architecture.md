@@ -1,5 +1,13 @@
 # Architecture
 
+## Phase 19 staging deployment boundary
+
+Mensah Rentals deploys as separate Web, Admin, API, migration/operator, and PostgreSQL containers. PostgreSQL is attached only to an internal Compose network and publishes no host port. Web, Admin, and API additionally join the external `caddy_proxy` network under environment-unique aliases. The one pre-existing Caddy container remains the only process that owns VPS ports 80/443 and routes Tech Arena24 and Mensah independently.
+
+Staging and production use different repository folders, Compose project names, Docker volumes, aliases, database credentials, capability secrets, and cookie names. Staging runs optimized production builds but uses `PLATFORM_ENVIRONMENT=STAGING`, indexing disabled in application output, a proxy-wide `X-Robots-Tag`, a blocked sitemap, and Caddy basic authentication on Web/Admin/API. Production is not promoted by changing the staging stack in place.
+
+The API remains the only application database boundary. External web/mobile clients use the public API hostname and never the private PostgreSQL network. Migrations complete successfully before the API is allowed to start. Runtime containers run as non-root users; persistent media/database data is held in environment-scoped Docker volumes. See [VPS deployment](deployment.md).
+
 ## Phase 18.6 public-company and enquiry boundary
 
 About, Contact, Terms, and Privacy are server-rendered core public pages and are not controlled by optional operational feature flags. Their metadata and JSON-LD are constructed from fixed verified facts. The conflicting street-address sources remain unresolved, so neither visible NAP nor structured data selects a street address.

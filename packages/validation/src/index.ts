@@ -99,6 +99,38 @@ export type StaffBootstrapEnvironment = z.infer<
   typeof staffBootstrapEnvironmentSchema
 >;
 
+export const staffOperatorBootstrapEnvironmentSchema = z
+  .object({
+    NODE_ENV: z.literal('production'),
+    PLATFORM_ENVIRONMENT: z.enum(['STAGING', 'PRODUCTION']),
+    STAFF_BOOTSTRAP_CONFIRM_ENVIRONMENT: z.enum(['STAGING', 'PRODUCTION']),
+    STAFF_BOOTSTRAP_EMAIL: z
+      .string()
+      .trim()
+      .email()
+      .max(254)
+      .transform((value) => value.toLowerCase()),
+    STAFF_BOOTSTRAP_FIRST_NAME: z.string().trim().min(1).max(100),
+    STAFF_BOOTSTRAP_LAST_NAME: z.string().trim().min(1).max(100),
+    STAFF_BOOTSTRAP_PASSWORD: z.string().min(16).max(128),
+  })
+  .superRefine((environment, context) => {
+    if (
+      environment.STAFF_BOOTSTRAP_CONFIRM_ENVIRONMENT !==
+      environment.PLATFORM_ENVIRONMENT
+    ) {
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'The confirmed environment must match PLATFORM_ENVIRONMENT.',
+        path: ['STAFF_BOOTSTRAP_CONFIRM_ENVIRONMENT'],
+      });
+    }
+  });
+
+export type StaffOperatorBootstrapEnvironment = z.infer<
+  typeof staffOperatorBootstrapEnvironmentSchema
+>;
+
 export const apiEnvironmentSchema = z
   .object({
     PLATFORM_ENVIRONMENT: z

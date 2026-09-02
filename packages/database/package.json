@@ -22,6 +22,7 @@
     "db:reset": "dotenv -e ../../.env -- prisma migrate reset --schema=prisma/schema.prisma",
     "db:test:reset": "prisma migrate reset --force --skip-seed --schema=prisma/schema.prisma",
     "staff:bootstrap": "dotenv -e ../../.env -- node dist/scripts/bootstrap-staff.js",
+    "staff:bootstrap:operator": "dotenv -e ../../.env -- node dist/scripts/bootstrap-operator-staff.js",
     "rbac:seed": "dotenv -e ../../.env -- node dist/scripts/seed-rbac.js",
     "rbac:verify": "dotenv -e ../../.env -- node dist/scripts/verify-rbac.js",
     "catalogue:seed": "dotenv -e ../../.env -- node dist/scripts/seed-catalogue.js",

@@ -1,0 +1,31 @@
+# Append these blocks to the ONE existing Caddyfile on the VPS.
+# Replace the one hash placeholder with the output of the interactive command:
+# docker exec -it techarena24-caddy-1 caddy hash-password
+# Keep the username/hash outside Git in the real VPS Caddyfile.
+
+(mensah_staging_private) {
+	basic_auth {
+		mensah-preview CHANGE_ME_CADDY_PASSWORD_HASH
+	}
+	header {
+		X-Robots-Tag "noindex, nofollow, noarchive, nosnippet, noimageindex"
+		Referrer-Policy "no-referrer"
+		Cache-Control "private, no-store"
+	}
+}
+
+staging.mensahrentals.com {
+	import mensah_staging_private
+	respond /sitemap.xml 404
+	reverse_proxy mensah-staging-web:3000
+}
+
+admin-staging.mensahrentals.com {
+	import mensah_staging_private
+	reverse_proxy mensah-staging-admin:3001
+}
+
+api-staging.mensahrentals.com {
+	import mensah_staging_private
+	reverse_proxy mensah-staging-api:4000
+}
