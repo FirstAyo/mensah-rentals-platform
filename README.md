@@ -1,6 +1,6 @@
 # Mensah Rentals Platform
 
-The staging-first, single-Caddy VPS topology, Cloudflare records, safety checks, testing steps, and rollback procedure are documented in [VPS deployment](docs/deployment.md). Production promotion remains gated on staging acceptance and verified off-host backups.
+The staging-first, single-Caddy VPS topology, Cloudflare records, safety checks, testing steps, and rollback procedure are documented in [VPS deployment](docs/deployment.md). Use the separate [public-content transfer runbook](docs/public-content-transfer.md) to move only approved catalogue/CMS data and media into staging. Production promotion remains gated on staging acceptance and verified off-host backups.
 
 Phase 18.6 adds truthful, responsive public [About and legal pages](docs/public-company-pages.md) plus a secure database-backed [contact enquiry queue](docs/contact-enquiries.md). Enquiries are stored for authorized Admin review; no outbound email provider is configured and the platform never claims email delivery.
 

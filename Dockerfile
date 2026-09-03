@@ -69,7 +69,10 @@ RUN pnpm deploy --filter @mensah-rentals/api --prod --legacy /production/api \
 FROM node:22-alpine AS api
 ENV NODE_ENV=production
 WORKDIR /app
-RUN addgroup --system --gid 1001 nodejs && adduser --system --uid 1001 nestjs
+RUN addgroup --system --gid 1001 nodejs \
+    && adduser --system --uid 1001 nestjs \
+    && mkdir -p /app/storage/media /app/.backup-status \
+    && chown -R nestjs:nodejs /app/storage /app/.backup-status
 COPY --from=api-production-dependencies --chown=nestjs:nodejs /production/api ./
 USER nestjs
 EXPOSE 4000

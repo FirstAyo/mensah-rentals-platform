@@ -226,6 +226,8 @@ curl -u mensah-preview -I https://staging.mensahrentals.com/sitemap.xml
 
 Protected pages/API should return 200; sitemap must return 404. Every authenticated staging response should have `X-Robots-Tag` containing `noindex`, and robots must disallow crawling. In a browser, test staff login/logout, RBAC, catalogue/media, cart/request, private quote/order access, reports, themes, accessibility, and 320px layouts.
 
+If the staging catalogue and CMS should mirror approved local development content, use the allowlisted workflow in [Public-content transfer to staging](public-content-transfer.md). Migrations create structure only; local PostgreSQL rows and `storage/media` files are never transferred by Git or ordinary deployment. Never replace this workflow with an unreviewed full development-database restore.
+
 Confirm isolation and Tech health:
 
 ```bash
