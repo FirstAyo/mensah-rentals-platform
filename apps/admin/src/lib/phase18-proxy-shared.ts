@@ -51,6 +51,10 @@ export function validateMutation(request: Request) {
   return null;
 }
 
+export function adminMutationOrigin() {
+  return getAdminOrigin();
+}
+
 export function allowQuery(request: Request, keys: ReadonlySet<string>) {
   const incoming = new URL(request.url);
   const query = new URLSearchParams();

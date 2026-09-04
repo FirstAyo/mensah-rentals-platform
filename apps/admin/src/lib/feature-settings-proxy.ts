@@ -1,4 +1,5 @@
 import {
+  adminMutationOrigin,
   namedSessionCookie,
   privateHeaders,
   proxyJson,
@@ -56,7 +57,7 @@ export async function proxyFeatureSettings(
   if (session) headers.set('Cookie', session);
   if (body !== undefined) {
     headers.set('Content-Type', 'application/json');
-    headers.set('Origin', new URL(request.url).origin);
+    headers.set('Origin', adminMutationOrigin());
   }
   try {
     const upstream = await fetcher(safeApiUrl(route.upstream), {

@@ -1,4 +1,5 @@
 import {
+  adminMutationOrigin,
   allowQuery,
   namedSessionCookie,
   privateHeaders,
@@ -68,7 +69,7 @@ export async function proxyAudit(
   if (session) headers.set('Cookie', session);
   if (exportRequest) {
     headers.set('Content-Type', 'application/json');
-    headers.set('Origin', new URL(request.url).origin);
+    headers.set('Origin', adminMutationOrigin());
   }
   const suffix = exportRequest
     ? '/export'
