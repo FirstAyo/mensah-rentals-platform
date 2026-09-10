@@ -126,6 +126,42 @@ describe('catalogue service against PostgreSQL', () => {
     expectPublicDataSafe(page);
   });
 
+  it('stores default pricing for staff but never selects it publicly', async () => {
+    const product = await prisma.product.findUniqueOrThrow({
+      where: { slug: `alpha-${suffix}` },
+    });
+    const updated = await service.updateProduct(
+      product.id,
+      {
+        categoryId: product.categoryId,
+        defaultUnitPriceCents: 7250,
+        description: product.description,
+        isFeatured: product.isFeatured,
+        name: product.name,
+        rentalUnit: product.rentalUnit,
+        shortDescription: product.shortDescription,
+        slug: product.slug,
+        specifications: [],
+      },
+      actorUserId,
+    );
+    expect(updated.defaultUnitPriceCents).toBe(7250);
+    const detail = await service.getPublicProduct(
+      `active-${suffix}`,
+      `alpha-${suffix}`,
+    );
+    expect(detail).not.toHaveProperty('defaultUnitPriceCents');
+    expectPublicDataSafe(detail);
+    await expect(
+      prisma.platformAuditEvent.findFirstOrThrow({
+        where: {
+          action: 'PRODUCT_DEFAULT_PRICE_UPDATED',
+          entityId: product.id,
+        },
+      }),
+    ).resolves.toMatchObject({ domain: 'CATALOGUE' });
+  });
+
   it('returns bounded active related products through the public allowlist', async () => {
     const detail = await service.getPublicProduct(
       `active-${suffix}`,

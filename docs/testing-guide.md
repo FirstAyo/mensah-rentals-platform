@@ -1,5 +1,17 @@
 # Testing Guide
 
+## Phase 19.1 focused browser verification
+
+Run from the repository root after Docker Desktop is ready and ports 3000, 3001, and 4000 are free:
+
+```powershell
+pnpm test:e2e:staging-workflow-corrections
+```
+
+Success means the guarded test database migrates from empty, the Approved Orders workspace shows and opens an unassigned confirmed order, explicit self-assignment succeeds with a toast and activity evidence, quote-to-order navigation reaches the order detail, and a 320px keyboard activation of `View details` reaches the canonical product URL with no serious/critical Axe result.
+
+Run the Phase 19.1 regression set listed in [staging-workflow-corrections.md](staging-workflow-corrections.md). Browser harness data is test-owned and must never target staging or production.
+
 ## Deployment-foundation checks
 
 Run these from the repository root before committing a staging deployment change:

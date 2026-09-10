@@ -131,7 +131,9 @@ export function QuoteEditor({
             );
             nextPrices[item.id] = prior
               ? (prior.unitPriceCents / 100).toFixed(2)
-              : '0.00';
+              : item.defaultUnitPriceCents === null
+                ? '0.00'
+                : (item.defaultUnitPriceCents / 100).toFixed(2);
             nextQuantities[item.id] =
               prior?.quotedQuantity ?? item.approvedQuantity;
             nextTaxable[item.id] = prior?.taxable ?? true;

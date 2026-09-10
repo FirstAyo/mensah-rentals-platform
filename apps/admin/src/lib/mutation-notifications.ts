@@ -157,12 +157,30 @@ const DOMAIN_MESSAGES: Array<[string, MutationNotification]> = [
   ],
 ];
 
+const EXACT_MESSAGES: Array<{
+  matches: (method: string, path: string) => boolean;
+  message: MutationNotification;
+}> = [
+  {
+    matches: (method, path) =>
+      method === 'PATCH' && /^\/api\/orders\/[^/]+\/assignment$/.test(path),
+    message: {
+      success: 'Order assigned successfully',
+      error: 'Order assignment could not be updated',
+    },
+  },
+];
+
 export function mutationNotificationFor(method: string, path: string) {
   const normalizedMethod = method.toUpperCase();
   if (!['POST', 'PUT', 'PATCH', 'DELETE'].includes(normalizedMethod))
     return null;
   if (!path.startsWith('/api/') || path.startsWith('/api/auth/')) return null;
   if (path.endsWith('/preview')) return null;
+  const exact = EXACT_MESSAGES.find(({ matches }) =>
+    matches(normalizedMethod, path),
+  );
+  if (exact) return exact.message;
   if (path.startsWith('/api/inventory')) {
     return INVENTORY_MESSAGES.find(({ matches }) =>
       matches(normalizedMethod, path),

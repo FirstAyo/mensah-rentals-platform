@@ -81,8 +81,19 @@ describe('catalogue validation', () => {
       specifications: [],
     };
     expect(
-      createProductSchema.safeParse({ ...base, isActive: true }).success,
+      createProductSchema.safeParse({
+        ...base,
+        defaultUnitPriceCents: 2500,
+        isActive: true,
+      }).success,
     ).toBe(true);
+    expect(
+      createProductSchema.safeParse({
+        ...base,
+        defaultUnitPriceCents: -1,
+        isActive: true,
+      }).success,
+    ).toBe(false);
   });
 
   it('rejects unsafe slugs, media association, and mass assignment', () => {

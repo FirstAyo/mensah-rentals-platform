@@ -35,6 +35,9 @@ const decisionSelect = {
       approvedQuantity: true,
       id: true,
       rentalRequestRevisionItemId: true,
+      rentalRequestRevisionItem: {
+        select: { product: { select: { defaultUnitPriceCents: true } } },
+      },
       requestedQuantitySnapshot: true,
     },
   },
@@ -392,10 +395,24 @@ export class RentalRequestDecisionService {
       decidedBy: decision.decidedBy,
       id: decision.id,
       internalReason: decision.internalReason,
-      items: decision.items.map(({ rentalRequestRevisionItemId, ...item }) => ({
-        ...item,
-        rentalRequestItemId: rentalRequestRevisionItemId,
-      })),
+      items: decision.items.map(
+        ({
+          rentalRequestRevisionItemId,
+          rentalRequestRevisionItem,
+          ...item
+        }) => ({
+          ...item,
+          defaultUnitPriceCents:
+            rentalRequestRevisionItem.product?.defaultUnitPriceCents === null ||
+            rentalRequestRevisionItem.product?.defaultUnitPriceCents ===
+              undefined
+              ? null
+              : this.safeNumber(
+                  rentalRequestRevisionItem.product.defaultUnitPriceCents,
+                ),
+          rentalRequestItemId: rentalRequestRevisionItemId,
+        }),
+      ),
       outcome: decision.outcome,
       quoteEligible:
         decision.outcome !== 'REJECTED' && decision.supersededAt === null,
@@ -411,5 +428,11 @@ export class RentalRequestDecisionService {
       typeof error.code === 'string'
       ? error.code
       : undefined;
+  }
+
+  private safeNumber(value: bigint) {
+    const result = Number(value);
+    if (!Number.isSafeInteger(result)) throw new Error('Unsafe money amount');
+    return result;
   }
 }

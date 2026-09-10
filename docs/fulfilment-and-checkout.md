@@ -1,5 +1,9 @@
 # Fulfilment and checkout
 
+## Pickup/handoff details
+
+The Admin records recipient name, optional organization, operational time, optional acknowledgement reference, and internal notes through an accessible dialog. Checkout remains the sole authoritative transition: it consumes reservation quantities once, records the authenticated staff actor, preserves physical totals, moves internal units to rented, preserves serialized identity, appends handoff history, and creates/updates the active rental. Complete checkout may navigate to the active rental after success; partial checkout remains on the order for further work.
+
 > Acknowledged external shortfalls may satisfy commercial coverage, but they never consume or mutate Mensah-owned inventory. See [Reservation shortfall coverage](reservation-shortfall-coverage.md).
 
 Phase 15 adds internal preparation, picking, physical handoff, and checkout. It does not implement returns, damage, missing equipment, maintenance resolution, payments, or customer accounts.

@@ -8,6 +8,10 @@ const id = '[a-z0-9]+';
 const routes = [
   { pattern: /^$/, methods: new Set(['GET']) },
   { pattern: new RegExp(`^${id}$`), methods: new Set(['GET']) },
+  {
+    pattern: new RegExp(`^${id}/assignment$`),
+    methods: new Set(['PATCH']),
+  },
   { pattern: new RegExp(`^${id}/pdf$`), methods: new Set(['GET']) },
   {
     pattern: new RegExp(`^${id}/customer-access$`),
@@ -67,8 +71,11 @@ const queryKeys = new Set([
   'pageSize',
   'search',
   'status',
+  'assignment',
+  'assignedToUserId',
   'reservationStatus',
   'fulfillmentMethod',
+  'fulfillmentStatus',
   'rentalStartFrom',
   'rentalStartTo',
   'sortBy',

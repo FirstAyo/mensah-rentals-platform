@@ -7,6 +7,7 @@ import {
   orderCustomerAccessSchema,
   releaseInventoryReservationSchema,
   rentalOrderListQuerySchema,
+  updateRentalOrderAssignmentSchema,
 } from './order';
 
 describe('rental order validation', () => {
@@ -29,6 +30,7 @@ describe('rental order validation', () => {
 
   it('validates the bounded list query and date range', () => {
     expect(rentalOrderListQuerySchema.parse({})).toMatchObject({
+      assignment: 'ALL',
       page: 1,
       pageSize: 20,
       sortBy: 'confirmedAt',
@@ -52,6 +54,29 @@ describe('rental order validation', () => {
     expect(
       rentalOrderListQuerySchema.safeParse({ unknown: 'field' }).success,
     ).toBe(false);
+  });
+
+  it('validates optimistic, idempotent order assignments', () => {
+    const valid = {
+      assignedToUserId: 'cm00000000000000000000000',
+      expectedVersion: 0,
+      operationId: '8cbf58fb-b706-4bb2-aef1-205b1d1e4d00',
+    };
+    expect(updateRentalOrderAssignmentSchema.safeParse(valid).success).toBe(
+      true,
+    );
+    expect(
+      updateRentalOrderAssignmentSchema.safeParse({
+        ...valid,
+        expectedVersion: -1,
+      }).success,
+    ).toBe(false);
+    expect(
+      updateRentalOrderAssignmentSchema.safeParse({
+        ...valid,
+        assignedToUserId: null,
+      }).success,
+    ).toBe(true);
   });
 
   it('accepts only the bounded order capability shape', () => {

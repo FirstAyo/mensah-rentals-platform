@@ -1,5 +1,9 @@
 # Development Roadmap
 
+## Phase 19.1 — staging workflow corrections
+
+Implemented locally: Approved Orders projection, optional audited order assignment, Admin-only default product pricing with quote prefill, improved ledger-based inventory adjustment language, richer pickup/handoff capture, successful-transition navigation, accessible confirmation dialogs, action feedback, and canonical product-card links. Customer acceptance/pricing policy remains a deferred client decision. Deployment remains a separate reviewed staging operation.
+
 - Phase 19 deployment foundation is in progress: production container targets, isolated staging/production Compose projects, a single shared Caddy network, guarded environment preflight, private non-indexable staging, and an operator-only first-user bootstrap are prepared. The live VPS has not been changed. Production remains gated on staging acceptance, trusted-proxy review, and scheduled encrypted off-host backup/restore verification.
 
 - Phase 18.6 implements premium truthful About, Contact, Terms, and Privacy pages; verified company contact presentation without choosing the conflicting street address; durable secure contact enquiries and a protected Admin queue; feature-aware CTAs; complete metadata/JSON-LD/sitemap integration; and responsive accessibility coverage. Phase 19 has not started. Production legal review and outbound email-provider selection remain explicit Phase 19 decisions.

@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { useEffect, useState } from 'react';
 
 import { optimizeProductImage } from '@/lib/optimize-product-image';
+import { OperationalConfirmationDialog } from './operational-confirmation-dialog';
 
 function formatBytes(value: number) {
   return `${(value / 1024).toFixed(value >= 1024 * 1024 ? 0 : 1)} ${
@@ -26,9 +27,8 @@ function ImageRow({
   const [altText, setAltText] = useState(image.altText);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmRemove, setConfirmRemove] = useState(false);
   async function mutate(method: 'PUT' | 'DELETE', primary = image.isPrimary) {
-    if (method === 'DELETE' && !window.confirm('Remove this product image?'))
-      return;
     setBusy(true);
     setError(null);
     const response = await fetch(
@@ -51,6 +51,7 @@ function ImageRow({
       return;
     }
     await refresh();
+    setConfirmRemove(false);
   }
   return (
     <li className="grid gap-4 rounded-xl border border-border p-4 sm:grid-cols-[8rem_1fr_auto]">
@@ -99,12 +100,21 @@ function ImageRow({
           aria-label={`Remove ${image.altText}`}
           className="inline-flex items-center justify-center rounded-lg border border-destructive/40 p-2 text-destructive"
           disabled={busy}
-          onClick={() => void mutate('DELETE')}
+          onClick={() => setConfirmRemove(true)}
           type="button"
         >
           <Trash2 aria-hidden="true" className="h-4 w-4" />
         </button>
       </div>
+      <OperationalConfirmationDialog
+        busy={busy}
+        confirmLabel="Remove image"
+        consequence="This removes the image from the product. The action cannot be undone from this screen."
+        onClose={() => setConfirmRemove(false)}
+        onConfirm={() => void mutate('DELETE')}
+        open={confirmRemove}
+        title="Remove product image?"
+      />
     </li>
   );
 }

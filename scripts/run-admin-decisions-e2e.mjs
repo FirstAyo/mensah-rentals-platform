@@ -61,6 +61,7 @@ const modes = new Set([
   'feature-settings',
   'seo',
   'public-company-pages',
+  'staging-workflow-corrections',
 ]);
 if (!modes.has(mode)) throw new Error(`Unknown decision browser mode: ${mode}`);
 
@@ -241,6 +242,7 @@ if (mode === 'feature-settings') {
 if (
   mode.startsWith('reservations-') ||
   mode.startsWith('fulfilment-') ||
+  mode === 'staging-workflow-corrections' ||
   mode.startsWith('returns-') ||
   mode === 'official-pdfs' ||
   mode === 'maintenance' ||
@@ -295,6 +297,7 @@ if (
   }
   if (
     mode.startsWith('fulfilment-') ||
+    mode === 'staging-workflow-corrections' ||
     mode.startsWith('returns-') ||
     mode === 'official-pdfs'
   ) {
@@ -331,6 +334,39 @@ if (
       },
     });
     browserEnvironment.PHASE15_DELIVERY_PRODUCT_NAME = deliveryProductName;
+    if (mode === 'staging-workflow-corrections') {
+      const workflowProduct = await prisma.product.create({
+        data: {
+          categoryId: source.categoryId,
+          defaultUnitPriceCents: 7777,
+          name: 'Phase 19.1 Workflow Package',
+          shortDescription: 'Isolated Phase 19.1 workflow fixture',
+          slug: `phase-19-1-workflow-${randomUUID()}`,
+        },
+      });
+      const workflowInventory = await prisma.inventory.create({
+        data: {
+          creationOperationId: randomUUID(),
+          creationReason: 'Isolated Phase 19.1 workflow fixture',
+          initialState: 'RENTABLE',
+          productId: workflowProduct.id,
+          trackingMode: 'BULK',
+        },
+      });
+      await prisma.inventoryTransaction.create({
+        data: {
+          actorUserId: fixture.id,
+          inventoryId: workflowInventory.id,
+          kind: 'INITIAL_STOCK',
+          operationId: randomUUID(),
+          quantity: 4,
+          reason: 'Isolated Phase 19.1 workflow fixture',
+          toState: 'RENTABLE',
+        },
+      });
+      browserEnvironment.PHASE191_PRODUCT_NAME = workflowProduct.name;
+      browserEnvironment.PHASE191_INVENTORY_ID = workflowInventory.id;
+    }
     if (mode.startsWith('returns-') || mode === 'official-pdfs') {
       for (const [environmentKey, productName] of [
         ['PHASE16_ADMIN_RETURN_PRODUCT_NAME', 'Phase 16 Admin Return Package'],
@@ -1213,7 +1249,8 @@ const phase121Mode = mode.startsWith('phase12-1-');
 const categoryMode = mode === 'categories';
 const productMode = mode === 'products';
 const reservationMode = mode.startsWith('reservations-');
-const fulfilmentMode = mode.startsWith('fulfilment-');
+const fulfilmentMode =
+  mode.startsWith('fulfilment-') || mode === 'staging-workflow-corrections';
 const returnMode = mode.startsWith('returns-');
 const maintenanceMode =
   mode === 'maintenance' ||
@@ -1363,101 +1400,104 @@ try {
   const isQuoteMode = mode.startsWith('quotes-');
   const isOrderMode = mode.startsWith('orders-');
   const isHomepageMode = homepageMode;
-  const grep = inventoryManagementMode
-    ? mode === 'admin-notifications'
-      ? '@admin-notifications'
-      : '@inventory-management'
-    : featureSettingsMode
-      ? '@feature-settings'
-      : seoMode
-        ? '@seo'
-        : publicCompanyMode
-          ? '@public-company-pages'
-          : officialPdfMode
-            ? '@official-pdfs'
-            : categoryMode
-              ? '@categories'
-              : productMode
-                ? '@products'
-                : publicRegressionMode
-                  ? mode === 'catalogue'
-                    ? '@catalogue'
-                    : mode === 'cart'
-                      ? '@cart'
-                      : '@public-navigation'
-                  : isHomepageMode
-                    ? mode === 'homepage-admin'
-                      ? '@homepage-admin'
-                      : mode === 'homepage-media'
-                        ? '@homepage-media'
-                        : mode === 'homepage-google-live'
-                          ? '@homepage-google-live'
-                          : mode === 'homepage-google-timeout'
-                            ? '@homepage-google-timeout'
-                            : mode === 'homepage-google-quota'
-                              ? '@homepage-google-quota'
-                              : mode === 'homepage-google-reviews'
-                                ? '@homepage-google-live'
-                                : mode === 'homepage-all'
-                                  ? '@homepage'
-                                  : '@homepage-public'
-                    : runtimeRegressionMode
-                      ? '@runtime-regression'
-                      : phase18Mode
-                        ? mode === 'reports'
-                          ? '@reports'
-                          : mode === 'audit'
-                            ? '@audit'
-                            : mode === 'system-status'
-                              ? '@system-status'
-                              : '@reports|@audit|@system-status'
-                        : maintenanceMode
-                          ? mode === 'inspections'
-                            ? '@inspections'
-                            : mode === 'maintenance-all'
-                              ? '@maintenance|@inspections'
-                              : '@maintenance'
-                          : returnMode
-                            ? mode === 'returns-all'
-                              ? '@returns'
-                              : mode === 'returns-concurrency'
-                                ? '@return-concurrency'
-                                : mode === 'returns-issues'
-                                  ? '@return-issues'
-                                  : '@admin-returns'
-                            : fulfilmentMode
-                              ? mode === 'fulfilment-all'
-                                ? '@fulfilment'
-                                : mode === 'fulfilment-concurrency'
-                                  ? '@fulfilment-concurrency'
-                                  : mode === 'fulfilment-active-rentals'
-                                    ? '@active-rentals'
-                                    : '@admin-fulfilment'
-                              : reservationMode
-                                ? mode === 'reservations-all'
-                                  ? '@reservations'
-                                  : mode === 'reservations-concurrency'
-                                    ? '@reservation-concurrency'
-                                    : mode === 'reservations-shortfall'
-                                      ? '@reservation-shortfall'
-                                      : '@admin-reservations'
-                                : isPhase121
-                                  ? '@phase12-1'
-                                  : isOrderMode
-                                    ? mode === 'orders-all'
-                                      ? '@orders'
-                                      : mode === 'orders-admin'
-                                        ? '@admin-orders'
-                                        : '@customer-orders'
-                                    : isQuoteMode
-                                      ? mode === 'quotes-all'
-                                        ? '@quotes'
-                                        : mode === 'quotes-admin'
-                                          ? '@admin-quotes'
-                                          : '@customer-quotes'
-                                      : mode === 'all'
-                                        ? '@admin-decisions'
-                                        : `@admin-decisions-${mode}`;
+  const grep =
+    mode === 'staging-workflow-corrections'
+      ? '@staging-workflow-corrections'
+      : inventoryManagementMode
+        ? mode === 'admin-notifications'
+          ? '@admin-notifications'
+          : '@inventory-management'
+        : featureSettingsMode
+          ? '@feature-settings'
+          : seoMode
+            ? '@seo'
+            : publicCompanyMode
+              ? '@public-company-pages'
+              : officialPdfMode
+                ? '@official-pdfs'
+                : categoryMode
+                  ? '@categories'
+                  : productMode
+                    ? '@products'
+                    : publicRegressionMode
+                      ? mode === 'catalogue'
+                        ? '@catalogue'
+                        : mode === 'cart'
+                          ? '@cart'
+                          : '@public-navigation'
+                      : isHomepageMode
+                        ? mode === 'homepage-admin'
+                          ? '@homepage-admin'
+                          : mode === 'homepage-media'
+                            ? '@homepage-media'
+                            : mode === 'homepage-google-live'
+                              ? '@homepage-google-live'
+                              : mode === 'homepage-google-timeout'
+                                ? '@homepage-google-timeout'
+                                : mode === 'homepage-google-quota'
+                                  ? '@homepage-google-quota'
+                                  : mode === 'homepage-google-reviews'
+                                    ? '@homepage-google-live'
+                                    : mode === 'homepage-all'
+                                      ? '@homepage'
+                                      : '@homepage-public'
+                        : runtimeRegressionMode
+                          ? '@runtime-regression'
+                          : phase18Mode
+                            ? mode === 'reports'
+                              ? '@reports'
+                              : mode === 'audit'
+                                ? '@audit'
+                                : mode === 'system-status'
+                                  ? '@system-status'
+                                  : '@reports|@audit|@system-status'
+                            : maintenanceMode
+                              ? mode === 'inspections'
+                                ? '@inspections'
+                                : mode === 'maintenance-all'
+                                  ? '@maintenance|@inspections'
+                                  : '@maintenance'
+                              : returnMode
+                                ? mode === 'returns-all'
+                                  ? '@returns'
+                                  : mode === 'returns-concurrency'
+                                    ? '@return-concurrency'
+                                    : mode === 'returns-issues'
+                                      ? '@return-issues'
+                                      : '@admin-returns'
+                                : fulfilmentMode
+                                  ? mode === 'fulfilment-all'
+                                    ? '@fulfilment'
+                                    : mode === 'fulfilment-concurrency'
+                                      ? '@fulfilment-concurrency'
+                                      : mode === 'fulfilment-active-rentals'
+                                        ? '@active-rentals'
+                                        : '@admin-fulfilment'
+                                  : reservationMode
+                                    ? mode === 'reservations-all'
+                                      ? '@reservations'
+                                      : mode === 'reservations-concurrency'
+                                        ? '@reservation-concurrency'
+                                        : mode === 'reservations-shortfall'
+                                          ? '@reservation-shortfall'
+                                          : '@admin-reservations'
+                                    : isPhase121
+                                      ? '@phase12-1'
+                                      : isOrderMode
+                                        ? mode === 'orders-all'
+                                          ? '@orders'
+                                          : mode === 'orders-admin'
+                                            ? '@admin-orders'
+                                            : '@customer-orders'
+                                        : isQuoteMode
+                                          ? mode === 'quotes-all'
+                                            ? '@quotes'
+                                            : mode === 'quotes-admin'
+                                              ? '@admin-quotes'
+                                              : '@customer-quotes'
+                                          : mode === 'all'
+                                            ? '@admin-decisions'
+                                            : `@admin-decisions-${mode}`;
   const grepArgument =
     process.platform === 'win32' && grep.includes('|') ? `"${grep}"` : grep;
   run(

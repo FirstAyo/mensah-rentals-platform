@@ -171,6 +171,7 @@ export interface AdminProductResponse {
   category: Pick<AdminCategoryResponse, 'id' | 'name' | 'slug'>;
   categoryId: string;
   createdAt: string;
+  defaultUnitPriceCents: number | null;
   description: string | null;
   id: string;
   images: AdminProductImageResponse[];
@@ -498,6 +499,7 @@ export interface AdminRentalRequestActivityResponse {
 
 export interface AdminRentalRequestDecisionItemResponse {
   approvedQuantity: number;
+  defaultUnitPriceCents: number | null;
   id: string;
   rentalRequestItemId: string;
   requestedQuantitySnapshot: number;
@@ -683,17 +685,40 @@ export type RentalOrderReservationStatusResponse =
   | 'CONSUMED';
 
 export interface AdminRentalOrderSummaryResponse extends QuoteMoneyResponse {
+  assignedAt: string | null;
+  assignedTo: AdminRentalRequestStaffSummary | null;
+  assignmentVersion: number;
   confirmedAt: string;
+  companyName: string | null;
   customerName: string;
+  fulfilmentStatus:
+    | 'NOT_STARTED'
+    | 'PREPARING'
+    | 'READY'
+    | 'PARTIALLY_CHECKED_OUT'
+    | 'CHECKED_OUT';
   fulfillmentMethod: PublicRentalRequestFulfillmentMethod;
   id: string;
+  nextAction:
+    | 'CREATE_RESERVATION'
+    | 'COMPLETE_RESERVATION'
+    | 'START_PREPARATION'
+    | 'CONTINUE_PREPARATION'
+    | 'CHECK_OUT'
+    | 'VIEW_ACTIVE_RENTAL'
+    | 'VIEW_RETURN';
   orderNumber: string;
+  projectName: string;
   quoteId: string;
   quoteNumber: string;
   rentalEndDate: string;
   rentalRequestId: string;
   rentalRequestReference: string;
   rentalStartDate: string;
+  reservationCoverageStatus?:
+    | 'FULLY_INTERNAL'
+    | 'SHORTFALL_REQUIRES_PLAN'
+    | 'SHORTFALL_ACKNOWLEDGED';
   reservationStatus?: RentalOrderReservationStatusResponse;
   status: RentalOrderStatusResponse;
 }
@@ -713,8 +738,13 @@ export interface AdminRentalOrderDetailResponse
     actor: AdminRentalRequestStaffSummary | null;
     createdAt: string;
     id: string;
+    newAssignee: AdminRentalRequestStaffSummary | null;
+    previousAssignee: AdminRentalRequestStaffSummary | null;
     type:
       | 'ORDER_CREATED'
+      | 'ORDER_ASSIGNED'
+      | 'ORDER_REASSIGNED'
+      | 'ORDER_UNASSIGNED'
       | 'ORDER_CUSTOMER_ACCESS_CREATED'
       | 'ORDER_VIEWED'
       | 'ORDER_CUSTOMER_ACCESS_REVOKED'
@@ -961,6 +991,19 @@ export interface AdminFulfilmentResponse {
     status: ActiveRentalStatusResponse;
     expectedReturnAt: string;
   } | null;
+  handoffs: Array<{
+    actor: AdminRentalRequestStaffSummary;
+    handoffAt: string;
+    id: string;
+    items: Array<{
+      productName: string;
+      quantity: number;
+    }>;
+    recipientCompany: string | null;
+    recipientName: string | null;
+    status: 'PARTIAL' | 'COMPLETE';
+    type: 'PICKUP' | 'DELIVERY';
+  }>;
   notice: string;
 }
 
@@ -996,6 +1039,7 @@ export interface AdminActiveRentalDetailResponse
     id: string;
     type: 'PICKUP' | 'DELIVERY';
     recipientName: string | null;
+    recipientCompany: string | null;
     destination: string | null;
     acknowledgementReference: string | null;
     handoffAt: string;
@@ -1223,6 +1267,7 @@ export interface AdminInventoryTransactionResponse {
     | 'SOLD'
     | 'RETIRED'
     | 'DISPOSED'
+    | 'LOST'
     | 'INVENTORY_CORRECTION'
     | 'OTHER'
     | null;

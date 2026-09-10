@@ -1,5 +1,9 @@
 # API Data Visibility
 
+## Phase 19.1 price and assignment boundary
+
+Administrative product responses may contain `defaultUnitPriceCents`; public product/category responses never do. Order assignment and assignment activity are staff-only. Customer order and fulfilment responses omit staff identities, internal handoff notes, inventory/reservation quantities, serialized identifiers, operation IDs, payload hashes, and capabilities.
+
 ## Phase 18.6 contact boundary
 
 `POST /public/contact-enquiries` is public but mutation-protected. Its successful response contains only `accepted`, a customer-safe message, and a nullable enquiry reference. Honeypot submissions return the same acceptance shape with a null reference and create nothing. Public responses never contain message storage fields, operation/payload hashes, staff identity, RBAC, audit metadata, authentication/capability material, inventory, reservations, fulfilment, returns, or maintenance.

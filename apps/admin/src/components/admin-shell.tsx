@@ -93,6 +93,13 @@ const links = [
     feature: 'QUOTES_AND_ORDERS',
   },
   {
+    href: '/orders/approved',
+    icon: ShoppingBag,
+    label: 'Approved Orders',
+    permission: 'order.view',
+    feature: 'QUOTES_AND_ORDERS',
+  },
+  {
     href: '/active-rentals',
     icon: Clock3,
     label: 'Active Rentals',

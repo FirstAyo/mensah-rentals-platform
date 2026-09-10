@@ -59,6 +59,30 @@ describe('admin rental order BFF', () => {
     expect(fetcher).toHaveBeenCalledTimes(2);
   });
 
+  it('allows only the fixed assignment mutation with exact origin', async () => {
+    const fetcher = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json({ assignmentVersion: 1 }));
+    const response = await proxyOrder(
+      new Request('http://localhost:3001/api/orders/order1/assignment', {
+        body: JSON.stringify({
+          assignedToUserId: 'cm00000000000000000000000',
+          expectedVersion: 0,
+          operationId: crypto.randomUUID(),
+        }),
+        headers: {
+          'content-type': 'application/json',
+          origin: 'http://localhost:3001',
+        },
+        method: 'PATCH',
+      }),
+      ['order1', 'assignment'],
+      fetcher,
+    );
+    expect(response.status).toBe(200);
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+
   it('forwards only the eligible-assets query parameter', async () => {
     const fetcher = vi
       .fn<typeof fetch>()

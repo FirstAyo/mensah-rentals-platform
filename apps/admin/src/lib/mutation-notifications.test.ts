@@ -5,6 +5,15 @@ import {
 } from './mutation-notifications';
 
 describe('admin mutation notifications', () => {
+  it('uses assignment-specific order feedback', () => {
+    expect(
+      mutationNotificationFor('PATCH', '/api/orders/order-1/assignment'),
+    ).toEqual({
+      success: 'Order assigned successfully',
+      error: 'Order assignment could not be updated',
+    });
+  });
+
   it.each([
     ['PATCH', '/api/inventory/inv-1', 'Inventory updated successfully'],
     [

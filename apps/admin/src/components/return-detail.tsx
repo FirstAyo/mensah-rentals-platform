@@ -3,6 +3,7 @@
 import type { AdminRentalReturnResponse } from '@mensah-rentals/types';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
+import { OperationalConfirmationDialog } from './operational-confirmation-dialog';
 
 export function ReturnDetail({
   canCreateMaintenance = false,
@@ -14,6 +15,9 @@ export function ReturnDetail({
   const [data, setData] = useState<AdminRentalReturnResponse | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmation, setConfirmation] = useState<
+    'reconcile' | 'complete' | null
+  >(null);
   const load = useCallback(
     () =>
       fetch(`/api/returns/${id}`, { cache: 'no-store' })
@@ -33,14 +37,6 @@ export function ReturnDetail({
   useEffect(() => void load(), [load]);
   async function command(action: 'reconcile' | 'complete') {
     if (!data || busy) return;
-    if (
-      !window.confirm(
-        action === 'complete'
-          ? 'Complete this rental? Completion is audited and requires all blocking issues to be resolved.'
-          : 'Evaluate reconciliation using the current return and issue state?',
-      )
-    )
-      return;
     setBusy(true);
     setMessage(null);
     const response = await fetch(`/api/returns/${id}/${action}`, {
@@ -57,6 +53,7 @@ export function ReturnDetail({
       return setMessage(payload.message ?? `${action} failed.`);
     }
     await load();
+    setConfirmation(null);
     setBusy(false);
     setMessage(
       action === 'complete' ? 'Rental completed.' : 'Reconciliation evaluated.',
@@ -116,7 +113,7 @@ export function ReturnDetail({
         <button
           className="rounded-md border px-4 py-2"
           disabled={busy}
-          onClick={() => void command('reconcile')}
+          onClick={() => setConfirmation('reconcile')}
           type="button"
         >
           {busy ? 'Working...' : 'Reconcile return'}
@@ -124,7 +121,7 @@ export function ReturnDetail({
         <button
           className="rounded-md bg-primary px-4 py-2 text-primary-foreground"
           disabled={busy}
-          onClick={() => void command('complete')}
+          onClick={() => setConfirmation('complete')}
           type="button"
         >
           {busy ? 'Working...' : 'Complete rental'}
@@ -159,6 +156,21 @@ export function ReturnDetail({
         )}
       </div>
       {message ? <p aria-live="polite">{message}</p> : null}
+      <OperationalConfirmationDialog
+        busy={busy}
+        confirmLabel={
+          confirmation === 'complete' ? 'Complete rental' : 'Reconcile return'
+        }
+        consequence={
+          confirmation === 'complete'
+            ? 'Completion is audited and requires every blocking issue to be resolved.'
+            : 'Reconciliation will be evaluated using the current immutable return and issue state.'
+        }
+        onClose={() => setConfirmation(null)}
+        onConfirm={() => confirmation && void command(confirmation)}
+        open={confirmation !== null}
+        title="Confirm return action"
+      />
     </div>
   );
 }

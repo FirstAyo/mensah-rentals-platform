@@ -46,7 +46,31 @@ import {
 const internalNotice =
   'Internal fulfilment data. Do not disclose reserved, prepared, shortfall, or serialized asset information to customers.';
 const fulfilmentInclude = {
-  activeRental: { select: { expectedReturnAt: true, id: true, status: true } },
+  activeRental: {
+    include: {
+      handoffs: {
+        include: {
+          actor: { select: { firstName: true, id: true, lastName: true } },
+          fulfilmentOperation: {
+            include: {
+              items: {
+                include: {
+                  orderFulfilmentItem: {
+                    include: {
+                      rentalOrderItem: {
+                        select: { productNameSnapshot: true },
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        orderBy: { handoffAt: 'asc' as const },
+      },
+    },
+  },
   inventoryReservation: { select: { version: true } },
   items: {
     include: {
@@ -488,6 +512,23 @@ export class FulfilmentService {
           'Pickup checkout requires a recipient name',
         );
       const handoffAt = new Date(input.handoffAt);
+      if (
+        input.items.some((target) => {
+          const fulfilmentItem = fulfilment.items.find(
+            (item) => item.rentalOrderItemId === target.rentalOrderItemId,
+          );
+          return target.serializedAllocationIds.some((allocationId) => {
+            const allocation =
+              fulfilmentItem?.reservationItem.serializedAllocations.find(
+                (entry) => entry.id === allocationId,
+              );
+            return Boolean(allocation && allocation.allocatedAt > handoffAt);
+          });
+        })
+      )
+        throw new UnprocessableEntityException(
+          'Handoff time cannot be earlier than serialized asset allocation',
+        );
       const operation = await tx.fulfilmentOperation.create({
         data: {
           actorUserId: actorId,
@@ -774,6 +815,7 @@ export class FulfilmentService {
           fulfilmentOperationId: operation.id,
           handoffAt,
           internalNotes: input.internalNotes,
+          recipientCompany: input.recipientCompany,
           recipientName: input.recipientName,
           type:
             order.fulfillmentMethodSnapshot === 'PICKUP'
@@ -908,6 +950,7 @@ export class FulfilmentService {
           handoffAt: h.handoffAt.toISOString(),
           id: h.id,
           internalNotes: h.internalNotes,
+          recipientCompany: h.recipientCompany,
           recipientName: h.recipientName,
           type: h.type,
         })),
@@ -992,6 +1035,31 @@ export class FulfilmentService {
             status: record.activeRental.status,
           }
         : null,
+      handoffs:
+        record.activeRental?.handoffs.map((handoff) => ({
+          actor: handoff.actor,
+          handoffAt: handoff.handoffAt.toISOString(),
+          id: handoff.id,
+          items: handoff.fulfilmentOperation.items
+            .filter(
+              (item) =>
+                item.internalCheckedOutDelta + item.externalCheckedOutDelta > 0,
+            )
+            .map((item) => ({
+              productName:
+                item.orderFulfilmentItem.rentalOrderItem.productNameSnapshot,
+              quantity:
+                item.internalCheckedOutDelta + item.externalCheckedOutDelta,
+            })),
+          recipientCompany: handoff.recipientCompany,
+          recipientName: handoff.recipientName,
+          status:
+            record.status === OrderFulfilmentStatus.CHECKED_OUT &&
+            handoff.fulfilmentOperation.resultingVersion === record.version
+              ? 'COMPLETE'
+              : 'PARTIAL',
+          type: handoff.type,
+        })) ?? [],
       firstCheckedOutAt: record.firstCheckedOutAt?.toISOString() ?? null,
       fulfilmentMethod: record.fulfilmentMethod,
       fullyCheckedOutAt: record.fullyCheckedOutAt?.toISOString() ?? null,

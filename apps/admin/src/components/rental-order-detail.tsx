@@ -6,7 +6,9 @@ import type {
 } from '@mensah-rentals/types';
 import { Copy, FileDown, KeyRound, Link2, Send, Unlink } from 'lucide-react';
 import Link from 'next/link';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AccessibleDialog } from './accessible-dialog';
+import { useAdminNotifications } from './admin-notifications';
 import { ReservationPanel } from './reservation-panel';
 import { FulfilmentPanel } from './fulfilment-panel';
 
@@ -20,6 +22,9 @@ const activityLabels: Record<
   string
 > = {
   ORDER_CREATED: 'Order confirmed',
+  ORDER_ASSIGNED: 'Order assigned',
+  ORDER_REASSIGNED: 'Order reassigned',
+  ORDER_UNASSIGNED: 'Order unassigned',
   ORDER_CUSTOMER_ACCESS_CREATED: 'Customer access created',
   ORDER_VIEWED: 'Customer viewed order',
   ORDER_CUSTOMER_ACCESS_REVOKED: 'Customer access revoked',
@@ -29,11 +34,14 @@ const activityLabels: Record<
 
 export function RentalOrderDetail({
   canManageAccess,
+  currentUserId,
   reservationPermissions,
   fulfilmentPermissions,
+  workflowFeatures,
   id,
 }: {
   canManageAccess: boolean;
+  currentUserId: string;
   reservationPermissions: {
     canComplete: boolean;
     canCreate: boolean;
@@ -49,6 +57,12 @@ export function RentalOrderDetail({
     canPartialCheckout: boolean;
     canHandoff: boolean;
     canPdf: boolean;
+    canViewReturn: boolean;
+  };
+  workflowFeatures: {
+    fulfilment: boolean;
+    reservations: boolean;
+    returns: boolean;
   };
   id: string;
 }) {
@@ -58,6 +72,12 @@ export function RentalOrderDetail({
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [accessLink, setAccessLink] = useState<string | null>(null);
+  const [confirmation, setConfirmation] = useState<
+    'generate' | 'revoke' | 'rotate' | 'resend' | null
+  >(null);
+  const [copyLabel, setCopyLabel] = useState('Copy');
+  const cancelRef = useRef<HTMLButtonElement>(null);
+  const { notify } = useAdminNotifications();
   const load = useCallback(async () => {
     const response = await fetch(`/api/orders/${id}`, { cache: 'no-store' });
     if (!response.ok) throw new Error('Rental order could not be loaded.');
@@ -78,15 +98,6 @@ export function RentalOrderDetail({
     action: 'generate' | 'revoke' | 'rotate' | 'resend',
   ) {
     if (!order || pending) return;
-    const warning =
-      action === 'revoke'
-        ? 'This immediately makes the current customer link unusable.'
-        : action === 'rotate'
-          ? 'This revokes the current link and issues a new one.'
-          : action === 'resend'
-            ? 'This records a resend without creating a new order.'
-            : 'This creates a new private customer link.';
-    if (!window.confirm(`${warning} Continue?`)) return;
     setPending(true);
     setError(null);
     try {
@@ -111,6 +122,7 @@ export function RentalOrderDetail({
       const result =
         (await response.json()) as AdminCustomerAccessMutationResponse;
       setAccessLink(result.accessLink);
+      setConfirmation(null);
       await load();
     } catch (caught) {
       setError(
@@ -123,6 +135,46 @@ export function RentalOrderDetail({
     }
   }
 
+  async function assignToMe() {
+    if (!order || pending) return;
+    setPending(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/orders/${id}/assignment`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          assignedToUserId: currentUserId,
+          expectedVersion: order.assignmentVersion,
+          operationId: crypto.randomUUID(),
+        }),
+      });
+      if (!response.ok)
+        throw new Error(
+          response.status === 409
+            ? 'Order assignment changed. Refresh and try again.'
+            : 'Order could not be assigned.',
+        );
+      await load();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Assignment failed.');
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function copyAccessLink() {
+    if (!accessLink) return;
+    try {
+      await navigator.clipboard.writeText(accessLink);
+      setCopyLabel('Copied');
+      notify('success', 'Customer link copied');
+      window.setTimeout(() => setCopyLabel('Copy'), 2_000);
+    } catch {
+      notify('error', 'Customer link could not be copied');
+    }
+  }
+
   if (!order)
     return (
       <p
@@ -132,6 +184,22 @@ export function RentalOrderDetail({
         {error ?? 'Loading rental order...'}
       </p>
     );
+
+  const nextActionAvailable =
+    order.nextAction === 'CREATE_RESERVATION'
+      ? workflowFeatures.reservations && reservationPermissions.canCreate
+      : order.nextAction === 'COMPLETE_RESERVATION'
+        ? workflowFeatures.reservations && reservationPermissions.canComplete
+        : order.nextAction === 'START_PREPARATION' ||
+            order.nextAction === 'CONTINUE_PREPARATION'
+          ? workflowFeatures.fulfilment && fulfilmentPermissions.canPrepare
+          : order.nextAction === 'CHECK_OUT'
+            ? workflowFeatures.fulfilment &&
+              fulfilmentPermissions.canCheckout &&
+              fulfilmentPermissions.canHandoff
+            : order.nextAction === 'VIEW_ACTIVE_RENTAL'
+              ? workflowFeatures.fulfilment && fulfilmentPermissions.canView
+              : workflowFeatures.returns && fulfilmentPermissions.canViewReturn;
 
   return (
     <div className="space-y-7">
@@ -159,6 +227,11 @@ export function RentalOrderDetail({
             <span className="rounded-full bg-muted px-3 py-1.5 font-semibold">
               {order.status}
             </span>
+            <span className="rounded-full border px-3 py-1.5 text-sm font-semibold">
+              {order.assignedTo
+                ? `Assigned to ${order.assignedTo.firstName} ${order.assignedTo.lastName}`
+                : 'Unassigned'}
+            </span>
             {reservationPermissions.canViewReservation &&
             order.reservationStatus ? (
               <span className="rounded-full border px-3 py-1.5 text-sm font-semibold">
@@ -172,6 +245,105 @@ export function RentalOrderDetail({
       <p className="rounded-xl border bg-muted/40 p-4 font-medium">
         {order.notice}
       </p>
+
+      <section className="rounded-xl border border-border bg-card p-5">
+        <h2 className="text-xl font-semibold">Workflow progress</h2>
+        <ol className="mt-4 grid gap-2 text-sm sm:grid-cols-2 xl:grid-cols-5">
+          {[
+            { label: 'Order confirmed', state: 'Complete' },
+            {
+              label: 'Inventory reservation',
+              state: !workflowFeatures.reservations
+                ? 'Feature unavailable'
+                : !reservationPermissions.canViewReservation
+                  ? 'Restricted'
+                  : ['RESERVED', 'PARTIALLY_CONSUMED', 'CONSUMED'].includes(
+                        order.reservationStatus ?? '',
+                      )
+                    ? 'Complete'
+                    : order.reservationStatus === 'PARTIALLY_RESERVED'
+                      ? order.reservationCoverageStatus ===
+                        'SHORTFALL_ACKNOWLEDGED'
+                        ? 'Partial — shortfall plan acknowledged'
+                        : 'Partial — shortfall requires an acknowledged plan'
+                      : reservationPermissions.canCreate
+                        ? 'Current'
+                        : 'Restricted',
+            },
+            {
+              label: 'Preparation',
+              state: !workflowFeatures.fulfilment
+                ? 'Feature unavailable'
+                : !fulfilmentPermissions.canView
+                  ? 'Restricted'
+                  : ['READY', 'PARTIALLY_CHECKED_OUT', 'CHECKED_OUT'].includes(
+                        order.fulfilmentStatus,
+                      )
+                    ? 'Complete'
+                    : !fulfilmentPermissions.canPrepare
+                      ? 'Restricted'
+                      : order.fulfilmentStatus === 'PREPARING'
+                        ? 'Current'
+                        : 'Not started',
+            },
+            {
+              label:
+                order.fulfillmentMethod === 'PICKUP' ? 'Pickup' : 'Handoff',
+              state: !workflowFeatures.fulfilment
+                ? 'Feature unavailable'
+                : !fulfilmentPermissions.canView
+                  ? 'Restricted'
+                  : order.fulfilmentStatus === 'CHECKED_OUT'
+                    ? 'Complete'
+                    : !fulfilmentPermissions.canCheckout ||
+                        !fulfilmentPermissions.canHandoff
+                      ? 'Restricted'
+                      : order.fulfilmentStatus === 'PARTIALLY_CHECKED_OUT'
+                        ? 'Partial — checkout remains'
+                        : order.fulfilmentStatus === 'READY'
+                          ? 'Current'
+                          : 'Not started',
+            },
+            {
+              label: 'Return',
+              state: !workflowFeatures.returns
+                ? 'Feature unavailable'
+                : !fulfilmentPermissions.canViewReturn
+                  ? 'Restricted'
+                  : order.nextAction === 'VIEW_RETURN'
+                    ? 'In progress'
+                    : order.nextAction === 'VIEW_ACTIVE_RENTAL'
+                      ? 'Current'
+                      : 'Not started',
+            },
+          ].map((step) => (
+            <li
+              className={`rounded-lg border p-3 ${step.state === 'Complete' ? 'bg-primary/10' : step.state === 'Current' || step.state === 'In progress' ? 'border-primary bg-primary/5' : 'bg-muted/30'}`}
+              key={step.label}
+            >
+              <span className="block font-semibold">{step.label}</span>
+              <span className="mt-1 block text-xs text-muted-foreground">
+                {step.state}
+              </span>
+            </li>
+          ))}
+        </ol>
+        <p className="mt-4 font-semibold">
+          {nextActionAvailable
+            ? `Next action: ${order.nextAction.replaceAll('_', ' ')}`
+            : 'The next operational action is unavailable with the current feature and permission settings.'}
+        </p>
+        {!order.assignedTo && canManageAccess ? (
+          <button
+            className="mt-3 min-h-11 rounded-lg border px-4 font-semibold disabled:opacity-50"
+            disabled={pending}
+            onClick={() => void assignToMe()}
+            type="button"
+          >
+            {pending ? 'Assigning…' : 'Assign to me'}
+          </button>
+        ) : null}
+      </section>
 
       <ReservationPanel
         orderId={id}
@@ -215,7 +387,7 @@ export function RentalOrderDetail({
               <button
                 className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground disabled:opacity-50"
                 disabled={pending}
-                onClick={() => void accessAction('generate')}
+                onClick={() => setConfirmation('generate')}
                 type="button"
               >
                 <Link2 className="h-4 w-4" aria-hidden="true" /> Generate
@@ -226,7 +398,7 @@ export function RentalOrderDetail({
                 <button
                   className="inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2 font-semibold disabled:opacity-50"
                   disabled={pending}
-                  onClick={() => void accessAction('resend')}
+                  onClick={() => setConfirmation('resend')}
                   type="button"
                 >
                   <Send className="h-4 w-4" aria-hidden="true" /> Resend current
@@ -235,7 +407,7 @@ export function RentalOrderDetail({
                 <button
                   className="inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2 font-semibold disabled:opacity-50"
                   disabled={pending}
-                  onClick={() => void accessAction('rotate')}
+                  onClick={() => setConfirmation('rotate')}
                   type="button"
                 >
                   <KeyRound className="h-4 w-4" aria-hidden="true" /> Rotate
@@ -244,7 +416,7 @@ export function RentalOrderDetail({
                 <button
                   className="inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2 font-semibold disabled:opacity-50"
                   disabled={pending}
-                  onClick={() => void accessAction('revoke')}
+                  onClick={() => setConfirmation('revoke')}
                   type="button"
                 >
                   <Unlink className="h-4 w-4" aria-hidden="true" /> Revoke link
@@ -269,10 +441,10 @@ export function RentalOrderDetail({
               </code>
               <button
                 className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg border px-4"
-                onClick={() => void navigator.clipboard.writeText(accessLink)}
+                onClick={() => void copyAccessLink()}
                 type="button"
               >
-                <Copy className="h-4 w-4" aria-hidden="true" /> Copy
+                <Copy className="h-4 w-4" aria-hidden="true" /> {copyLabel}
               </button>
             </div>
           </div>
@@ -473,6 +645,55 @@ export function RentalOrderDetail({
           </p>
         </div>
       </section>
+      <AccessibleDialog
+        descriptionId="order-access-confirmation-description"
+        initialFocusRef={cancelRef}
+        onClose={() => {
+          if (!pending) setConfirmation(null);
+        }}
+        open={confirmation !== null}
+        titleId="order-access-confirmation-title"
+      >
+        <div className="p-5 sm:p-6">
+          <h2
+            className="text-xl font-semibold"
+            id="order-access-confirmation-title"
+          >
+            Confirm customer-access change
+          </h2>
+          <p
+            className="mt-3 text-sm text-muted-foreground"
+            id="order-access-confirmation-description"
+          >
+            {confirmation === 'revoke'
+              ? 'This immediately makes the current customer link unusable.'
+              : confirmation === 'rotate'
+                ? 'This revokes the current link and issues a new one.'
+                : confirmation === 'resend'
+                  ? 'This records a resend without creating a new order.'
+                  : 'This creates a new private customer link.'}
+          </p>
+          <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <button
+              className="min-h-11 rounded-lg border px-4 font-semibold"
+              disabled={pending}
+              onClick={() => setConfirmation(null)}
+              ref={cancelRef}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="min-h-11 rounded-lg bg-primary px-4 font-semibold text-primary-foreground disabled:opacity-50"
+              disabled={pending || confirmation === null}
+              onClick={() => confirmation && void accessAction(confirmation)}
+              type="button"
+            >
+              {pending ? 'Updating…' : 'Confirm change'}
+            </button>
+          </div>
+        </div>
+      </AccessibleDialog>
     </div>
   );
 }

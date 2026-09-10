@@ -209,6 +209,8 @@ through a development API.
 
 ## Documentation
 
+- [Phase 19.1 staging workflow corrections](docs/staging-workflow-corrections.md)
+
 - [Architecture](docs/architecture.md)
 - [Staff authentication](docs/authentication.md)
 - [Planned domain model](docs/domain-model.md)

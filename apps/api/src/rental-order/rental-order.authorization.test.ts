@@ -55,6 +55,7 @@ describe('rental order HTTP authorization and validation', () => {
       buffer: Buffer.from('%PDF-1.4'),
       filename: 'order.pdf',
     })),
+    updateAssignment: vi.fn(async () => ({ id })),
     validateCapability: vi.fn(async () => {
       throw new NotFoundException('Order is unavailable');
     }),
@@ -150,6 +151,25 @@ describe('rental order HTTP authorization and validation', () => {
     await call().expect(403);
     current = { ...base, permissionKeys: ['order.view', 'order.update'] };
     await call().expect(201).expect('Cache-Control', 'private, no-store');
+  });
+
+  it('requires order.view and order.update for assignment mutations', async () => {
+    const call = () =>
+      request(app.getHttpServer())
+        .patch(`/admin/orders/${id}/assignment`)
+        .set('Cookie', cookie)
+        .set('Origin', 'http://localhost:3001')
+        .send({
+          assignedToUserId: null,
+          expectedVersion: 0,
+          operationId: '00000000-0000-4000-8000-000000000001',
+        });
+    current = { ...base, permissionKeys: ['order.view'] };
+    await call().expect(403);
+    current = { ...base, permissionKeys: ['order.update'] };
+    await call().expect(403);
+    current = { ...base, permissionKeys: ['order.view', 'order.update'] };
+    await call().expect(200);
   });
 
   it('enforces each reservation permission independently', async () => {

@@ -1,5 +1,9 @@
 # Products and Categories
 
+## Internal default pricing
+
+Products may have a nullable `defaultUnitPriceCents` in CAD minor units. It is Admin-only, audited, and used solely to prefill new quote lines. Quote and order snapshots remain immutable. Public catalogue DTOs, pages, sitemap metadata, and structured data omit this field.
+
 ## Phase 16.4A category covers
 
 `CategoryCover` is an optional one-to-one presentation assignment. It references either existing `HomepageMedia` or a `ProductImage` from an active product in that same category, plus bounded alt text and focal position. The referenced file is not copied and product-image ownership, primary status, and order never change. Removing a cover removes only the assignment. A source image referenced by a cover or immutable homepage revision cannot be physically deleted.

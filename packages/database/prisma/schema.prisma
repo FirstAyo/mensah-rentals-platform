@@ -64,6 +64,7 @@ enum InventoryAdjustmentReasonType {
   SOLD
   RETIRED
   DISPOSED
+  LOST
   INVENTORY_CORRECTION
   OTHER
 }
@@ -423,6 +424,9 @@ enum FulfilmentHandoffType {
 
 enum RentalOrderActivityType {
   ORDER_CREATED
+  ORDER_ASSIGNED
+  ORDER_REASSIGNED
+  ORDER_UNASSIGNED
   ORDER_CUSTOMER_ACCESS_CREATED
   ORDER_VIEWED
   ORDER_CUSTOMER_ACCESS_REVOKED
@@ -495,7 +499,10 @@ model User {
   quoteActivities                  QuoteActivity[]                 @relation("QuoteActivityActor")
   quoteAccessCreated               QuoteCustomerAccess[]           @relation("QuoteAccessCreator")
   rentalOrdersConfirmed            RentalOrder[]                   @relation("RentalOrderConfirmer")
+  rentalOrdersAssigned             RentalOrder[]                   @relation("RentalOrderAssignee")
   rentalOrderActivities            RentalOrderActivity[]           @relation("RentalOrderActivityActor")
+  rentalOrderPreviousAssignments   RentalOrderActivity[]           @relation("RentalOrderActivityPreviousAssignee")
+  rentalOrderNewAssignments        RentalOrderActivity[]           @relation("RentalOrderActivityNewAssignee")
   orderAccessCreated               OrderCustomerAccess[]           @relation("OrderAccessCreator")
   inventoryReservationsCreated     InventoryReservation[]          @relation("InventoryReservationCreator")
   inventoryReservationOperations   InventoryReservationOperation[] @relation("InventoryReservationOperationActor")
@@ -680,6 +687,7 @@ model Product {
   shortDescription           String
   description                String?                     @db.Text
   rentalUnit                 String                      @default("each")
+  defaultUnitPriceCents      BigInt?
   categoryId                 String
   isActive                   Boolean                     @default(true)
   isFeatured                 Boolean                     @default(false)
@@ -1203,6 +1211,9 @@ model RentalOrder {
   rentalRequestId              String                         @unique
   rentalRequestDecisionId      String                         @unique
   confirmedByUserId            String
+  assignedToUserId             String?
+  assignedAt                   DateTime?                      @db.Timestamptz(3)
+  assignmentVersion            Int                            @default(0)
   operationId                  String                         @unique
   payloadHash                  String                         @db.Char(64)
   status                       RentalOrderStatus              @default(CONFIRMED)
@@ -1244,6 +1255,7 @@ model RentalOrder {
   rentalRequest                RentalRequest                  @relation(fields: [rentalRequestId], references: [id], onDelete: Restrict)
   rentalRequestDecision        RentalRequestDecision          @relation(fields: [rentalRequestDecisionId], references: [id], onDelete: Restrict)
   confirmedBy                  User                           @relation("RentalOrderConfirmer", fields: [confirmedByUserId], references: [id], onDelete: Restrict)
+  assignedTo                   User?                          @relation("RentalOrderAssignee", fields: [assignedToUserId], references: [id], onDelete: Restrict)
   items                        RentalOrderItem[]
   charges                      RentalOrderCharge[]
   tax                          RentalOrderTax?
@@ -1258,6 +1270,7 @@ model RentalOrder {
   @@index([reservationStatus, confirmedAt, id])
   @@index([rentalStartDateSnapshot, rentalEndDateSnapshot, id])
   @@index([confirmedByUserId, confirmedAt, id])
+  @@index([assignedToUserId, confirmedAt, id])
   @@index([contactEmailSnapshot, confirmedAt, id])
 }
 
@@ -1318,15 +1331,21 @@ model RentalOrderActivity {
   id            String                  @id @default(cuid())
   rentalOrderId String
   actorUserId   String?
+  previousAssigneeUserId String?
+  newAssigneeUserId String?
   type          RentalOrderActivityType
   operationId   String?                 @unique @db.Uuid
   payloadHash   String?                 @db.Char(64)
   createdAt     DateTime                @default(now()) @db.Timestamptz(3)
   rentalOrder   RentalOrder             @relation(fields: [rentalOrderId], references: [id], onDelete: Restrict)
   actor         User?                   @relation("RentalOrderActivityActor", fields: [actorUserId], references: [id], onDelete: Restrict)
+  previousAssignee User?                @relation("RentalOrderActivityPreviousAssignee", fields: [previousAssigneeUserId], references: [id], onDelete: Restrict)
+  newAssignee User?                     @relation("RentalOrderActivityNewAssignee", fields: [newAssigneeUserId], references: [id], onDelete: Restrict)
 
   @@index([rentalOrderId, createdAt, id])
   @@index([actorUserId, createdAt, id])
+  @@index([previousAssigneeUserId, createdAt, id])
+  @@index([newAssigneeUserId, createdAt, id])
 }
 
 model OrderCustomerAccess {
@@ -2153,6 +2172,7 @@ model FulfilmentHandoff {
   fulfilmentOperationId    String                @unique
   type                     FulfilmentHandoffType
   recipientName            String?
+  recipientCompany         String?
   destinationSnapshot      String?               @db.Text
   acknowledgementReference String?
   internalNotes            String?               @db.Text

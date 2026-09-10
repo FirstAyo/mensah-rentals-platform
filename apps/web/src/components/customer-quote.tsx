@@ -3,6 +3,7 @@
 import type { PublicQuoteResponse } from '@mensah-rentals/types';
 import { FileDown, Quote, ShieldCheck } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
+import { AccessibleDialog } from './accessible-dialog';
 
 const cad = new Intl.NumberFormat('en-CA', {
   style: 'currency',
@@ -14,6 +15,10 @@ export function CustomerQuote() {
   const [quote, setQuote] = useState<PublicQuoteResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [confirmation, setConfirmation] = useState<
+    'ACCEPTED' | 'REJECTED' | null
+  >(null);
+  const cancelRef = useRef<HTMLButtonElement>(null);
   const responseOperation = useRef<{ id: string; key: string } | null>(null);
 
   async function load(markViewed = false) {
@@ -36,13 +41,7 @@ export function CustomerQuote() {
   }, []);
 
   async function respond(responseKind: 'ACCEPTED' | 'REJECTED') {
-    if (
-      pending ||
-      !window.confirm(
-        `Confirm that you want to ${responseKind === 'ACCEPTED' ? 'accept' : 'reject'} this quote?`,
-      )
-    )
-      return;
+    if (pending) return;
     setPending(true);
     setError(null);
     try {
@@ -63,6 +62,7 @@ export function CustomerQuote() {
       });
       if (!response.ok) throw new Error();
       setQuote((await response.json()) as PublicQuoteResponse);
+      setConfirmation(null);
     } catch {
       setError(
         'This quote could not be updated. It may no longer be actionable.',
@@ -212,7 +212,7 @@ export function CustomerQuote() {
           <button
             className="min-h-11 rounded-lg bg-primary px-5 py-3 font-semibold text-primary-foreground disabled:opacity-50"
             disabled={pending}
-            onClick={() => void respond('ACCEPTED')}
+            onClick={() => setConfirmation('ACCEPTED')}
             type="button"
           >
             Accept quote
@@ -220,7 +220,7 @@ export function CustomerQuote() {
           <button
             className="min-h-11 rounded-lg border border-border px-5 py-3 font-semibold disabled:opacity-50"
             disabled={pending}
-            onClick={() => void respond('REJECTED')}
+            onClick={() => setConfirmation('REJECTED')}
             type="button"
           >
             Reject quote
@@ -232,6 +232,51 @@ export function CustomerQuote() {
           actions.
         </p>
       )}
+      <AccessibleDialog
+        descriptionId="quote-response-description"
+        initialFocusRef={cancelRef}
+        onClose={() => {
+          if (!pending) setConfirmation(null);
+        }}
+        open={confirmation !== null}
+        titleId="quote-response-title"
+      >
+        <div className="p-5 sm:p-6">
+          <h2 className="text-xl font-semibold" id="quote-response-title">
+            Confirm quote response
+          </h2>
+          <p
+            className="mt-3 text-sm text-muted-foreground"
+            id="quote-response-description"
+          >
+            Confirm that you want to{' '}
+            {confirmation === 'ACCEPTED' ? 'accept' : 'reject'} this quote.
+          </p>
+          <div className="mt-6 flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <button
+              className="min-h-11 rounded-lg border px-4 font-semibold"
+              disabled={pending}
+              onClick={() => setConfirmation(null)}
+              ref={cancelRef}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="min-h-11 rounded-lg bg-primary px-4 font-semibold text-primary-foreground disabled:opacity-50"
+              disabled={pending || confirmation === null}
+              onClick={() => confirmation && void respond(confirmation)}
+              type="button"
+            >
+              {pending
+                ? 'Recording…'
+                : confirmation === 'ACCEPTED'
+                  ? 'Accept quote'
+                  : 'Reject quote'}
+            </button>
+          </div>
+        </div>
+      </AccessibleDialog>
     </article>
   );
 }

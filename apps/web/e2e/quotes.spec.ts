@@ -27,6 +27,12 @@ async function axe(page: Page) {
   ).toEqual([]);
 }
 
+async function confirmCustomDialog(page: Page, action: string) {
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: action, exact: true }).click();
+}
+
 async function approvedRequest(page: Page) {
   const approvedRequestId = process.env.PHASE121_APPROVED_REQUEST_ID;
   if (approvedRequestId) {
@@ -133,8 +139,8 @@ async function createAndSend(page: Page) {
   await expect(page.getByRole('heading', { name: 'Revision 2' })).toHaveCount(
     0,
   );
-  page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Send current revision' }).click();
+  await confirmCustomDialog(page, 'Send current revision');
   await expect(
     page.getByRole('heading', { name: 'Secure customer link' }),
   ).toBeVisible();
@@ -151,14 +157,14 @@ test('@phase12-1 @quotes @admin-quotes creates exact quote and sends without res
 }, info) => {
   test.skip(info.project.name !== 'desktop-1024');
   const { link } = await createAndSend(page);
-  page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Resend current link' }).click();
+  await confirmCustomDialog(page, 'Resend current link');
   await expect(page.locator('code')).toHaveText(link);
   await expect(page.getByRole('heading', { name: 'Revision 2' })).toHaveCount(
     0,
   );
-  page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Rotate secure link' }).click();
+  await confirmCustomDialog(page, 'Rotate secure link');
   await expect(page.locator('code')).not.toHaveText(link);
   const oldLinkContext = await browser.newContext();
   const oldLinkPage = await oldLinkContext.newPage();
@@ -200,8 +206,8 @@ test('@quotes @admin-quotes creates immutable revision, supersedes old access, a
   await page.getByRole('button', { name: 'Create immutable revision' }).click();
   await expect(page.getByText('Revision 2')).toBeVisible();
   await expect(page.getByText('Revision 1')).toBeVisible();
-  page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Send current revision' }).click();
+  await confirmCustomDialog(page, 'Send current revision');
   await expect(
     page.getByRole('heading', { name: 'Secure customer link' }),
   ).toBeVisible();
@@ -212,8 +218,8 @@ test('@quotes @admin-quotes creates immutable revision, supersedes old access, a
   await expect(page).toHaveURL('http://localhost:3000/quote/access');
   await page.goto(newLink);
   await expect(page.getByRole('heading', { name: /Quote QT-/ })).toBeVisible();
-  page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Reject quote' }).click();
+  await confirmCustomDialog(page, 'Reject quote');
   await expect(page.getByText(/rejected and no longer/i)).toBeVisible();
   await page.reload();
   await expect(page.getByRole('button', { name: 'Reject quote' })).toHaveCount(
@@ -233,8 +239,8 @@ test('@quotes @customer-quotes exchanges fragment, hides internal notes, and acc
   const body = await page.locator('body').innerText();
   expect(body).not.toContain('PRIVATE-P11-SENTINEL');
   expect(body).toMatch(/not a confirmed rental order/i);
-  page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Accept quote' }).click();
+  await confirmCustomDialog(page, 'Accept quote');
   await expect(page.getByText(/accepted and no longer/i)).toBeVisible();
   await page.reload();
   await expect(page.getByRole('button', { name: 'Accept quote' })).toHaveCount(

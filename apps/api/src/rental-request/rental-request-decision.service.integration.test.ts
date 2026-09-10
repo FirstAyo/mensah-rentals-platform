@@ -298,6 +298,29 @@ describe('rental-request decisions against PostgreSQL', () => {
     ).rejects.toThrow(/operation identifier/i);
   });
 
+  it('exposes the current internal product default only as a new-quote prefill', async () => {
+    await prisma.product.update({
+      where: { id: productIds[0]! },
+      data: { defaultUnitPriceCents: 7777 },
+    });
+    const source = await request('default-price-prefill');
+    const decision = await service.approve(actor, source.id, {
+      customerExplanation: null,
+      expectedReviewVersion: 1,
+      internalReason: 'Verify guarded quote prefill.',
+      operationId: randomUUID(),
+    });
+    expect(decision.items.map((item) => item.defaultUnitPriceCents)).toEqual([
+      7777,
+      null,
+    ]);
+    await prisma.product.update({
+      where: { id: productIds[0]! },
+      data: { defaultUnitPriceCents: 9999 },
+    });
+    expect(decision.items[0]!.defaultUnitPriceCents).toBe(7777);
+  });
+
   it('records exact partial quantities while preserving the original request', async () => {
     const source = await request('partial');
     const beforeInventory = await inventorySnapshot();

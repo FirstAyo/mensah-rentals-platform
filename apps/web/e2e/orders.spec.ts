@@ -46,12 +46,29 @@ async function axe(page: Page) {
   ).toEqual([]);
 }
 
+async function confirmCustomDialog(page: Page, action: string) {
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  await dialog.getByRole('button', { name: action, exact: true }).click();
+}
+
+async function loginAdmin(page: Page) {
+  await page.goto('http://localhost:3001/login');
+  await page.getByLabel(/email/i).fill(credential('STAFF_BOOTSTRAP_EMAIL'));
+  await page
+    .getByLabel(/password/i)
+    .fill(credential('STAFF_BOOTSTRAP_PASSWORD'));
+  await page.getByRole('button', { name: /sign in/i }).click();
+  await expect(page).toHaveURL('http://localhost:3001/', { timeout: 30_000 });
+}
+
 async function createAcceptedQuote(
   page: Page,
   productIndex = 0,
   desiredQuantity = 3,
   fulfillmentMethod: 'PICKUP' | 'DELIVERY' = 'PICKUP',
   productName?: string,
+  expectedPrefill?: string,
 ) {
   const approvedRequestId = process.env.PHASE121_APPROVED_REQUEST_ID;
   let marker = process.env.PHASE121_PROJECT_NAME ?? '';
@@ -136,6 +153,8 @@ async function createAcceptedQuote(
 
   const unitPrices = page.getByLabel('Unit price (CAD)');
   await expect(unitPrices.first()).toBeVisible({ timeout: 90_000 });
+  if (expectedPrefill)
+    await expect(unitPrices.first()).toHaveValue(expectedPrefill);
   for (let index = 0; index < (await unitPrices.count()); index += 1)
     await unitPrices.nth(index).fill('125.50');
   await page.getByLabel('Discount (CAD)').fill('5.00');
@@ -150,8 +169,8 @@ async function createAcceptedQuote(
   await page.getByLabel('Terms').fill('Confirmed rental order terms.');
   await page.getByRole('button', { name: 'Create draft quote' }).click();
   await expect(page).toHaveURL(/\/quotes\//);
-  page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Send current revision' }).click();
+  await confirmCustomDialog(page, 'Send current revision');
   const quoteLink = await page
     .getByRole('heading', { name: 'Secure customer link' })
     .locator('..')
@@ -169,15 +188,15 @@ async function createAcceptedQuote(
   );
   expect(exchange.ok()).toBe(true);
   await page.goto('http://localhost:3000/quote');
-  page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Accept quote' }).click();
+  await confirmCustomDialog(page, 'Accept quote');
   await expect(page.getByText(/accepted and no longer/i)).toBeVisible();
   await page.goto(adminQuoteUrl);
   await expect(
     page.getByRole('button', { name: 'Create rental order' }),
   ).toBeVisible();
 
-  return { marker, reference };
+  return { adminQuoteUrl, marker, reference };
 }
 
 async function createOrder(
@@ -201,17 +220,14 @@ async function createOrder(
   await dialog
     .getByRole('button', { name: 'Confirm and create order' })
     .click();
-  const created = page.getByRole('heading', { name: 'Rental order created' });
-  await expect(created).toBeVisible();
-  await created
-    .locator('..')
-    .getByRole('link', { name: /Open RO-/ })
-    .click();
+  await expect(page).toHaveURL(/http:\/\/localhost:3001\/orders\/[a-z0-9]+$/, {
+    timeout: 30_000,
+  });
   await expect(
     page.getByRole('heading', { name: 'Private customer access' }),
   ).toBeVisible();
-  page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Generate customer link' }).click();
+  await confirmCustomDialog(page, 'Confirm change');
   const customerLinkSection = page
     .getByText('Secure link shown for this action only')
     .locator('..');
@@ -306,6 +322,7 @@ async function createActiveBulkRental(
   await page.getByLabel('Prepared total').fill(String(quantity));
   await page.getByRole('button', { name: 'Save preparation' }).click();
   await page.getByRole('button', { name: 'Mark ready' }).click();
+  await page.getByRole('button', { name: 'Record handoff' }).click();
   await page.getByLabel('Checkout now').fill(String(quantity));
   await page.getByLabel('Recipient name').fill('Phase 16 Return Customer');
   await page
@@ -344,6 +361,7 @@ async function createActiveSerializedRental(page: Page) {
   await fulfilment.getByLabel(new RegExp(assetNumber!)).check();
   await page.getByRole('button', { name: 'Save preparation' }).click();
   await page.getByRole('button', { name: 'Mark ready' }).click();
+  await page.getByRole('button', { name: 'Record pickup' }).click();
   await page.getByLabel('Checkout now').fill('1');
   await page.getByLabel('Recipient name').fill('Serialized Return Customer');
   await page
@@ -382,8 +400,8 @@ test('@phase12-1 @orders @admin-orders creates one confirmed order and exposes r
   const orderPdf = page.waitForEvent('download');
   await page.getByRole('link', { name: 'Download order PDF' }).click();
   expect((await orderPdf).suggestedFilename()).toMatch(/RO-.*\.pdf$/);
-  page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Rotate link' }).click();
+  await confirmCustomDialog(page, 'Confirm change');
   await expect(
     page
       .getByText('Secure link shown for this action only')
@@ -408,6 +426,165 @@ test('@phase12-1 @orders @admin-orders creates one confirmed order and exposes r
   await expect(
     page.getByRole('link', { name: new RegExp(orderNumber) }),
   ).toBeVisible();
+  await axe(page);
+});
+
+test('@staging-workflow-corrections discovers and explicitly assigns an unassigned approved order', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'desktop-1024');
+  const { orderNumber } = await createOrder(page);
+
+  await expect(page.getByText('Unassigned', { exact: true })).toBeVisible();
+  await expect(
+    reservationPanel(page).getByRole('button', {
+      name: 'Check availability and reserve',
+    }),
+  ).toBeVisible();
+
+  await page.goto('http://localhost:3001/orders/approved');
+  await expect(
+    page.getByRole('heading', { name: 'Approved Orders' }),
+  ).toBeVisible();
+  await page.getByLabel('Search rental orders').fill(orderNumber);
+  const orderLink = page.getByRole('link', { name: orderNumber, exact: true });
+  const orderCard = page.getByRole('article').filter({ has: orderLink });
+  await expect(orderLink).toBeVisible();
+  await expect(
+    orderCard.getByText('Unassigned', { exact: true }),
+  ).toBeVisible();
+
+  await orderCard.getByRole('button', { name: 'Assign to me' }).click();
+  await expect(
+    page.getByRole('status').filter({ hasText: 'Order assigned successfully' }),
+  ).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Assign to me' })).toHaveCount(
+    0,
+  );
+
+  await orderLink.click();
+  await expect(page.getByText('Order assigned', { exact: true })).toBeVisible();
+  await axe(page);
+});
+
+test('@staging-workflow-corrections opens the canonical product detail link at 320px', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'mobile-320');
+  await page.goto('http://localhost:3000/rentals');
+  const details = page
+    .locator('article')
+    .first()
+    .getByRole('link', { name: 'View details' });
+  const href = await details.getAttribute('href');
+  expect(href).toMatch(/^\/rentals\/[^/?#]+\/[^/?#]+$/);
+  await details.focus();
+  await page.keyboard.press('Enter');
+  await expect(page).toHaveURL(/\/rentals\/[^/?#]+\/[^/?#]+$/);
+  await expect(page.getByLabel('Desired quantity')).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+    ),
+  ).toBe(true);
+  await axe(page);
+});
+
+test('@staging-workflow-corrections opens the canonical product detail link on desktop', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'desktop-1024');
+  await page.goto('http://localhost:3000/rentals');
+  await page
+    .locator('article')
+    .first()
+    .getByRole('link', { name: 'View details' })
+    .click();
+  await expect(page).toHaveURL(/\/rentals\/[^/?#]+\/[^/?#]+$/);
+  await expect(page.getByLabel('Desired quantity')).toBeVisible();
+  await axe(page);
+});
+
+test('@staging-workflow-corrections prefills a new quote from product pricing while preserving the accepted snapshot', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'desktop-1024');
+  const productName = process.env.PHASE191_PRODUCT_NAME;
+  expect(productName).toBeTruthy();
+  const { adminQuoteUrl } = await createAcceptedQuote(
+    page,
+    0,
+    1,
+    'PICKUP',
+    productName,
+    '77.77',
+  );
+
+  await page.goto('http://localhost:3001/products');
+  await page.getByRole('textbox', { name: 'Search' }).fill(productName!);
+  const row = page.locator('tbody tr').filter({ hasText: productName! });
+  await row.getByRole('link', { name: 'Edit' }).click();
+  await page
+    .getByLabel('Default unit price (CAD, internal only)')
+    .fill('99.99');
+  await page.getByRole('button', { name: 'Save' }).click();
+  await page.goto(adminQuoteUrl);
+  await expect(page.getByText(/\$125\.50 each/).first()).toBeVisible();
+  await axe(page);
+});
+
+test('@staging-workflow-corrections distinguishes damage movement from physical disposal in inventory history', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'desktop-1024');
+  const inventoryId = process.env.PHASE191_INVENTORY_ID;
+  expect(inventoryId).toBeTruthy();
+  await loginAdmin(page);
+  const quantities = async () => {
+    const response = await page.request.get(
+      `http://localhost:3001/api/inventory/${inventoryId}/quantities`,
+    );
+    expect(response.ok()).toBe(true);
+    return (await response.json()) as {
+      states: Record<string, number>;
+      totalQuantity: number;
+    };
+  };
+  const before = await quantities();
+  await page.goto(`http://localhost:3001/inventory/${inventoryId}`);
+  await page
+    .getByRole('button', { name: 'Mark rentable stock damaged' })
+    .click();
+  await page.getByLabel('Quantity').fill('1');
+  await page.getByLabel('Internal reason').fill('Phase 19.1 controlled damage');
+  await page.getByRole('button', { name: 'Record state movement' }).click();
+  await expect(
+    page
+      .getByLabel('Notifications')
+      .getByRole('status')
+      .filter({ hasText: 'Inventory operation completed successfully' }),
+  ).toBeVisible();
+  const damaged = await quantities();
+  expect(damaged.totalQuantity).toBe(before.totalQuantity);
+  expect(damaged.states.DAMAGED).toBe((before.states.DAMAGED ?? 0) + 1);
+
+  await page.getByRole('button', { name: 'Reduce / retire stock' }).click();
+  await page.getByLabel('Quantity').fill('1');
+  await page.getByLabel('Reason type').selectOption('DISPOSED');
+  await page
+    .getByLabel('Internal reason')
+    .fill('Phase 19.1 controlled write-off');
+  await page.getByRole('button', { name: 'Remove 1 unit' }).click();
+  await expect(
+    page
+      .getByLabel('Notifications')
+      .getByRole('status')
+      .filter({ hasText: 'Inventory reduced successfully' }),
+  ).toBeVisible();
+  const reduced = await quantities();
+  expect(reduced.totalQuantity).toBe(before.totalQuantity - 1);
+  await expect(page.getByText('Phase 19.1 controlled damage')).toBeVisible();
+  await expect(page.getByText('Phase 19.1 controlled write-off')).toBeVisible();
   await axe(page);
 });
 
@@ -668,7 +845,7 @@ async function createPartiallyReservedOrder(page: Page, productIndex = 0) {
   return created;
 }
 
-test('@fulfilment @admin-fulfilment @active-rentals @official-pdfs prepares internal stock, hands off external coverage, and exposes only customer-safe status', async ({
+test('@staging-workflow-corrections @fulfilment @admin-fulfilment @active-rentals @official-pdfs prepares internal stock, hands off external coverage, and exposes only customer-safe status', async ({
   page,
 }, info) => {
   test.skip(info.project.name !== 'mobile-320');
@@ -686,13 +863,27 @@ test('@fulfilment @admin-fulfilment @active-rentals @official-pdfs prepares inte
   await expect(page.getByText('READY', { exact: true })).toBeVisible({
     timeout: 30_000,
   });
+  await page.getByRole('button', { name: 'Record pickup' }).click();
   await page.getByLabel('Recipient name').fill('Phase 15 Customer');
   await page
     .getByRole('button', { name: 'Confirm pickup and check out' })
     .click();
-  await expect(page.getByText('CHECKED OUT', { exact: true })).toBeVisible({
+  await expect(page).toHaveURL(/\/active-rentals\/[a-z0-9]+$/, {
     timeout: 30_000,
   });
+  const activeRentalUrl = page.url();
+  await page.goto(`http://localhost:3001/orders/${orderId}`);
+  const history = page.locator(
+    'section[aria-labelledby="handoff-history-heading"]',
+  );
+  await expect(history.getByText('Phase 15 Customer')).toBeVisible();
+  await expect(history.getByText('PICKUP', { exact: true })).toBeVisible();
+  await expect(history.getByText(/× 3/)).toBeVisible();
+  await expect(
+    page.getByRole('link', { name: 'Open active rental' }),
+  ).toHaveAttribute('href', new URL(activeRentalUrl).pathname);
+  await page.getByRole('link', { name: 'Open active rental' }).click();
+  await expect(page).toHaveURL(activeRentalUrl);
   await page.goto('http://localhost:3001/active-rentals');
   await expect(page.getByText(orderNumber, { exact: true })).toBeVisible();
   await page.getByText(orderNumber, { exact: true }).click();
@@ -749,12 +940,13 @@ test('@fulfilment @admin-fulfilment @active-rentals fully checks out a delivery 
   await page.getByRole('button', { name: 'Save preparation' }).click();
   await expect(page.getByLabel('Prepared quantity')).toHaveText('2');
   await page.getByRole('button', { name: 'Mark ready' }).click();
+  await page.getByRole('button', { name: 'Record handoff' }).click();
   await page.getByLabel('Checkout now').fill('2');
   await page.getByLabel('Recipient name').fill('Delivery Recipient');
   await page
     .getByRole('button', { name: 'Confirm delivery and check out' })
     .click();
-  await expect(page.getByText('CHECKED OUT', { exact: true })).toBeVisible({
+  await expect(page).toHaveURL(/\/active-rentals\/[a-z0-9]+$/, {
     timeout: 30_000,
   });
   const activeList = await (
@@ -818,12 +1010,13 @@ test('@fulfilment @admin-fulfilment checks out the exact prepared serialized ass
   await page.getByRole('button', { name: 'Save preparation' }).click();
   await expect(page.getByLabel('Prepared quantity')).toHaveText('1');
   await page.getByRole('button', { name: 'Mark ready' }).click();
+  await page.getByRole('button', { name: 'Record pickup' }).click();
   await page.getByLabel('Checkout now').fill('1');
   await page.getByLabel('Recipient name').fill('Serialized Recipient');
   await page
     .getByRole('button', { name: 'Confirm pickup and check out' })
     .click();
-  await expect(page.getByText('CHECKED OUT', { exact: true })).toBeVisible({
+  await expect(page).toHaveURL(/\/active-rentals\/[a-z0-9]+$/, {
     timeout: 30_000,
   });
   const fulfilment = await (
@@ -997,11 +1190,11 @@ test('@returns @admin-returns @official-pdfs records a complete bulk return at 3
     await page.getByRole('link', { name }).click();
     expect((await download).suggestedFilename()).toMatch(/\.pdf$/);
   }
-  page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Reconcile return' }).click();
+  await confirmCustomDialog(page, 'Reconcile return');
   await expect(page.getByText('Reconciliation evaluated.')).toBeVisible();
-  page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'Complete rental' }).click();
+  await confirmCustomDialog(page, 'Complete rental');
   await expect(page.getByText('Rental completed.')).toBeVisible();
   const staffReturnDownload = page.waitForEvent('download');
   await page
@@ -1087,8 +1280,8 @@ test('@returns @return-issues classifies damage and missing without changing tot
   await page
     .getByLabel('Internal resolution reason')
     .fill('Approved customer-safe waiver browser verification.');
-  page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'WAIVED' }).click();
+  await confirmCustomDialog(page, 'WAIVED');
   await expect(page.getByText('Issue resolution recorded.')).toBeVisible();
   await expect(page.getByText('0 of 2')).toBeVisible();
   await page.goto('http://localhost:3001/issues');
@@ -1098,8 +1291,8 @@ test('@returns @return-issues classifies damage and missing without changing tot
   await page
     .getByLabel('Internal resolution reason')
     .fill('Repair completed and browser fixture passed inspection.');
-  page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'REPAIRED' }).click();
+  await confirmCustomDialog(page, 'REPAIRED');
   await expect(page.getByText('Issue resolution recorded.')).toBeVisible();
   await page.goto(`http://localhost:3001/returns/${missing.returnId}`);
   for (const name of ['missing PDF', 'damage PDF']) {
@@ -1168,8 +1361,8 @@ test('@returns @return-issues returns one exact serialized asset once and repair
   await page
     .getByLabel('Internal resolution reason')
     .fill('Serialized asset repair passed inspection.');
-  page.once('dialog', (dialog) => dialog.accept());
   await page.getByRole('button', { name: 'REPAIRED' }).click();
+  await confirmCustomDialog(page, 'REPAIRED');
   await expect(page.getByText('Issue resolution recorded.')).toBeVisible();
   await page.goto(customerLink);
   expect(await page.locator('body').innerText()).not.toMatch(

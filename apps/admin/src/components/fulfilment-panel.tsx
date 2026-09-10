@@ -5,7 +5,9 @@ import type {
   AdminInventoryReservationResponse,
 } from '@mensah-rentals/types';
 import { FileDown, PackageCheck, Play, Truck } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { AccessibleDialog } from './accessible-dialog';
 
 type Permissions = {
   canView: boolean;
@@ -16,6 +18,13 @@ type Permissions = {
   canPdf: boolean;
 };
 
+function localDateTimeNow() {
+  const now = new Date();
+  return new Date(now.valueOf() - now.getTimezoneOffset() * 60_000)
+    .toISOString()
+    .slice(0, 19);
+}
+
 export function FulfilmentPanel({
   orderId,
   permissions,
@@ -23,6 +32,7 @@ export function FulfilmentPanel({
   orderId: string;
   permissions: Permissions;
 }) {
+  const router = useRouter();
   const [data, setData] = useState<AdminFulfilmentResponse | null>(null);
   const [notStarted, setNotStarted] = useState(false);
   const [pending, setPending] = useState(false);
@@ -38,6 +48,12 @@ export function FulfilmentPanel({
   const [partial, setPartial] = useState(false);
   const [reason, setReason] = useState('');
   const [recipient, setRecipient] = useState('');
+  const [recipientCompany, setRecipientCompany] = useState('');
+  const [acknowledgementReference, setAcknowledgementReference] = useState('');
+  const [handoffNotes, setHandoffNotes] = useState('');
+  const [handoffAt, setHandoffAt] = useState(localDateTimeNow);
+  const [handoffOpen, setHandoffOpen] = useState(false);
+  const cancelRef = useRef<HTMLButtonElement>(null);
 
   const load = useCallback(async () => {
     if (!permissions.canView) return;
@@ -126,7 +142,19 @@ export function FulfilmentPanel({
               ? 'The requested quantities or lifecycle transition are invalid.'
               : 'Fulfilment could not be updated.',
         );
+      const updated = (await response.json()) as AdminFulfilmentResponse;
       await load();
+      if (path === 'checkout') setHandoffOpen(false);
+      if (
+        path === 'checkout' &&
+        updated.status === 'CHECKED_OUT' &&
+        updated.activeRental
+      ) {
+        window.setTimeout(
+          () => router.push(`/active-rentals/${updated.activeRental!.id}`),
+          600,
+        );
+      }
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -475,85 +503,18 @@ export function FulfilmentPanel({
           permissions.canHandoff &&
           (data.status === 'READY' ||
             data.status === 'PARTIALLY_CHECKED_OUT') ? (
-            <fieldset className="mt-6 rounded-lg border p-4">
-              <legend className="px-2 font-semibold">
-                Confirm physical handoff and checkout
-              </legend>
-              <label className="mt-2 block text-sm font-medium">
-                Recipient name
-                <input
-                  className="mt-1 min-h-11 w-full rounded-lg border bg-background px-3"
-                  maxLength={200}
-                  onChange={(event) => setRecipient(event.target.value)}
-                  value={recipient}
-                />
-              </label>
-              {permissions.canPartialCheckout ? (
-                <label className="mt-3 flex min-h-11 items-center gap-3">
-                  <input
-                    checked={partial}
-                    onChange={(event) => setPartial(event.target.checked)}
-                    type="checkbox"
-                  />{' '}
-                  This is an intentional partial checkout
-                </label>
-              ) : null}
-              {partial ? (
-                <label className="mt-2 block text-sm font-medium">
-                  Internal partial-checkout reason
-                  <textarea
-                    className="mt-1 min-h-24 w-full rounded-lg border bg-background p-3"
-                    maxLength={2000}
-                    onChange={(event) => setReason(event.target.value)}
-                    value={reason}
-                  />
-                </label>
-              ) : null}
-              <button
-                className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-4 font-semibold text-primary-foreground disabled:opacity-50"
-                disabled={
-                  pending || !recipient.trim() || (partial && !reason.trim())
-                }
-                onClick={() =>
-                  void mutate('checkout', 'POST', {
-                    allowPartial: partial,
-                    expectedReservationVersion: data.reservationVersion,
-                    expectedVersion: data.version,
-                    handoffAt: new Date().toISOString(),
-                    internalReason: partial ? reason : undefined,
-                    items: data.items
-                      .filter(
-                        (item) =>
-                          (checkout[item.rentalOrderItemId] ?? 0) +
-                            (externalCheckout[item.rentalOrderItemId] ?? 0) >
-                          0,
-                      )
-                      .map((item) => ({
-                        externalQuantity:
-                          externalCheckout[item.rentalOrderItemId] ?? 0,
-                        rentalOrderItemId: item.rentalOrderItemId,
-                        quantity: checkout[item.rentalOrderItemId],
-                        serializedAllocationIds:
-                          item.trackingMode === 'SERIALIZED'
-                            ? item.serializedAllocations
-                                .filter(
-                                  (asset) =>
-                                    asset.status === 'ACTIVE' && asset.prepared,
-                                )
-                                .slice(0, checkout[item.rentalOrderItemId] ?? 0)
-                                .map((asset) => asset.allocationId)
-                            : [],
-                      })),
-                    recipientName: recipient,
-                  })
-                }
-                type="button"
-              >
-                <Truck className="h-4 w-4" aria-hidden="true" /> Confirm{' '}
-                {data.fulfilmentMethod === 'PICKUP' ? 'pickup' : 'delivery'} and
-                check out
-              </button>
-            </fieldset>
+            <button
+              className="mt-4 inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-4 font-semibold text-primary-foreground disabled:opacity-50"
+              disabled={pending}
+              onClick={() => {
+                setHandoffAt(localDateTimeNow());
+                setHandoffOpen(true);
+              }}
+              type="button"
+            >
+              <Truck className="h-4 w-4" aria-hidden="true" /> Record{' '}
+              {data.fulfilmentMethod === 'PICKUP' ? 'pickup' : 'handoff'}
+            </button>
           ) : null}
           {permissions.canPdf ? (
             <div className="mt-5 flex flex-wrap gap-3">
@@ -572,6 +533,69 @@ export function FulfilmentPanel({
               ))}
             </div>
           ) : null}
+          {data.activeRental ? (
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-lg border bg-muted/30 p-4">
+              <p className="text-sm font-medium">
+                This order has an active rental record.
+              </p>
+              <a
+                className="inline-flex min-h-11 items-center rounded-lg border bg-background px-4 text-sm font-semibold"
+                href={`/active-rentals/${data.activeRental.id}`}
+              >
+                Open active rental
+              </a>
+            </div>
+          ) : null}
+          <section
+            aria-labelledby="handoff-history-heading"
+            className="mt-5 border-t pt-4"
+          >
+            <h3 className="font-semibold" id="handoff-history-heading">
+              Pickup / Handoff History
+            </h3>
+            {data.handoffs.length ? (
+              <ol className="mt-3 space-y-3">
+                {data.handoffs.map((handoff) => (
+                  <li
+                    className="rounded-lg border p-4 text-sm"
+                    key={handoff.id}
+                  >
+                    <div className="flex flex-wrap justify-between gap-2">
+                      <strong>{handoff.type}</strong>
+                      <span>{handoff.status}</span>
+                    </div>
+                    <dl className="mt-2 grid gap-x-4 gap-y-1 sm:grid-cols-[max-content_1fr]">
+                      <dt>Date and time</dt>
+                      <dd>{new Date(handoff.handoffAt).toLocaleString()}</dd>
+                      <dt>Customer / representative</dt>
+                      <dd>
+                        {handoff.recipientName ?? 'Not recorded'}
+                        {handoff.recipientCompany
+                          ? ` — ${handoff.recipientCompany}`
+                          : ''}
+                      </dd>
+                      <dt>Staff confirmer</dt>
+                      <dd>
+                        {handoff.actor.firstName} {handoff.actor.lastName}
+                      </dd>
+                      <dt>Items</dt>
+                      <dd>
+                        {handoff.items
+                          .map(
+                            (item) => `${item.productName} × ${item.quantity}`,
+                          )
+                          .join(', ') || 'No quantity recorded'}
+                      </dd>
+                    </dl>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="mt-2 text-sm text-muted-foreground">
+                No pickup or handoff has been recorded.
+              </p>
+            )}
+          </section>
           <ol className="mt-5 space-y-2 border-t pt-4">
             {data.activities.map((activity) => (
               <li className="text-sm" key={activity.id}>
@@ -583,6 +607,157 @@ export function FulfilmentPanel({
           </ol>
         </>
       ) : null}
+      <AccessibleDialog
+        descriptionId="handoff-description"
+        initialFocusRef={cancelRef}
+        onClose={() => {
+          if (!pending) setHandoffOpen(false);
+        }}
+        open={handoffOpen}
+        titleId="handoff-title"
+      >
+        <fieldset className="space-y-4 p-5 sm:p-6" disabled={pending}>
+          <legend className="sr-only">Physical handoff details</legend>
+          <h2 className="text-xl font-semibold" id="handoff-title">
+            Confirm physical handoff and checkout
+          </h2>
+          <p className="text-sm text-muted-foreground" id="handoff-description">
+            This immutable record will identify the recipient, staff action,
+            method, and exact checkout time.
+          </p>
+          <label className="block text-sm font-medium">
+            Recipient name
+            <input
+              className="mt-1 min-h-11 w-full rounded-lg border bg-background px-3"
+              maxLength={200}
+              onChange={(event) => setRecipient(event.target.value)}
+              value={recipient}
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Company (optional)
+            <input
+              className="mt-1 min-h-11 w-full rounded-lg border bg-background px-3"
+              maxLength={200}
+              onChange={(event) => setRecipientCompany(event.target.value)}
+              value={recipientCompany}
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Handoff date and time
+            <input
+              className="mt-1 min-h-11 w-full rounded-lg border bg-background px-3"
+              onChange={(event) => setHandoffAt(event.target.value)}
+              step={1}
+              type="datetime-local"
+              value={handoffAt}
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Acknowledgement reference (optional)
+            <input
+              className="mt-1 min-h-11 w-full rounded-lg border bg-background px-3"
+              maxLength={500}
+              onChange={(event) =>
+                setAcknowledgementReference(event.target.value)
+              }
+              value={acknowledgementReference}
+            />
+          </label>
+          <label className="block text-sm font-medium">
+            Internal handoff notes (optional)
+            <textarea
+              className="mt-1 min-h-24 w-full rounded-lg border bg-background p-3"
+              maxLength={2000}
+              onChange={(event) => setHandoffNotes(event.target.value)}
+              value={handoffNotes}
+            />
+          </label>
+          {permissions.canPartialCheckout ? (
+            <label className="flex min-h-11 items-center gap-3">
+              <input
+                checked={partial}
+                onChange={(event) => setPartial(event.target.checked)}
+                type="checkbox"
+              />
+              This is an intentional partial checkout
+            </label>
+          ) : null}
+          {partial ? (
+            <label className="block text-sm font-medium">
+              Internal partial-checkout reason
+              <textarea
+                className="mt-1 min-h-24 w-full rounded-lg border bg-background p-3"
+                maxLength={2000}
+                onChange={(event) => setReason(event.target.value)}
+                value={reason}
+              />
+            </label>
+          ) : null}
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <button
+              className="min-h-11 rounded-lg border px-4 font-semibold"
+              onClick={() => setHandoffOpen(false)}
+              ref={cancelRef}
+              type="button"
+            >
+              Cancel
+            </button>
+            <button
+              className="min-h-11 rounded-lg bg-primary px-4 font-semibold text-primary-foreground disabled:opacity-50"
+              disabled={
+                !data ||
+                !recipient.trim() ||
+                !handoffAt ||
+                (partial && !reason.trim())
+              }
+              onClick={() =>
+                data &&
+                void mutate('checkout', 'POST', {
+                  acknowledgementReference:
+                    acknowledgementReference.trim() || undefined,
+                  allowPartial: partial,
+                  expectedReservationVersion: data.reservationVersion,
+                  expectedVersion: data.version,
+                  handoffAt: new Date(handoffAt).toISOString(),
+                  internalNotes: handoffNotes.trim() || undefined,
+                  internalReason: partial ? reason : undefined,
+                  items: data.items
+                    .filter(
+                      (item) =>
+                        (checkout[item.rentalOrderItemId] ?? 0) +
+                          (externalCheckout[item.rentalOrderItemId] ?? 0) >
+                        0,
+                    )
+                    .map((item) => ({
+                      externalQuantity:
+                        externalCheckout[item.rentalOrderItemId] ?? 0,
+                      rentalOrderItemId: item.rentalOrderItemId,
+                      quantity: checkout[item.rentalOrderItemId] ?? 0,
+                      serializedAllocationIds:
+                        item.trackingMode === 'SERIALIZED'
+                          ? item.serializedAllocations
+                              .filter(
+                                (asset) =>
+                                  asset.status === 'ACTIVE' && asset.prepared,
+                              )
+                              .slice(0, checkout[item.rentalOrderItemId] ?? 0)
+                              .map((asset) => asset.allocationId)
+                          : [],
+                    })),
+                  recipientCompany: recipientCompany.trim() || undefined,
+                  recipientName: recipient.trim(),
+                })
+              }
+              type="button"
+            >
+              {pending
+                ? 'Recording…'
+                : `Confirm ${data?.fulfilmentMethod === 'PICKUP' ? 'pickup' : 'delivery'} and check out`}
+            </button>
+          </div>
+        </fieldset>
+      </AccessibleDialog>
     </section>
   );
 }

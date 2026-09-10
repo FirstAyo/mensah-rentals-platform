@@ -37,6 +37,7 @@ import {
   type CreateRentalOrderInput,
   type OrderAccessOperationInput,
   type RentalOrderListQuery,
+  type UpdateRentalOrderAssignmentInput,
 } from '@mensah-rentals/validation';
 
 import {
@@ -50,9 +51,14 @@ const notice =
   'Your rental order is confirmed. Our team is arranging fulfilment for the agreed rental period.';
 
 const orderInclude = {
+  assignedTo: { select: { firstName: true, id: true, lastName: true } },
   activities: {
     include: {
       actor: { select: { firstName: true, id: true, lastName: true } },
+      newAssignee: { select: { firstName: true, id: true, lastName: true } },
+      previousAssignee: {
+        select: { firstName: true, id: true, lastName: true },
+      },
     },
     orderBy: { createdAt: 'asc' as const },
   },
@@ -61,6 +67,7 @@ const orderInclude = {
   items: { orderBy: { sortOrder: 'asc' as const } },
   quote: { select: { quoteNumber: true } },
   rentalRequest: { select: { referenceNumber: true } },
+  reservation: { select: { coverageStatus: true } },
   tax: true,
   customerAccess: { orderBy: { createdAt: 'desc' as const } },
   fulfilment: {
@@ -168,6 +175,13 @@ export class RentalOrderService {
     if (query.reservationStatus && !includeReservationStatus)
       throw new ForbiddenException('Insufficient permissions');
     const where: Prisma.RentalOrderWhereInput = {
+      ...(query.assignment === 'UNASSIGNED'
+        ? { assignedToUserId: null }
+        : query.assignment === 'MINE'
+          ? { assignedToUserId: actor?.id ?? '__none__' }
+          : query.assignedToUserId
+            ? { assignedToUserId: query.assignedToUserId }
+            : {}),
       ...(query.status ? { status: query.status } : {}),
       ...(query.reservationStatus
         ? { reservationStatus: query.reservationStatus }
@@ -175,6 +189,11 @@ export class RentalOrderService {
       ...(query.fulfillmentMethod
         ? { fulfillmentMethodSnapshot: query.fulfillmentMethod }
         : {}),
+      ...(query.fulfillmentStatus === 'NOT_STARTED'
+        ? { fulfilment: null }
+        : query.fulfillmentStatus
+          ? { fulfilment: { status: query.fulfillmentStatus } }
+          : {}),
       ...(query.rentalStartFrom || query.rentalStartTo
         ? {
             rentalStartDateSnapshot: {
@@ -223,6 +242,12 @@ export class RentalOrderService {
                 },
               },
               {
+                companyNameSnapshot: {
+                  contains: query.search,
+                  mode: 'insensitive',
+                },
+              },
+              {
                 projectNameSnapshot: {
                   contains: query.search,
                   mode: 'insensitive',
@@ -244,7 +269,22 @@ export class RentalOrderService {
         orderBy: [primary, { id: query.sortDirection }],
         skip: (query.page - 1) * query.pageSize,
         take: query.pageSize,
-        include: { quote: true, rentalRequest: true },
+        include: {
+          assignedTo: {
+            select: { firstName: true, id: true, lastName: true },
+          },
+          fulfilment: {
+            select: {
+              status: true,
+              activeRental: {
+                select: { id: true, rentalReturn: { select: { id: true } } },
+              },
+            },
+          },
+          reservation: { select: { coverageStatus: true } },
+          quote: true,
+          rentalRequest: true,
+        },
       }),
       prisma.rentalOrder.count({ where }),
     ]);
@@ -270,6 +310,122 @@ export class RentalOrderService {
     });
     if (!order) throw new NotFoundException('Rental order not found');
     return this.mapDetail(order, includeReservationStatus);
+  }
+
+  async updateAssignment(
+    actor: StaffUserResponse,
+    id: string,
+    input: UpdateRentalOrderAssignmentInput,
+  ): Promise<AdminRentalOrderDetailResponse> {
+    const payloadHash = this.hash({
+      action: 'update-order-assignment',
+      assignedToUserId: input.assignedToUserId,
+      expectedVersion: input.expectedVersion,
+      orderId: id,
+    });
+    try {
+      await prisma.$transaction(
+        async (tx) => {
+          await this.requireActor(tx, actor.id, ['order.view', 'order.update']);
+          await this.lockOrder(tx, id);
+          const replay = await tx.rentalOrderActivity.findUnique({
+            where: { operationId: input.operationId },
+          });
+          if (replay) {
+            if (
+              replay.rentalOrderId === id &&
+              replay.payloadHash === payloadHash
+            )
+              return;
+            throw new ConflictException(
+              'Operation identifier was reused differently',
+            );
+          }
+          const order = await tx.rentalOrder.findUniqueOrThrow({
+            where: { id },
+            select: {
+              assignedToUserId: true,
+              assignmentVersion: true,
+              orderNumber: true,
+            },
+          });
+          if (order.assignmentVersion !== input.expectedVersion)
+            throw new ConflictException(
+              'Order assignment changed. Refresh and try again.',
+            );
+          if (input.assignedToUserId)
+            if (
+              !(await tx.user.findFirst({
+                where: {
+                  id: input.assignedToUserId,
+                  status: UserStatus.ACTIVE,
+                },
+                select: { id: true },
+              }))
+            )
+              throw new UnprocessableEntityException(
+                'The selected staff member is unavailable.',
+              );
+
+          const type = !input.assignedToUserId
+            ? RentalOrderActivityType.ORDER_UNASSIGNED
+            : order.assignedToUserId
+              ? RentalOrderActivityType.ORDER_REASSIGNED
+              : RentalOrderActivityType.ORDER_ASSIGNED;
+          const changed = await tx.rentalOrder.updateMany({
+            where: { id, assignmentVersion: input.expectedVersion },
+            data: {
+              assignedAt: input.assignedToUserId ? new Date() : null,
+              assignedToUserId: input.assignedToUserId,
+              assignmentVersion: { increment: 1 },
+            },
+          });
+          if (!changed.count)
+            throw new ConflictException(
+              'Order assignment changed. Refresh and try again.',
+            );
+          await tx.rentalOrderActivity.create({
+            data: {
+              actorUserId: actor.id,
+              newAssigneeUserId: input.assignedToUserId,
+              operationId: input.operationId,
+              payloadHash,
+              previousAssigneeUserId: order.assignedToUserId,
+              rentalOrderId: id,
+              type,
+            },
+          });
+          await tx.platformAuditEvent.create({
+            data: {
+              action: type,
+              actorUserId: actor.id,
+              domain: 'ORDER',
+              entityId: id,
+              entityReference: order.orderNumber,
+              entityType: 'RentalOrder',
+              metadata: {
+                newAssigneeUserId: input.assignedToUserId,
+                previousAssigneeUserId: order.assignedToUserId,
+              },
+              sourceKey: `order-assignment:${input.operationId}`,
+              summary: `Order assignment updated for ${order.orderNumber}`,
+            },
+          });
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+    } catch (error) {
+      if (
+        error instanceof Prisma.PrismaClientKnownRequestError &&
+        (error.code === 'P2034' ||
+          (error.code === 'P2010' && error.meta?.['code'] === '40001'))
+      )
+        throw new ConflictException(
+          'Order assignment changed. Refresh and try again.',
+        );
+      throw error;
+    }
+    return this.detail(id, actor);
   }
 
   async create(
@@ -863,24 +1019,40 @@ export class RentalOrderService {
 
   private mapSummary(
     order: {
+      assignedAt: Date | null;
+      assignedTo: { firstName: string; id: string; lastName: string } | null;
+      assignmentVersion: number;
       chargeTotalCents: bigint;
       confirmedAt: Date;
       contactFirstNameSnapshot: string;
       contactLastNameSnapshot: string;
+      companyNameSnapshot: string | null;
       discountBaseCents: bigint;
       discountCents: bigint;
       discountRateBasisPoints: number | null;
       discountType: 'FIXED_AMOUNT' | 'PERCENTAGE';
       fulfillmentMethodSnapshot: AdminRentalOrderSummaryResponse['fulfillmentMethod'];
+      fulfilment: {
+        status: Exclude<
+          AdminRentalOrderSummaryResponse['fulfilmentStatus'],
+          'NOT_STARTED'
+        >;
+        activeRental: {
+          id: string;
+          rentalReturn: { id: string } | null;
+        } | null;
+      } | null;
       id: string;
       itemSubtotalCents: bigint;
       orderNumber: string;
+      projectNameSnapshot: string;
       quoteId: string;
       quote: { quoteNumber: string };
       rentalEndDateSnapshot: Date;
       rentalRequestId: string;
       rentalRequest: { referenceNumber: string };
       rentalStartDateSnapshot: Date;
+      reservation?: { coverageStatus: string } | null;
       reservationStatus: AdminRentalOrderSummaryResponse['reservationStatus'];
       status: 'CONFIRMED';
       subtotalCents: bigint;
@@ -891,17 +1063,24 @@ export class RentalOrderService {
     includeReservationStatus = true,
   ): AdminRentalOrderSummaryResponse {
     return {
+      assignedAt: order.assignedAt?.toISOString() ?? null,
+      assignedTo: order.assignedTo,
+      assignmentVersion: order.assignmentVersion,
       chargeTotalCents: this.safeNumber(order.chargeTotalCents),
       confirmedAt: order.confirmedAt.toISOString(),
+      companyName: order.companyNameSnapshot,
       customerName: `${order.contactFirstNameSnapshot} ${order.contactLastNameSnapshot}`,
       discountBaseCents: this.safeNumber(order.discountBaseCents),
       discountCents: this.safeNumber(order.discountCents),
       discountRateBasisPoints: order.discountRateBasisPoints,
       discountType: order.discountType,
       fulfillmentMethod: order.fulfillmentMethodSnapshot,
+      fulfilmentStatus: order.fulfilment?.status ?? 'NOT_STARTED',
       id: order.id,
       itemSubtotalCents: this.safeNumber(order.itemSubtotalCents),
       orderNumber: order.orderNumber,
+      projectName: order.projectNameSnapshot,
+      nextAction: this.nextAction(order),
       quoteId: order.quoteId,
       quoteNumber: order.quote.quoteNumber,
       rentalEndDate: this.dateOnly(order.rentalEndDateSnapshot),
@@ -909,7 +1088,14 @@ export class RentalOrderService {
       rentalRequestReference: order.rentalRequest.referenceNumber,
       rentalStartDate: this.dateOnly(order.rentalStartDateSnapshot),
       ...(includeReservationStatus
-        ? { reservationStatus: order.reservationStatus }
+        ? {
+            reservationCoverageStatus: order.reservation?.coverageStatus as
+              | 'FULLY_INTERNAL'
+              | 'SHORTFALL_REQUIRES_PLAN'
+              | 'SHORTFALL_ACKNOWLEDGED'
+              | undefined,
+            reservationStatus: order.reservationStatus,
+          }
         : {}),
       status: order.status,
       subtotalCents: this.safeNumber(order.subtotalCents),
@@ -917,6 +1103,36 @@ export class RentalOrderService {
       taxCents: this.safeNumber(order.taxCents),
       totalCents: this.safeNumber(order.totalCents),
     };
+  }
+
+  private nextAction(order: {
+    fulfilment: {
+      status: string;
+      activeRental: { id: string; rentalReturn: { id: string } | null } | null;
+    } | null;
+    reservation?: { coverageStatus: string } | null;
+    reservationStatus: AdminRentalOrderSummaryResponse['reservationStatus'];
+  }): AdminRentalOrderSummaryResponse['nextAction'] {
+    if (order.fulfilment?.activeRental?.rentalReturn) return 'VIEW_RETURN';
+    if (order.fulfilment?.activeRental) return 'VIEW_ACTIVE_RENTAL';
+    if (
+      order.fulfilment?.status === 'READY' ||
+      order.fulfilment?.status === 'PARTIALLY_CHECKED_OUT'
+    )
+      return 'CHECK_OUT';
+    if (order.fulfilment) return 'CONTINUE_PREPARATION';
+    if (order.reservationStatus === 'RESERVED') return 'START_PREPARATION';
+    if (order.reservationStatus === 'PARTIALLY_RESERVED')
+      return order.reservation?.coverageStatus === 'SHORTFALL_ACKNOWLEDGED'
+        ? 'START_PREPARATION'
+        : 'COMPLETE_RESERVATION';
+    if (
+      order.reservationStatus === 'NOT_RESERVED' ||
+      order.reservationStatus === 'RESERVATION_FAILED' ||
+      order.reservationStatus === 'RELEASED'
+    )
+      return 'CREATE_RESERVATION';
+    return 'COMPLETE_RESERVATION';
   }
 
   private mapDetail(
@@ -933,6 +1149,8 @@ export class RentalOrderService {
         actor: activity.actor,
         createdAt: activity.createdAt.toISOString(),
         id: activity.id,
+        newAssignee: activity.newAssignee,
+        previousAssignee: activity.previousAssignee,
         type: activity.type,
       })),
       charges: order.charges.map((charge) => ({

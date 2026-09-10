@@ -82,6 +82,11 @@ export function ActiveRentalDetail({ id }: { id: string }) {
                 Recipient: {h.recipientName ?? 'Not recorded'} · Staff:{' '}
                 {h.actor.firstName} {h.actor.lastName}
               </p>
+              {h.recipientCompany ? (
+                <p className="text-sm text-muted-foreground">
+                  Company: {h.recipientCompany}
+                </p>
+              ) : null}
               {h.internalNotes ? (
                 <p className="mt-1 text-sm">{h.internalNotes}</p>
               ) : null}

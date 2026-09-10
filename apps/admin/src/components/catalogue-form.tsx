@@ -10,6 +10,7 @@ import {
   createProductSchema,
   updateCategorySchema,
   updateProductSchema,
+  parseCadToCents,
 } from '@mensah-rentals/validation';
 import { useQuery } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
@@ -21,6 +22,7 @@ import { CategoryCoverManager } from './category-cover-manager';
 interface Values {
   categoryId: string;
   description: string;
+  defaultUnitPrice: string;
   isActive: boolean;
   isFeatured: boolean;
   name: string;
@@ -33,6 +35,7 @@ interface Values {
 const defaults: Values = {
   categoryId: '',
   description: '',
+  defaultUnitPrice: '',
   isActive: true,
   isFeatured: false,
   name: '',
@@ -97,6 +100,10 @@ function FormBody({
       ...('categoryId' in record
         ? {
             categoryId: record.categoryId,
+            defaultUnitPrice:
+              record.defaultUnitPriceCents === null
+                ? ''
+                : (record.defaultUnitPriceCents / 100).toFixed(2),
             isFeatured: record.isFeatured,
             rentalUnit: record.rentalUnit,
             shortDescription: record.shortDescription,
@@ -127,6 +134,13 @@ function FormBody({
       }
       payload = parsed.data;
     } else {
+      const defaultUnitPriceCents = values.defaultUnitPrice.trim()
+        ? parseCadToCents(values.defaultUnitPrice)
+        : null;
+      if (values.defaultUnitPrice.trim() && defaultUnitPriceCents === null) {
+        setError('Enter a valid non-negative default unit price in CAD.');
+        return;
+      }
       const specifications = values.specifications
         .split('\n')
         .map((line) => line.trim())
@@ -140,6 +154,7 @@ function FormBody({
         });
       const candidate = {
         categoryId: values.categoryId,
+        defaultUnitPriceCents,
         name: values.name,
         slug: values.slug,
         shortDescription: values.shortDescription,
@@ -237,6 +252,19 @@ function FormBody({
               <label className="space-y-2">
                 <span>Rental unit</span>
                 <input className={field} {...register('rentalUnit')} />
+              </label>
+              <label className="space-y-2">
+                <span>Default unit price (CAD, internal only)</span>
+                <input
+                  className={field}
+                  inputMode="decimal"
+                  placeholder="Optional, for example 25.00"
+                  {...register('defaultUnitPrice')}
+                />
+                <span className="block text-xs text-muted-foreground">
+                  Prefills new quote lines. Staff can override it; customers
+                  never see this catalogue default.
+                </span>
               </label>
             </div>
             <label className="block space-y-2">

@@ -62,6 +62,7 @@ export const FORBIDDEN_PUBLIC_KEYS = [
   'internalReviewState',
   'auditData',
   'quotePrice',
+  'defaultUnitPriceCents',
   'unitPrice',
   'accessTokenHash',
   'capabilityHash',

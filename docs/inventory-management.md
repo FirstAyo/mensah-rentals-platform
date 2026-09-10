@@ -1,5 +1,9 @@
 # Inventory management
 
+## Adjustment interpretation
+
+Admin adjustments continue to append immutable transactions. `RENTABLE → DAMAGED` is a condition move and preserves owned physical total. `SOLD`, `RETIRED`, `DISPOSED`, and `LOST` are ownership reductions and reduce physical total. `INVENTORY_CORRECTION` requires a bounded explanation. Live reservations/rentals and state balances remain protected by transactional service and database checks.
+
 Phase 18.3 gives authorized staff a discoverable way to maintain Mensah-owned equipment without treating inventory as an editable counter. The NestJS API remains the authority for every stock-changing operation. The Admin application only collects a validated command and displays the resulting ledger-derived state.
 
 ## Ledger-driven quantities

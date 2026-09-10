@@ -25,18 +25,31 @@ export const rentalOrderListQuerySchema = z
     page: z.coerce.number().int().min(1).max(10_000).default(1),
     pageSize: z.coerce.number().int().min(1).max(100).default(20),
     search: z.string().trim().max(160).optional(),
+    assignment: z.enum(['ALL', 'UNASSIGNED', 'MINE']).default('ALL'),
+    assignedToUserId: z.string().cuid().optional(),
     status: z.literal('CONFIRMED').optional(),
     reservationStatus: z
       .enum([
         'NOT_RESERVED',
         'PARTIALLY_RESERVED',
         'RESERVED',
+        'PARTIALLY_CONSUMED',
+        'CONSUMED',
         'RESERVATION_FAILED',
         'RELEASED',
       ])
       .optional(),
     fulfillmentMethod: z
       .enum(['PICKUP', 'DELIVERY', 'DELIVERY_AND_SETUP'])
+      .optional(),
+    fulfillmentStatus: z
+      .enum([
+        'NOT_STARTED',
+        'PREPARING',
+        'READY',
+        'PARTIALLY_CHECKED_OUT',
+        'CHECKED_OUT',
+      ])
       .optional(),
     rentalStartFrom: z.string().date().optional(),
     rentalStartTo: z.string().date().optional(),
@@ -67,6 +80,18 @@ export type OrderAccessOperationInput = z.infer<
   typeof orderAccessOperationSchema
 >;
 export type RentalOrderListQuery = z.infer<typeof rentalOrderListQuerySchema>;
+
+export const updateRentalOrderAssignmentSchema = z
+  .object({
+    assignedToUserId: z.string().cuid().nullable(),
+    expectedVersion: z.number().int().min(0),
+    operationId: z.string().uuid(),
+  })
+  .strict();
+
+export type UpdateRentalOrderAssignmentInput = z.infer<
+  typeof updateRentalOrderAssignmentSchema
+>;
 
 const reservationOperationId = z.string().uuid();
 const reservationExpectedVersion = z.number().int().min(0);

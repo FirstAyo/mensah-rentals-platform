@@ -103,7 +103,7 @@ function DetailBody({
     'PURCHASE' | 'ACQUISITION' | 'OTHER'
   >('PURCHASE');
   const [reductionType, setReductionType] = useState<
-    'SOLD' | 'RETIRED' | 'DISPOSED' | 'INVENTORY_CORRECTION' | 'OTHER'
+    'SOLD' | 'RETIRED' | 'DISPOSED' | 'LOST' | 'INVENTORY_CORRECTION' | 'OTHER'
   >('RETIRED');
   const [assetNumber, setAssetNumber] = useState('');
   const [serialNumber, setSerialNumber] = useState('');
@@ -534,7 +534,7 @@ function DetailBody({
           id="inventory-actions"
         >
           <h2 className="text-xl font-semibold" id="actions-heading">
-            Inventory actions
+            Adjust inventory
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
             Quantity changes are recorded as immutable stock operations, never
@@ -799,6 +799,7 @@ function DetailBody({
                     <option value="SOLD">Sold</option>
                     <option value="RETIRED">Retired</option>
                     <option value="DISPOSED">Disposed</option>
+                    <option value="LOST">Lost / written off</option>
                     <option value="INVENTORY_CORRECTION">
                       Inventory correction
                     </option>
@@ -874,11 +875,29 @@ function DetailBody({
               </>
             ) : null}
             {action === 'move' ? (
-              <p className="rounded-lg border border-border bg-muted/40 p-3 text-sm text-muted-foreground md:col-span-2">
-                This action only records rentable units as damaged. Checkout,
-                return, maintenance, missing, lost, and retirement changes must
-                use their dedicated workflows.
-              </p>
+              <div className="rounded-lg border border-border bg-muted/40 p-3 text-sm md:col-span-2">
+                <p>
+                  Rentable:{' '}
+                  <strong>{quantities.data?.states.RENTABLE ?? 0}</strong> →{' '}
+                  <strong>
+                    {Math.max(
+                      0,
+                      (quantities.data?.states.RENTABLE ?? 0) - quantity,
+                    )}
+                  </strong>
+                </p>
+                <p>
+                  Damaged:{' '}
+                  <strong>{quantities.data?.states.DAMAGED ?? 0}</strong> →{' '}
+                  <strong>
+                    {(quantities.data?.states.DAMAGED ?? 0) + quantity}
+                  </strong>
+                </p>
+                <p className="mt-1 text-muted-foreground">
+                  Total physical remains {currentTotal}. Checkout, return,
+                  maintenance, and restoration use their dedicated workflows.
+                </p>
+              </div>
             ) : null}
             {action !== 'edit' ? (
               <label className="space-y-2 md:col-span-2">

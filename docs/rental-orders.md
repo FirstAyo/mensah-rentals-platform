@@ -1,5 +1,9 @@
 # Confirmed Rental Orders
 
+## Phase 19.1 operational workspace
+
+The Admin `Approved Orders` route is a filtered projection of existing `CONFIRMED` orders, not a new status or duplicate record. Optional versioned assignment provides operational ownership but never authorization. Unassigned orders remain processable under RBAC. Each list/detail response derives the current fulfilment state and next recommended action. See [staging-workflow-corrections.md](staging-workflow-corrections.md).
+
 ## Phase 15 fulfilment
 
 The immutable order snapshot supplies method, quantities, customer/project details, dates, and destination. Preparation and checkout are separate aggregates and never change commercial pricing or approvals.

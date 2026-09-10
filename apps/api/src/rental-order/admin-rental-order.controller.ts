@@ -5,6 +5,7 @@ import {
   Header,
   Inject,
   Param,
+  Patch,
   Post,
   Query,
   StreamableFile,
@@ -16,9 +17,11 @@ import {
   cuidParamSchema,
   orderAccessOperationSchema,
   rentalOrderListQuerySchema,
+  updateRentalOrderAssignmentSchema,
   type CreateRentalOrderInput,
   type OrderAccessOperationInput,
   type RentalOrderListQuery,
+  type UpdateRentalOrderAssignmentInput,
 } from '@mensah-rentals/validation';
 
 import { CurrentStaffUser } from '../auth/current-staff-user.decorator';
@@ -53,6 +56,17 @@ export class AdminRentalOrderController {
     @Param('id', new RentalOrderZodPipe(cuidParamSchema)) id: string,
   ) {
     return this.orders.detail(id, actor);
+  }
+
+  @Patch(':id/assignment')
+  @RequirePermissions('order.view', 'order.update')
+  assignment(
+    @CurrentStaffUser() actor: StaffUserResponse,
+    @Param('id', new RentalOrderZodPipe(cuidParamSchema)) id: string,
+    @Body(new RentalOrderZodPipe(updateRentalOrderAssignmentSchema))
+    input: UpdateRentalOrderAssignmentInput,
+  ) {
+    return this.orders.updateAssignment(actor, id, input);
   }
 
   @Get(':id/pdf')

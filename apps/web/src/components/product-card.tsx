@@ -56,10 +56,13 @@ export function ProductCard({
           <span className="text-muted-foreground">
             Rental unit: {product.rentalUnit}
           </span>
-          <span className="inline-flex items-center gap-1 font-semibold text-primary">
+          <Link
+            className="inline-flex min-h-11 items-center gap-1 font-semibold text-primary outline-none"
+            href={href}
+          >
             View details
             <ArrowUpRight aria-hidden="true" className="h-4 w-4" />
-          </span>
+          </Link>
         </div>
       </div>
     </article>

@@ -4,6 +4,8 @@ import type { AdminRentalIssueResponse } from '@mensah-rentals/types';
 import Link from 'next/link';
 import { useCallback, useEffect, useState } from 'react';
 
+import { OperationalConfirmationDialog } from './operational-confirmation-dialog';
+
 export function IssueDetail({
   canCreateMaintenance = false,
   id,
@@ -16,6 +18,9 @@ export function IssueDetail({
   const [internalReason, setInternalReason] = useState('');
   const [paymentAmount, setPaymentAmount] = useState('0.00');
   const [busy, setBusy] = useState(false);
+  const [confirmation, setConfirmation] = useState<
+    'ITEM_RETURNED' | 'REPAIRED' | 'WRITTEN_OFF' | 'PAID' | 'WAIVED' | null
+  >(null);
   const load = useCallback(
     () =>
       fetch(`/api/issues/${id}`, { cache: 'no-store' })
@@ -37,12 +42,6 @@ export function IssueDetail({
     outcome: 'ITEM_RETURNED' | 'REPAIRED' | 'WRITTEN_OFF' | 'PAID' | 'WAIVED',
   ) {
     if (!data || busy || !internalReason.trim()) return;
-    if (
-      !window.confirm(
-        `Record ${outcome.replaceAll('_', ' ').toLowerCase()} for ${data.openQuantity} unresolved item(s)? This action is audited and cannot be deleted.`,
-      )
-    )
-      return;
     setBusy(true);
     setMessage(null);
     const returnResponse = await fetch(`/api/returns/${data.returnId}`, {
@@ -87,6 +86,7 @@ export function IssueDetail({
     }
     await load();
     setBusy(false);
+    setConfirmation(null);
     setInternalReason('');
     setMessage('Issue resolution recorded.');
   }
@@ -175,7 +175,7 @@ export function IssueDetail({
               (outcome === 'PAID' && Number(paymentAmount) <= 0)
             }
             key={outcome}
-            onClick={() => void resolve(outcome)}
+            onClick={() => setConfirmation(outcome)}
             type="button"
           >
             {busy ? 'Recording...' : outcome.replaceAll('_', ' ')}
@@ -183,6 +183,21 @@ export function IssueDetail({
         ))}
       </div>
       {message ? <p aria-live="polite">{message}</p> : null}
+      <OperationalConfirmationDialog
+        busy={busy}
+        confirmLabel={
+          confirmation ? confirmation.replaceAll('_', ' ') : 'Confirm'
+        }
+        consequence={
+          confirmation && data
+            ? `Record ${confirmation.replaceAll('_', ' ').toLowerCase()} for ${data.openQuantity} unresolved item(s)? This audited action cannot be deleted.`
+            : ''
+        }
+        onClose={() => setConfirmation(null)}
+        onConfirm={() => confirmation && void resolve(confirmation)}
+        open={confirmation !== null}
+        title="Confirm issue resolution"
+      />
     </div>
   );
 }

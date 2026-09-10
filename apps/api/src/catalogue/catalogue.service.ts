@@ -49,6 +49,7 @@ const productSelect = {
   category: { select: { description: true, id: true, name: true, slug: true } },
   categoryId: true,
   createdAt: true,
+  defaultUnitPriceCents: true,
   description: true,
   id: true,
   images: { orderBy: [{ sortOrder: 'asc' as const }, { id: 'asc' as const }] },
@@ -132,6 +133,10 @@ function mapAdminProduct(product: SelectedProduct): AdminProductResponse {
     category: product.category,
     categoryId: product.categoryId,
     createdAt: product.createdAt.toISOString(),
+    defaultUnitPriceCents:
+      product.defaultUnitPriceCents === null
+        ? null
+        : safeMoneyNumber(product.defaultUnitPriceCents),
     description: product.description,
     id: product.id,
     images: product.images.map((image) => ({
@@ -153,6 +158,12 @@ function mapAdminProduct(product: SelectedProduct): AdminProductResponse {
     ),
     updatedAt: product.updatedAt.toISOString(),
   };
+}
+
+function safeMoneyNumber(value: bigint) {
+  const result = Number(value);
+  if (!Number.isSafeInteger(result)) throw new Error('Unsafe money amount');
+  return result;
 }
 
 function mapPublicCategory(category: {
@@ -485,6 +496,20 @@ export class CatalogueService {
         const product = await tx.product.create({
           data: this.createProductData(input),
         });
+        await tx.platformAuditEvent.create({
+          data: {
+            action: 'PRODUCT_CREATED',
+            actorUserId,
+            domain: 'CATALOGUE',
+            entityId: product.id,
+            entityReference: product.slug,
+            entityType: 'Product',
+            metadata: {
+              defaultUnitPriceCents: input.defaultUnitPriceCents,
+            },
+            summary: `Product ${product.name} created`,
+          },
+        });
         return product.id;
       });
       return this.getAdminProduct(id);
@@ -519,6 +544,32 @@ export class CatalogueService {
           where: { id },
           data: this.updateProductData(input),
         });
+        const nextDefaultPrice =
+          input.defaultUnitPriceCents === undefined
+            ? current.defaultUnitPriceCents
+            : input.defaultUnitPriceCents === null
+              ? null
+              : BigInt(input.defaultUnitPriceCents);
+        if (current.defaultUnitPriceCents !== nextDefaultPrice) {
+          await tx.platformAuditEvent.create({
+            data: {
+              action: 'PRODUCT_DEFAULT_PRICE_UPDATED',
+              actorUserId,
+              domain: 'CATALOGUE',
+              entityId: id,
+              entityReference: input.slug,
+              entityType: 'Product',
+              metadata: {
+                previousDefaultUnitPriceCents:
+                  current.defaultUnitPriceCents === null
+                    ? null
+                    : safeMoneyNumber(current.defaultUnitPriceCents),
+                newDefaultUnitPriceCents: input.defaultUnitPriceCents,
+              },
+              summary: `Default unit price updated for ${input.name}`,
+            },
+          });
+        }
       });
       return this.getAdminProduct(id);
     } catch (error) {
@@ -847,6 +898,10 @@ export class CatalogueService {
   ): Prisma.ProductCreateInput {
     return {
       category: { connect: { id: input.categoryId } },
+      defaultUnitPriceCents:
+        input.defaultUnitPriceCents == null
+          ? null
+          : BigInt(input.defaultUnitPriceCents),
       description: input.description ?? null,
       isActive: input.isActive,
       isFeatured: input.isFeatured,
@@ -863,6 +918,14 @@ export class CatalogueService {
   ): Prisma.ProductUpdateInput {
     return {
       category: { connect: { id: input.categoryId } },
+      ...(input.defaultUnitPriceCents === undefined
+        ? {}
+        : {
+            defaultUnitPriceCents:
+              input.defaultUnitPriceCents === null
+                ? null
+                : BigInt(input.defaultUnitPriceCents),
+          }),
       description: input.description ?? null,
       isFeatured: input.isFeatured,
       name: input.name,

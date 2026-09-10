@@ -286,13 +286,110 @@ describe('confirmed rental orders against PostgreSQL', () => {
         where: { id: order.id },
         data: { projectNameSnapshot: 'tampered' },
       }),
-    ).rejects.toThrow(/append-only|reservation status transition/);
+    ).rejects.toThrow(
+      /append-only|reservation status transition|reservation or assignment transition/,
+    );
     await expect(
       prisma.rentalOrderItem.update({
         where: { id: order.items[0]!.id },
         data: { quotedQuantity: 1 },
       }),
     ).rejects.toThrow('append-only');
+  });
+
+  it('keeps assignment optional, idempotent, audited, and concurrency safe', async () => {
+    const { quote, revision } = await acceptedQuote('order-assignment');
+    const created = await orders.create(actor, quote.id, revision.id, {
+      operationId: randomUUID(),
+    });
+    const unassigned = await orders.list(
+      {
+        assignment: 'UNASSIGNED',
+        page: 1,
+        pageSize: 100,
+        sortBy: 'confirmedAt',
+        sortDirection: 'desc',
+      },
+      actor,
+    );
+    expect(unassigned.items.some(({ id }) => id === created.order.id)).toBe(
+      true,
+    );
+
+    const operationId = randomUUID();
+    const assigned = await orders.updateAssignment(actor, created.order.id, {
+      assignedToUserId: actor.id,
+      expectedVersion: 0,
+      operationId,
+    });
+    expect(assigned).toMatchObject({
+      assignedTo: { id: actor.id },
+      assignmentVersion: 1,
+    });
+    await expect(
+      orders.updateAssignment(actor, created.order.id, {
+        assignedToUserId: actor.id,
+        expectedVersion: 0,
+        operationId,
+      }),
+    ).resolves.toMatchObject({ assignmentVersion: 1 });
+    await expect(
+      orders.updateAssignment(actor, created.order.id, {
+        assignedToUserId: null,
+        expectedVersion: 1,
+        operationId,
+      }),
+    ).rejects.toThrow(/reused differently/i);
+    await expect(
+      orders.updateAssignment(actor, created.order.id, {
+        assignedToUserId: null,
+        expectedVersion: 0,
+        operationId: randomUUID(),
+      }),
+    ).rejects.toThrow(/changed/i);
+    expect(
+      await prisma.rentalOrderActivity.count({
+        where: {
+          rentalOrderId: created.order.id,
+          type: 'ORDER_ASSIGNED',
+        },
+      }),
+    ).toBe(1);
+    expect(
+      await prisma.platformAuditEvent.count({
+        where: { sourceKey: `order-assignment:${operationId}` },
+      }),
+    ).toBe(1);
+
+    const concurrentSource = await acceptedQuote('order-assignment-race');
+    const concurrentOrder = await orders.create(
+      actor,
+      concurrentSource.quote.id,
+      concurrentSource.revision.id,
+      { operationId: randomUUID() },
+    );
+    const concurrent = await Promise.allSettled([
+      orders.updateAssignment(actor, concurrentOrder.order.id, {
+        assignedToUserId: actor.id,
+        expectedVersion: 0,
+        operationId: randomUUID(),
+      }),
+      orders.updateAssignment(actor, concurrentOrder.order.id, {
+        assignedToUserId: actor.id,
+        expectedVersion: 0,
+        operationId: randomUUID(),
+      }),
+    ]);
+    expect(
+      concurrent.filter(({ status }) => status === 'fulfilled'),
+    ).toHaveLength(1);
+    expect(
+      concurrent.filter(({ status }) => status === 'rejected'),
+    ).toHaveLength(1);
+    const rejected = concurrent.find(({ status }) => status === 'rejected');
+    if (!rejected || rejected.status !== 'rejected')
+      throw new Error('Expected one conflicting assignment');
+    expect((rejected.reason as { getStatus(): number }).getStatus()).toBe(409);
   });
 
   it('rejects draft, sent, viewed, expired, rejected, and non-authoritative revisions', async () => {
@@ -1646,6 +1743,7 @@ describe('confirmed rental orders against PostgreSQL', () => {
           },
         ],
         operationId: randomUUID(),
+        recipientCompany: 'Customer Company',
         recipientName: 'Bulk Checkout Customer',
       };
       const before = await inventory.quantities(checkoutInventory.id);
@@ -1757,6 +1855,14 @@ describe('confirmed rental orders against PostgreSQL', () => {
           where: { activeRental: { rentalOrderId: orderId } },
         }),
       ).toBe(1);
+      await expect(
+        prisma.fulfilmentHandoff.findFirstOrThrow({
+          where: { activeRental: { rentalOrderId: orderId } },
+        }),
+      ).resolves.toMatchObject({
+        recipientCompany: 'Customer Company',
+        recipientName: 'Bulk Checkout Customer',
+      });
       const fulfilmentItem = await prisma.orderFulfilmentItem.findFirstOrThrow({
         where: { orderFulfilment: { rentalOrderId: orderId } },
       });
@@ -2445,6 +2551,13 @@ describe('confirmed rental orders against PostgreSQL', () => {
         operationId: randomUUID(),
         recipientName: 'Serialized Checkout Customer',
       };
+      await expect(
+        fulfilments.checkout(actor.id, orderId, {
+          ...checkoutInput,
+          handoffAt: '2000-01-01T00:00:00.000Z',
+          operationId: randomUUID(),
+        }),
+      ).rejects.toThrow(/handoff time cannot be earlier/i);
       const checkedOut = await fulfilments.checkout(
         actor.id,
         orderId,

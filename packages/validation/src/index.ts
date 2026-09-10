@@ -606,6 +606,7 @@ const productSpecificationInputSchema = z
 
 const productMutableFields = {
   categoryId: cuidParamSchema,
+  defaultUnitPriceCents: z.number().int().min(0).max(100_000_000).nullable(),
   description: z.string().trim().max(20_000).nullable().optional(),
   isFeatured: z.boolean().default(false),
   name: z
@@ -622,10 +623,18 @@ const productMutableFields = {
 export const createProductSchema = z
   .object({
     ...productMutableFields,
+    defaultUnitPriceCents:
+      productMutableFields.defaultUnitPriceCents.default(null),
     isActive: z.boolean().default(true),
   })
   .strict();
-export const updateProductSchema = z.object(productMutableFields).strict();
+export const updateProductSchema = z
+  .object({
+    ...productMutableFields,
+    defaultUnitPriceCents:
+      productMutableFields.defaultUnitPriceCents.optional(),
+  })
+  .strict();
 export const deleteProductSchema = z
   .object({ confirmPermanentDelete: z.boolean().default(false) })
   .strict();
@@ -1157,6 +1166,7 @@ export const reduceInventoryStockSchema = z
       'SOLD',
       'RETIRED',
       'DISPOSED',
+      'LOST',
       'INVENTORY_CORRECTION',
       'OTHER',
     ]),

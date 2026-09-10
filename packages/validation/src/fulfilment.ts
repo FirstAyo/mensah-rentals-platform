@@ -94,6 +94,7 @@ export const checkoutFulfilmentSchema = z
     items: checkoutItems,
     handoffAt: z.string().datetime({ offset: true }),
     recipientName: z.string().trim().min(1).max(200).optional(),
+    recipientCompany: z.string().trim().min(1).max(200).optional(),
     acknowledgementReference: z.string().trim().min(1).max(500).optional(),
     internalNotes: internalNote.optional(),
   })

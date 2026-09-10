@@ -15,9 +15,11 @@ import {
   X,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { QuoteEditor } from './quote-editor';
 import { invalidateWorkSummary } from '@/lib/work-summary';
+import { OperationalConfirmationDialog } from './operational-confirmation-dialog';
 
 const cad = new Intl.NumberFormat('en-CA', {
   style: 'currency',
@@ -35,11 +37,15 @@ export function QuoteDetail({
   canUpdate: boolean;
   id: string;
 }) {
+  const router = useRouter();
   const [quote, setQuote] = useState<AdminQuoteDetailResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const [accessLink, setAccessLink] = useState<string | null>(null);
   const [revising, setRevising] = useState(false);
+  const [confirmation, setConfirmation] = useState<
+    'send' | 'resend' | 'rotate' | null
+  >(null);
   const [createdOrder, setCreatedOrder] = useState<
     AdminRentalOrderCreateResponse['order'] | null
   >(null);
@@ -57,14 +63,7 @@ export function QuoteDetail({
   }, [load]);
   async function send() {
     const revision = quote?.revisions[0];
-    if (
-      !revision ||
-      pending ||
-      !window.confirm(
-        `Send revision ${revision.revisionNumber} for ${cad.format(revision.totalCents / 100)}? This does not create an order or reserve inventory.`,
-      )
-    )
-      return;
+    if (!revision || pending) return;
     setPending(true);
     setError(null);
     try {
@@ -95,6 +94,7 @@ export function QuoteDetail({
       setAccessLink(result.accessLink);
       await load();
       invalidateWorkSummary();
+      setConfirmation(null);
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -108,16 +108,6 @@ export function QuoteDetail({
   async function deliverAgain(mode: 'resend' | 'access/rotate') {
     const revision = quote?.revisions[0];
     if (!revision || pending) return;
-    const action =
-      mode === 'resend'
-        ? 'resend the current secure link'
-        : 'revoke the current link and issue a new one';
-    if (
-      !window.confirm(
-        `Confirm that you want to ${action}? This does not create a quote revision.`,
-      )
-    )
-      return;
     setPending(true);
     setError(null);
     try {
@@ -145,6 +135,7 @@ export function QuoteDetail({
       setAccessLink(result.accessLink);
       await load();
       invalidateWorkSummary();
+      setConfirmation(null);
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -192,6 +183,7 @@ export function QuoteDetail({
       const result = (await response.json()) as AdminRentalOrderCreateResponse;
       setCreatedOrder(result.order);
       orderDialog.current?.close();
+      window.setTimeout(() => router.push(`/orders/${result.order.id}`), 600);
       await load();
       invalidateWorkSummary();
     } catch (caught) {
@@ -264,7 +256,7 @@ export function QuoteDetail({
           <button
             className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-4 py-2 font-semibold text-primary-foreground disabled:opacity-50"
             disabled={pending}
-            onClick={() => void send()}
+            onClick={() => setConfirmation('send')}
           >
             <Send className="h-4 w-4" />
             {pending ? 'Sending…' : 'Send current revision'}
@@ -275,7 +267,7 @@ export function QuoteDetail({
             <button
               className="inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2 font-semibold disabled:opacity-50"
               disabled={pending}
-              onClick={() => void deliverAgain('resend')}
+              onClick={() => setConfirmation('resend')}
               type="button"
             >
               <RefreshCw className="h-4 w-4" aria-hidden="true" />
@@ -284,7 +276,7 @@ export function QuoteDetail({
             <button
               className="inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 py-2 font-semibold disabled:opacity-50"
               disabled={pending}
-              onClick={() => void deliverAgain('access/rotate')}
+              onClick={() => setConfirmation('rotate')}
               type="button"
             >
               <KeyRound className="h-4 w-4" aria-hidden="true" />
@@ -446,6 +438,32 @@ export function QuoteDetail({
           </div>
         </dialog>
       ) : null}
+      <OperationalConfirmationDialog
+        busy={pending}
+        confirmLabel={
+          confirmation === 'send'
+            ? 'Send current revision'
+            : confirmation === 'rotate'
+              ? 'Rotate secure link'
+              : 'Resend current link'
+        }
+        consequence={
+          confirmation === 'send'
+            ? `Revision ${latest.revisionNumber} for ${cad.format(latest.totalCents / 100)} will be sent. This does not create an order or reserve inventory.`
+            : confirmation === 'rotate'
+              ? 'The current customer link will be revoked and a new secure link issued. No quote revision is created.'
+              : 'The current secure link will be resent without creating a quote revision.'
+        }
+        onClose={() => setConfirmation(null)}
+        onConfirm={() => {
+          if (confirmation === 'send') void send();
+          else if (confirmation === 'rotate')
+            void deliverAgain('access/rotate');
+          else if (confirmation === 'resend') void deliverAgain('resend');
+        }}
+        open={confirmation !== null}
+        title="Confirm quote action"
+      />
       <section>
         <h2 className="text-2xl font-semibold">Immutable revision history</h2>
         <ol className="mt-4 space-y-5">
