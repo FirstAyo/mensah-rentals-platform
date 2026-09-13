@@ -1,12 +1,18 @@
 # Development Roadmap
 
+## Phase 19.2 — premium company experience and launch enquiries
+
+Implemented foundation: four controlled service experiences, revisioned Gallery CMS/public pages, featured Homepage Gallery, accessible Rentals category navigation, authoritative `EMAIL_INQUIRY`/`PLATFORM_REQUEST` switching, durable structured Cart enquiries and company-email outbox, Admin review, RBAC, SEO, backup/transfer coverage, and guarded tests. The advanced rental platform remains intact.
+
+Before production launch, operationally prove the implemented authenticated SMTP Cart-enquiry transport with the chosen company mailbox, sender-domain authentication, secret rotation, monitoring, and off-VPS backup retention. Add a background delivery worker with bounded automatic retries, dead-letter/alert ownership, and provider-supported idempotency where available; the current ten-minute stale-claim recovery is manual. The synchronous outbox attempt plus audited retry preserves accepted enquiries but cannot guarantee exactly-once email when SMTP succeeds and the following database update fails. Customer acknowledgement email is not implemented; confirmation is currently on-screen only. General Contact enquiries also remain database-only and are not sent through this Cart-specific SMTP path. The next approved work should focus on staging acceptance and these provider operations rather than changing the deferred Phase 19.1 price/acceptance decision.
+
 ## Phase 19.1 — staging workflow corrections
 
 Implemented locally: Approved Orders projection, optional audited order assignment, Admin-only default product pricing with quote prefill, improved ledger-based inventory adjustment language, richer pickup/handoff capture, successful-transition navigation, accessible confirmation dialogs, action feedback, and canonical product-card links. Customer acceptance/pricing policy remains a deferred client decision. Deployment remains a separate reviewed staging operation.
 
 - Phase 19 deployment foundation is in progress: production container targets, isolated staging/production Compose projects, a single shared Caddy network, guarded environment preflight, private non-indexable staging, and an operator-only first-user bootstrap are prepared. The live VPS has not been changed. Production remains gated on staging acceptance, trusted-proxy review, and scheduled encrypted off-host backup/restore verification.
 
-- Phase 18.6 implements premium truthful About, Contact, Terms, and Privacy pages; verified company contact presentation without choosing the conflicting street address; durable secure contact enquiries and a protected Admin queue; feature-aware CTAs; complete metadata/JSON-LD/sitemap integration; and responsive accessibility coverage. Phase 19 has not started. Production legal review and outbound email-provider selection remain explicit Phase 19 decisions.
+- Phase 18.6 implements premium truthful About, Contact, Terms, and Privacy pages; verified company contact presentation without choosing the conflicting street address; durable secure contact enquiries and a protected Admin queue; feature-aware CTAs; complete metadata/JSON-LD/sitemap integration; and responsive accessibility coverage. General Contact enquiries remain database-only. Phase 19.2 adds authenticated SMTP delivery specifically for structured Cart enquiries; production legal review and operational SMTP/recovery acceptance remain launch gates.
 
 - Phase 18.4 implements the full public SEO and indexability hardening pass: authoritative production-origin output, unique active-catalogue metadata audit, truthful Product/Organization/WebSite/Breadcrumb structured data, active-only sitemap, private noindex/header defense, 404 checks, hero LCP restraint, and guarded browser coverage. Phase 19 has not started.
 

@@ -1,5 +1,11 @@
 # Rental Cart Foundation
 
+## Phase 19.2 submission paths
+
+Cart browsing and mutations remain available in both customer modes. In the seeded `EMAIL_INQUIRY` mode, the Cart CTA opens `/cart/enquiry`; a successful submission stores a `CartEnquiry`, immutable item snapshots, and a durable company-email outbox job. In `PLATFORM_REQUEST`, it opens the existing Rental Request submission. Both API endpoints recheck the database setting, so stale browser state cannot choose the wrong workflow.
+
+Neither path turns Cart state into availability or a reservation. Email enquiry creates no RentalRequest, Quote, Order, Reservation, inventory transaction, or acceptance link. See [Cart email enquiries](cart-email-enquiries.md).
+
 ## Phase 7 boundary
 
 Phase 7 implements a persistent anonymous customer rental cart. A guest can add

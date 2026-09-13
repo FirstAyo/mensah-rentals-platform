@@ -11,6 +11,8 @@ export * from './google-reviews';
 export * from './maintenance';
 export * from './contact-enquiries';
 export * from './public-pages';
+export * from './gallery';
+export * from './cart-enquiries';
 
 const environmentBoolean = z
   .enum(['true', 'false'])
@@ -224,6 +226,25 @@ export const apiEnvironmentSchema = z
       .min(1)
       .max(3600)
       .default(60),
+    CART_ENQUIRY_RECIPIENT_EMAIL: z
+      .string()
+      .trim()
+      .email()
+      .max(254)
+      .default('info@mensahrentals.com'),
+    SMTP_ENABLED: environmentBoolean.default('false'),
+    SMTP_HOST: optionalEnvironmentString,
+    SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
+    SMTP_SECURE: environmentBoolean.default('false'),
+    SMTP_USER: optionalEnvironmentString,
+    SMTP_PASSWORD: optionalEnvironmentString,
+    SMTP_FROM_EMAIL: z
+      .string()
+      .trim()
+      .email()
+      .max(254)
+      .default('info@mensahrentals.com'),
+    SMTP_FROM_NAME: z.string().trim().min(1).max(120).default('Mensah Rentals'),
     GOOGLE_REVIEWS_URL: optionalEnvironmentUrl,
     GOOGLE_WRITE_REVIEW_URL: optionalEnvironmentUrl,
     NODE_ENV: z
@@ -360,6 +381,16 @@ export const apiEnvironmentSchema = z
     WEB_ORIGIN: z.string().url().default('http://localhost:3000'),
   })
   .superRefine((environment, context) => {
+    if (environment.SMTP_ENABLED) {
+      for (const key of ['SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD'] as const) {
+        if (!environment[key])
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `${key} is required when SMTP_ENABLED is true`,
+            path: [key],
+          });
+      }
+    }
     if (environment.NODE_ENV !== 'production') {
       return;
     }

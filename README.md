@@ -1,5 +1,9 @@
 # Mensah Rentals Platform
 
+Phase 19.2 adds a premium company Homepage, a revisioned managed-media [Gallery](docs/gallery.md), an accessible Rentals mega menu, and the default launch [Cart email-enquiry workflow](docs/cart-email-enquiries.md). The four controlled service types are Film Production, Events & Festivals, Corporate Functions, and Private Functions. Email enquiry mode preserves the complete advanced Rental Request platform and creates no reservation or inventory change.
+
+Cart enquiries are always stored durably before delivery is attempted. Local/test environments use a non-networked capture transport. Staging and production can deliver the company notification through authenticated SMTP; failed or unavailable delivery remains visible and retryable from Admin without losing the enquiry.
+
 The staging-first, single-Caddy VPS topology, Cloudflare records, safety checks, testing steps, and rollback procedure are documented in [VPS deployment](docs/deployment.md). Use the separate [public-content transfer runbook](docs/public-content-transfer.md) to move only approved catalogue/CMS data and media into staging. Production promotion remains gated on staging acceptance and verified off-host backups.
 
 Phase 18.6 adds truthful, responsive public [About and legal pages](docs/public-company-pages.md) plus a secure database-backed [contact enquiry queue](docs/contact-enquiries.md). Enquiries are stored for authorized Admin review; no outbound email provider is configured and the platform never claims email delivery.
@@ -210,6 +214,8 @@ through a development API.
 ## Documentation
 
 - [Phase 19.1 staging workflow corrections](docs/staging-workflow-corrections.md)
+- [Phase 19.2 Gallery and company experience](docs/gallery.md)
+- [Phase 19.2 Cart email enquiries](docs/cart-email-enquiries.md)
 
 - [Architecture](docs/architecture.md)
 - [Staff authentication](docs/authentication.md)
@@ -264,7 +270,7 @@ Picked-up orders and completed returns provide official customer Order and Retur
 
 ## Phase 18.5 feature controls
 
-Authorized Admin/Super Admin staff can progressively roll out optional operations from Settings → Features using Disabled, Testing, and Enabled states or four atomic presets. Core website, catalogue, security, audit, health, backup, legal, confidentiality, and SEO behavior remain permanently available. Feature changes never delete historical data. See [feature controls](docs/feature-controls.md).
+Authorized Admin/Super Admin staff can progressively roll out optional operations from Settings → Features using Disabled, Testing, and Enabled states or five atomic presets, including **Website + Email Enquiries**. Core website, catalogue, Gallery, Cart browsing, security, audit, health, backup, legal, confidentiality, and SEO behavior remain permanently available. Feature and customer-submission-mode changes never delete historical data. See [feature controls](docs/feature-controls.md).
 
 ## Phase 18.6.1 public pages CMS
 

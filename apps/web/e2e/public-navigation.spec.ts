@@ -76,10 +76,17 @@ test('@public-navigation follows desktop links, catalogue, cart, request, and fo
   await expect(page.locator('#how-it-works')).toBeVisible();
 
   await page.getByRole('link', { name: 'Mensah Rentals' }).first().click();
-  await page
-    .getByRole('navigation', { name: 'Primary navigation' })
-    .getByRole('link', { name: 'Rentals', exact: true })
-    .click();
+  const primaryNavigation = page.getByRole('navigation', {
+    name: 'Primary navigation',
+  });
+  const rentalsMenuButton = primaryNavigation.getByRole('button', {
+    name: 'Rentals',
+  });
+  await rentalsMenuButton.focus();
+  await rentalsMenuButton.press('Enter');
+  const rentalsMenu = page.locator('#rentals-mega-menu');
+  await expect(rentalsMenu).toBeVisible();
+  await rentalsMenu.getByRole('link', { name: 'View All Rentals' }).click();
   await expect(page).toHaveURL(/\/rentals$/);
   await expect(page.getByRole('heading', { level: 1 })).toContainText(
     'Equipment for events',
@@ -111,10 +118,10 @@ test('@public-navigation follows desktop links, catalogue, cart, request, and fo
   await quantity.fill('101');
   await page.getByRole('button', { name: 'Save quantity' }).click();
   await expect(page.getByText(/quantity updated/i)).toBeVisible();
-  await page.getByRole('link', { name: 'Continue to rental request' }).click();
-  await expect(page).toHaveURL(/\/rental-request$/);
+  await page.getByRole('link', { name: 'Send rental enquiry' }).click();
+  await expect(page).toHaveURL(/\/cart\/enquiry$/);
   await expect(page.getByRole('heading', { level: 1 })).toContainText(
-    'Tell us about your project',
+    'Tell us what your project needs',
   );
 
   await page
@@ -182,10 +189,11 @@ test('@public-navigation remains usable at 320px in dark mode and preserves genu
   await page.getByRole('button', { name: /switch to dark theme/i }).click();
   await expect(page.locator('html')).toHaveClass(/dark/);
   await page.getByLabel('Open navigation menu').click();
-  await page
-    .getByRole('navigation', { name: 'Mobile navigation' })
-    .getByRole('link', { name: 'Rentals' })
-    .click();
+  const mobileNavigation = page.getByRole('navigation', {
+    name: 'Mobile navigation',
+  });
+  await mobileNavigation.getByText('Rentals', { exact: true }).click();
+  await mobileNavigation.getByRole('link', { name: 'All equipment' }).click();
   await expect(page).toHaveURL(/\/rentals$/);
   await expectNoOverflowOrSeriousAxe(page);
   await page.reload();

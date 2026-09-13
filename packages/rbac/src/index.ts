@@ -122,6 +122,12 @@ export const PERMISSION_CATALOGUE = [
   ['public_pages.view', 'View public page drafts and revision history.'],
   ['public_pages.edit', 'Create and edit structured public page drafts.'],
   ['public_pages.publish', 'Publish or restore public page revisions.'],
+  ['gallery.view', 'View Gallery projects and publication history.'],
+  ['gallery.edit', 'Create and edit Gallery project drafts.'],
+  ['gallery.publish', 'Publish or archive Gallery projects.'],
+  ['gallery.preview', 'Preview unpublished Gallery revisions.'],
+  ['cart_enquiry.view', 'View structured customer Cart enquiries.'],
+  ['cart_enquiry.manage', 'Update and manage customer Cart enquiries.'],
 ] as const;
 
 export type PermissionKey = (typeof PERMISSION_CATALOGUE)[number][0];
@@ -249,6 +255,12 @@ const ADMIN_PERMISSIONS = [
   'public_pages.view',
   'public_pages.edit',
   'public_pages.publish',
+  'gallery.view',
+  'gallery.edit',
+  'gallery.publish',
+  'gallery.preview',
+  'cart_enquiry.view',
+  'cart_enquiry.manage',
 ] as const satisfies readonly PermissionKey[];
 
 const EDITOR_PERMISSIONS = [
@@ -271,6 +283,10 @@ const EDITOR_PERMISSIONS = [
   'public_pages.view',
   'public_pages.edit',
   'public_pages.publish',
+  'gallery.view',
+  'gallery.edit',
+  'gallery.publish',
+  'gallery.preview',
 ] as const satisfies readonly PermissionKey[];
 
 const SALES_PERSON_PERMISSIONS = [
@@ -296,6 +312,8 @@ const SALES_PERSON_PERMISSIONS = [
   'return.view',
   'contact_enquiry.view',
   'contact_enquiry.manage',
+  'cart_enquiry.view',
+  'cart_enquiry.manage',
 ] as const satisfies readonly PermissionKey[];
 
 export const DEFAULT_ROLE_PERMISSION_KEYS = {

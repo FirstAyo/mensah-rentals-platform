@@ -16,6 +16,10 @@ const routes = new Map<string, { method: string; upstream: string }>([
   ],
   ['PUT:', { method: 'PUT', upstream: '/admin/feature-settings' }],
   [
+    'PUT:customer-workflow',
+    { method: 'PUT', upstream: '/admin/feature-settings/customer-workflow' },
+  ],
+  [
     'POST:preview',
     { method: 'POST', upstream: '/admin/feature-settings/preview' },
   ],

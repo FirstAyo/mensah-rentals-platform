@@ -50,6 +50,12 @@ const presets: Array<{
       'Keep the public website and catalogue while turning off operational workflows.',
   },
   {
+    key: 'WEBSITE_AND_EMAIL_ENQUIRIES',
+    label: 'Website + Email Enquiries',
+    description:
+      'Keep the catalogue and cart available, then send customer equipment lists as managed enquiries.',
+  },
+  {
     key: 'WEBSITE_AND_RENTAL_REQUESTS',
     label: 'Website + Rental Requests',
     description: 'Enable public rental requests without advanced operations.',
@@ -95,6 +101,9 @@ export function FeatureSettingsPanel({
   const [loading, setLoading] = useState<string | null>(null);
   const [reason, setReason] = useState('');
   const [error, setError] = useState('');
+  const [workflowMode, setWorkflowMode] = useState(
+    initial.customerWorkflow.mode,
+  );
   const cancelRef = useRef<HTMLButtonElement>(null);
 
   const labels = new Map(
@@ -240,8 +249,87 @@ export function FeatureSettingsPanel({
     }
   }
 
+  async function saveWorkflowMode() {
+    if (workflowMode === settings.customerWorkflow.mode) return;
+    setLoading('customer-workflow');
+    setError('');
+    try {
+      const next = (await request(
+        '/customer-workflow',
+        {
+          expectedVersion: settings.customerWorkflow.version,
+          mode: workflowMode,
+          operationId: crypto.randomUUID(),
+        },
+        'PUT',
+      )) as AdminFeatureSettingsResponse;
+      setSettings(next);
+      setWorkflowMode(next.customerWorkflow.mode);
+      router.refresh();
+    } catch (cause) {
+      setError(
+        cause instanceof Error
+          ? cause.message
+          : 'Customer submission mode could not be updated.',
+      );
+    } finally {
+      setLoading(null);
+    }
+  }
+
   return (
     <div className="space-y-8">
+      <section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div className="max-w-2xl">
+            <h2 className="text-xl font-semibold">Customer cart submission</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Choose whether a completed cart becomes an email enquiry or enters
+              the advanced rental-request workflow. Existing enquiries and
+              requests are never converted or deleted.
+            </p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-[minmax(15rem,1fr)_auto]">
+            <label className="grid gap-2 text-sm font-medium">
+              Submission mode
+              <select
+                className="h-11 rounded-lg border border-border bg-background px-3 outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                disabled={!canManage || loading !== null}
+                onChange={(event) =>
+                  setWorkflowMode(
+                    event.currentTarget.value as typeof workflowMode,
+                  )
+                }
+                value={workflowMode}
+              >
+                <option value="EMAIL_INQUIRY">Email enquiry</option>
+                <option value="PLATFORM_REQUEST">
+                  Platform rental request
+                </option>
+              </select>
+            </label>
+            <button
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-primary px-5 font-semibold text-primary-foreground disabled:cursor-not-allowed disabled:opacity-60 sm:self-end"
+              disabled={
+                !canManage ||
+                loading !== null ||
+                workflowMode === settings.customerWorkflow.mode
+              }
+              onClick={() => void saveWorkflowMode()}
+              type="button"
+            >
+              {loading === 'customer-workflow' ? (
+                <LoaderCircle
+                  aria-hidden="true"
+                  className="h-4 w-4 animate-spin motion-reduce:animate-none"
+                />
+              ) : null}
+              Save mode
+            </button>
+          </div>
+        </div>
+      </section>
+
       <section className="rounded-2xl border border-border bg-card p-5 shadow-sm sm:p-6">
         <div className="flex items-start gap-3">
           <SlidersHorizontal
@@ -256,7 +344,7 @@ export function FeatureSettingsPanel({
             </p>
           </div>
         </div>
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           {presets.map((preset) => (
             <button
               aria-busy={loading === `preset:${preset.key}`}

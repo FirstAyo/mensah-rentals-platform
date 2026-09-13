@@ -146,6 +146,18 @@ export class PublicRentalRequestService {
     const submissionKeyHash = hashSessionToken(input.submissionId);
     const submissionPayloadHash = hashSessionToken(JSON.stringify(input));
     const result = await prisma.$transaction(async (tx) => {
+      // Keep the database transaction authoritative across multiple API
+      // processes by sharing the customer-workflow advisory lock.
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(1885, 1)`;
+      const workflow = await tx.customerWorkflowSetting.findUnique({
+        select: { mode: true },
+        where: { id: 'customer-workflow' },
+      });
+      if (workflow?.mode !== 'PLATFORM_REQUEST')
+        throw new ConflictException(
+          'Rental request submission is not currently available.',
+        );
+
       const replay = await tx.rentalRequest.findFirst({
         where: { OR: [{ submissionKeyHash }, { sourceCartTokenHash }] },
         select: {

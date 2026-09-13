@@ -23,6 +23,7 @@ export type PlatformFeatureKey =
 export type PlatformFeatureState = 'DISABLED' | 'INTERNAL_TESTING' | 'ENABLED';
 export type PlatformFeaturePreset =
   | 'WEBSITE_ONLY'
+  | 'WEBSITE_AND_EMAIL_ENQUIRIES'
   | 'WEBSITE_AND_RENTAL_REQUESTS'
   | 'STAGED_OPERATIONS_TEST'
   | 'FULL_OPERATIONS';
@@ -41,6 +42,7 @@ export interface AdminFeatureSettingResponse {
 export interface AdminFeatureSettingsResponse {
   environment: 'LOCAL' | 'STAGING' | 'PRODUCTION';
   features: AdminFeatureSettingResponse[];
+  customerWorkflow: import('./cart-enquiries').CustomerWorkflowSettingResponse;
 }
 
 export interface AdminFeatureAvailabilityResponse {
@@ -64,6 +66,8 @@ export interface FeatureTransitionPreviewResponse {
 }
 
 export interface PublicPlatformCapabilitiesResponse {
+  cartSubmissionsAvailable: boolean;
+  customerSubmissionMode: import('@mensah-rentals/validation').CustomerSubmissionMode;
   customerOrderPortal: boolean;
   rentalRequests: boolean;
 }
@@ -1588,3 +1592,5 @@ export type AdminContactEnquiryListResponse =
   PaginatedResponse<AdminContactEnquirySummaryResponse>;
 export * from './official-customer-form-terms';
 export * from './public-pages';
+export * from './gallery';
+export * from './cart-enquiries';

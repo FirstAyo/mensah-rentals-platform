@@ -1,19 +1,28 @@
 import { ThemeToggle } from '@mensah-rentals/ui';
-import { ArrowRight, Menu, PackageOpen } from 'lucide-react';
+import { ArrowRight, PackageOpen } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { PublicPlatformCapabilitiesResponse } from '@mensah-rentals/types';
 import { CartHeaderLink } from './cart-header-link';
+import { DesktopNavigation, MobileNavigation } from './public-navigation';
+import type { PublicNavigationCategory } from '@/lib/public-navigation';
 
 const navLink =
   'rounded-lg px-3 py-2 text-sm font-medium outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring';
 
 export function PublicShell({
   children,
-  features = { customerOrderPortal: true, rentalRequests: true },
+  features = {
+    cartSubmissionsAvailable: true,
+    customerOrderPortal: false,
+    customerSubmissionMode: 'EMAIL_INQUIRY',
+    rentalRequests: false,
+  },
+  rentalCategories = [],
 }: {
   children: ReactNode;
   features?: PublicPlatformCapabilitiesResponse;
+  rentalCategories?: PublicNavigationCategory[];
 }) {
   return (
     <div className="min-h-screen bg-background text-foreground">
@@ -42,25 +51,9 @@ export function PublicShell({
             </span>
           </Link>
           <div className="flex items-center gap-2 sm:gap-3">
-            <nav
-              aria-label="Primary navigation"
-              className="hidden items-center md:flex"
-            >
-              <Link className={navLink} href="/rentals">
-                Rentals
-              </Link>
-              <Link className={navLink} href="/#how-it-works">
-                How it works
-              </Link>
-              <Link className={navLink} href="/about">
-                About
-              </Link>
-              <Link className={navLink} href="/contact">
-                Contact
-              </Link>
-            </nav>
+            <DesktopNavigation categories={rentalCategories} />
             <ThemeToggle />
-            {features.rentalRequests ? <CartHeaderLink /> : null}
+            {features.cartSubmissionsAvailable ? <CartHeaderLink /> : null}
             <Link
               className="hidden min-h-10 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground outline-none transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:inline-flex"
               href="/rentals"
@@ -68,36 +61,10 @@ export function PublicShell({
               Browse equipment
               <ArrowRight aria-hidden="true" className="h-4 w-4" />
             </Link>
-            <details className="group relative md:hidden">
-              <summary
-                aria-label="Open navigation menu"
-                className="inline-flex h-10 w-10 cursor-pointer list-none items-center justify-center rounded-lg border border-border bg-card outline-none hover:bg-muted focus-visible:ring-2 focus-visible:ring-ring [&::-webkit-details-marker]:hidden"
-              >
-                <Menu aria-hidden="true" className="h-5 w-5" />
-              </summary>
-              <nav
-                aria-label="Mobile navigation"
-                className="absolute right-0 top-12 z-50 grid w-[min(19rem,calc(100vw-2rem))] gap-1 rounded-2xl border border-border bg-card p-3 shadow-xl"
-              >
-                <Link className={navLink} href="/rentals">
-                  Rentals
-                </Link>
-                <Link className={navLink} href="/#how-it-works">
-                  How it works
-                </Link>
-                <Link className={navLink} href="/about">
-                  About
-                </Link>
-                <Link className={navLink} href="/contact">
-                  Contact
-                </Link>
-                {features.rentalRequests ? (
-                  <Link className={navLink} href="/track-request">
-                    Track request
-                  </Link>
-                ) : null}
-              </nav>
-            </details>
+            <MobileNavigation
+              categories={rentalCategories}
+              showTracking={features.rentalRequests}
+            />
           </div>
         </div>
       </header>
@@ -129,6 +96,9 @@ export function PublicShell({
               </Link>
               <Link className={navLink} href="/rentals">
                 Rentals
+              </Link>
+              <Link className={navLink} href="/gallery">
+                Gallery
               </Link>
               {features.rentalRequests ? (
                 <Link className={navLink} href="/track-request">

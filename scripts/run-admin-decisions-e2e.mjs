@@ -62,6 +62,7 @@ const modes = new Set([
   'seo',
   'public-company-pages',
   'staging-workflow-corrections',
+  'gallery-homepage-launch-flow',
 ]);
 if (!modes.has(mode)) throw new Error(`Unknown decision browser mode: ${mode}`);
 
@@ -239,6 +240,78 @@ if (mode === 'feature-settings') {
   });
   browserEnvironment.PHASE185_PRODUCT_ID = product.id;
 }
+if (mode === 'gallery-homepage-launch-flow') {
+  const mediaId = `cm${randomUUID().replaceAll('-', '').slice(0, 23)}`;
+  const contentHash = createHash('sha256')
+    .update(`phase-19-2-${mediaId}`)
+    .digest('hex');
+  const filename = `${contentHash}.webp`;
+  const relativeMediaRoot = browserEnvironment.MEDIA_STORAGE_ROOT;
+  const mediaDirectory = resolve(
+    repositoryRoot,
+    relativeMediaRoot,
+    'homepage',
+    mediaId,
+  );
+  await mkdir(mediaDirectory, { recursive: true });
+  const image = Buffer.from(
+    'UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEAAUAmJaQAA3AA/v89WAAAAA==',
+    'base64',
+  );
+  await writeFile(resolve(mediaDirectory, filename), image);
+  await prisma.homepageMedia.create({
+    data: {
+      id: mediaId,
+      byteSize: image.byteLength,
+      contentHash,
+      createdByUserId: fixture.id,
+      description: 'Phase 19.2 premium event project',
+      format: 'webp',
+      height: 1,
+      originalFilename: 'phase-19-2-gallery.webp',
+      url: `/media/homepage/${mediaId}/${filename}`,
+      width: 1,
+    },
+  });
+  const slug = `phase-19-2-premium-event-${randomUUID().slice(0, 8)}`;
+  const title = 'Phase 19.2 Premium Event';
+  const project = await prisma.galleryProject.create({
+    data: { createdByUserId: fixture.id, slug },
+  });
+  const revision = await prisma.galleryProjectRevision.create({
+    data: {
+      galleryProjectId: project.id,
+      version: 1,
+      kind: 'PUBLISHED',
+      slugSnapshot: slug,
+      title,
+      serviceType: 'EVENTS_FESTIVALS',
+      shortDescription: 'A test-owned premium event Gallery project.',
+      description:
+        'A complete project story used only by isolated browser tests.',
+      location: 'Vancouver, British Columbia',
+      featured: true,
+      sortOrder: 1,
+      createdByUserId: fixture.id,
+      publishedByUserId: fixture.id,
+      publishedAt: new Date(),
+      media: {
+        create: {
+          mediaId,
+          altText: 'Premium event rental equipment installation',
+          focalPoint: 'center',
+          sortOrder: 0,
+        },
+      },
+    },
+  });
+  await prisma.galleryProject.update({
+    where: { id: project.id },
+    data: { publishedRevisionId: revision.id, lockVersion: 1 },
+  });
+  browserEnvironment.PHASE192_GALLERY_SLUG = slug;
+  browserEnvironment.PHASE192_GALLERY_TITLE = title;
+}
 if (
   mode.startsWith('reservations-') ||
   mode.startsWith('fulfilment-') ||
@@ -249,6 +322,11 @@ if (
   mode === 'inspections' ||
   mode === 'maintenance-all'
 ) {
+  await prisma.customerWorkflowSetting.upsert({
+    where: { id: 'customer-workflow' },
+    create: { id: 'customer-workflow', mode: 'PLATFORM_REQUEST' },
+    update: { mode: 'PLATFORM_REQUEST' },
+  });
   const products = await prisma.product.findMany({
     where: { isActive: true },
     orderBy: [{ createdAt: 'asc' }, { id: 'asc' }],
@@ -1271,6 +1349,7 @@ const inventoryManagementMode =
 const seoMode = mode === 'seo';
 const featureSettingsMode = mode === 'feature-settings';
 const publicCompanyMode = mode === 'public-company-pages';
+const phase192Mode = mode === 'gallery-homepage-launch-flow';
 const productionPublicRegressionMode =
   mode === 'catalogue' || mode === 'public-navigation';
 if (
@@ -1290,7 +1369,8 @@ if (
   inventoryManagementMode ||
   featureSettingsMode ||
   seoMode ||
-  publicCompanyMode
+  publicCompanyMode ||
+  phase192Mode
 )
   run(
     pnpm,
@@ -1317,6 +1397,7 @@ const usesProductionStart = (workspace) =>
   featureSettingsMode ||
   seoMode ||
   publicCompanyMode ||
+  phase192Mode ||
   productionPublicRegressionMode ||
   ((fulfilmentMode ||
     returnMode ||
@@ -1363,7 +1444,8 @@ try {
         phase18Mode ||
         inventoryManagementMode ||
         featureSettingsMode ||
-        officialPdfMode
+        officialPdfMode ||
+        phase192Mode
         ? 300_000
         : 90_000,
     ),
@@ -1377,7 +1459,8 @@ try {
         phase18Mode ||
         inventoryManagementMode ||
         featureSettingsMode ||
-        officialPdfMode
+        officialPdfMode ||
+        phase192Mode
         ? 300_000
         : 90_000,
     ),
@@ -1400,8 +1483,9 @@ try {
   const isQuoteMode = mode.startsWith('quotes-');
   const isOrderMode = mode.startsWith('orders-');
   const isHomepageMode = homepageMode;
-  const grep =
-    mode === 'staging-workflow-corrections'
+  const grep = phase192Mode
+    ? '@gallery-homepage-launch-flow'
+    : mode === 'staging-workflow-corrections'
       ? '@staging-workflow-corrections'
       : inventoryManagementMode
         ? mode === 'admin-notifications'
@@ -1510,52 +1594,54 @@ try {
       'test',
       ...(seoMode
         ? ['e2e/seo.spec.ts']
-        : publicCompanyMode
-          ? ['e2e/public-company-pages.spec.ts']
-          : featureSettingsMode
-            ? ['e2e/feature-settings.spec.ts']
-            : categoryMode || productMode || publicRegressionMode
-              ? [
-                  categoryMode
-                    ? 'e2e/categories.spec.ts'
-                    : productMode
-                      ? 'e2e/products.spec.ts'
-                      : mode === 'catalogue'
-                        ? 'e2e/catalogue.spec.ts'
-                        : mode === 'cart'
-                          ? 'e2e/cart.spec.ts'
-                          : 'e2e/public-navigation.spec.ts',
-                ]
-              : isHomepageMode
-                ? ['e2e/homepage.spec.ts']
-                : inventoryManagementMode
-                  ? ['e2e/inventory-management.spec.ts']
-                  : reservationMode ||
-                      fulfilmentMode ||
-                      returnMode ||
-                      officialPdfMode
-                    ? ['e2e/orders.spec.ts']
-                    : runtimeRegressionMode
-                      ? ['e2e/runtime-regression.spec.ts']
-                      : phase18Mode
-                        ? ['e2e/reports.spec.ts']
-                        : maintenanceMode
-                          ? ['e2e/maintenance.spec.ts']
-                          : isPhase121
-                            ? [
-                                isPhase121Layout
-                                  ? 'e2e/phase12-1.spec.ts'
-                                  : isPhase121Quote
-                                    ? 'e2e/quotes.spec.ts'
-                                    : 'e2e/orders.spec.ts',
-                              ]
-                            : [
-                                isOrderMode
-                                  ? 'e2e/orders.spec.ts'
-                                  : isQuoteMode
-                                    ? 'e2e/quotes.spec.ts'
-                                    : 'e2e/admin-decisions.spec.ts',
-                              ]),
+        : phase192Mode
+          ? ['e2e/gallery-homepage-launch-flow.spec.ts']
+          : publicCompanyMode
+            ? ['e2e/public-company-pages.spec.ts']
+            : featureSettingsMode
+              ? ['e2e/feature-settings.spec.ts']
+              : categoryMode || productMode || publicRegressionMode
+                ? [
+                    categoryMode
+                      ? 'e2e/categories.spec.ts'
+                      : productMode
+                        ? 'e2e/products.spec.ts'
+                        : mode === 'catalogue'
+                          ? 'e2e/catalogue.spec.ts'
+                          : mode === 'cart'
+                            ? 'e2e/cart.spec.ts'
+                            : 'e2e/public-navigation.spec.ts',
+                  ]
+                : isHomepageMode
+                  ? ['e2e/homepage.spec.ts']
+                  : inventoryManagementMode
+                    ? ['e2e/inventory-management.spec.ts']
+                    : reservationMode ||
+                        fulfilmentMode ||
+                        returnMode ||
+                        officialPdfMode
+                      ? ['e2e/orders.spec.ts']
+                      : runtimeRegressionMode
+                        ? ['e2e/runtime-regression.spec.ts']
+                        : phase18Mode
+                          ? ['e2e/reports.spec.ts']
+                          : maintenanceMode
+                            ? ['e2e/maintenance.spec.ts']
+                            : isPhase121
+                              ? [
+                                  isPhase121Layout
+                                    ? 'e2e/phase12-1.spec.ts'
+                                    : isPhase121Quote
+                                      ? 'e2e/quotes.spec.ts'
+                                      : 'e2e/orders.spec.ts',
+                                ]
+                              : [
+                                  isOrderMode
+                                    ? 'e2e/orders.spec.ts'
+                                    : isQuoteMode
+                                      ? 'e2e/quotes.spec.ts'
+                                      : 'e2e/admin-decisions.spec.ts',
+                                ]),
       '--grep',
       grepArgument,
       ...(maintenanceMode ||
@@ -1565,6 +1651,7 @@ try {
       featureSettingsMode ||
       seoMode ||
       publicCompanyMode ||
+      phase192Mode ||
       mode === 'public-navigation'
         ? ['--project=mobile-320', '--project=wide-1440']
         : []),

@@ -11,6 +11,7 @@ import { Prisma, UserStatus, prisma } from '@mensah-rentals/database';
 import {
   DEFAULT_HOMEPAGE_CONTENT,
   homepageContentSchema,
+  GALLERY_SERVICE_PRESENTATION,
   type HomepageMediaReference,
   type HomepageContent,
   type HomepageMutationInput,
@@ -108,6 +109,7 @@ type IncludedRevision = Prisma.HomepageRevisionGetPayload<{
       };
     };
     featuredProducts: true;
+    featuredGalleryProjects: true;
     mediaPlacements: { include: { media: true; productImage: true } };
   };
 }>;
@@ -220,11 +222,13 @@ export class HomepageService {
   ): Promise<unknown> {
     const parsedContent = homepageContentSchema.parse(input.content);
     const featuredCategoryOverrides = input.featuredCategoryOverrides ?? [];
+    const featuredGalleryProjectIds = input.featuredGalleryProjectIds ?? [];
     const payloadHash = hashPayload({
       content: parsedContent,
       featuredCategoryIds: input.featuredCategoryIds,
       featuredCategoryOverrides,
       featuredProductIds: input.featuredProductIds,
+      featuredGalleryProjectIds,
     });
     const result = await prisma.$transaction(
       async (tx) => {
@@ -256,6 +260,7 @@ export class HomepageService {
           tx,
           input.featuredCategoryIds,
           input.featuredProductIds,
+          featuredGalleryProjectIds,
           mediaPlacements(parsedContent),
           featuredCategoryOverrides,
         );
@@ -302,6 +307,14 @@ export class HomepageService {
                 productId,
                 sortOrder,
               })),
+            },
+            featuredGalleryProjects: {
+              create: featuredGalleryProjectIds.map(
+                (galleryProjectId, sortOrder) => ({
+                  galleryProjectId,
+                  sortOrder,
+                }),
+              ),
             },
             mediaPlacements: {
               create: mediaPlacements(parsedContent),
@@ -394,6 +407,7 @@ export class HomepageService {
           tx,
           source.featuredCategories.map((item) => item.categoryId),
           source.featuredProducts.map((item) => item.productId),
+          source.featuredGalleryProjects.map((item) => item.galleryProjectId),
           source.mediaPlacements.map((item) => ({
             slotKey: item.slotKey,
             sortOrder: item.sortOrder,
@@ -466,6 +480,14 @@ export class HomepageService {
                 ({ productId, sortOrder }) => ({ productId, sortOrder }),
               ),
             },
+            featuredGalleryProjects: {
+              create: source.featuredGalleryProjects.map(
+                ({ galleryProjectId, sortOrder }) => ({
+                  galleryProjectId,
+                  sortOrder,
+                }),
+              ),
+            },
             mediaPlacements: {
               create: source.mediaPlacements.map(
                 ({ mediaId, productImageId, slotKey, sortOrder }) => ({
@@ -511,6 +533,7 @@ export class HomepageService {
         include: { coverHomepageMedia: true, coverProductImage: true },
       },
       featuredProducts: { orderBy: [{ sortOrder: 'asc' as const }] },
+      featuredGalleryProjects: { orderBy: [{ sortOrder: 'asc' as const }] },
       mediaPlacements: {
         orderBy: [{ sortOrder: 'asc' as const }],
         include: { media: true, productImage: true },
@@ -554,6 +577,9 @@ export class HomepageService {
       }),
       featuredProductIds: revision.featuredProducts.map(
         (item) => item.productId,
+      ),
+      featuredGalleryProjectIds: revision.featuredGalleryProjects.map(
+        (item) => item.galleryProjectId,
       ),
       media: revision.mediaPlacements.map((item) =>
         item.media
@@ -615,6 +641,29 @@ export class HomepageService {
           },
           include: { product: { select: publicProductSelect } },
         },
+        featuredGalleryProjects: {
+          orderBy: [{ sortOrder: 'asc' }],
+          where: {
+            galleryProject: {
+              archivedAt: null,
+              publishedRevisionId: { not: null },
+            },
+          },
+          include: {
+            galleryProject: {
+              include: {
+                publishedRevision: {
+                  include: {
+                    media: {
+                      orderBy: [{ sortOrder: 'asc' }],
+                      include: { media: true },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
         mediaPlacements: {
           include: { media: true, productImage: true },
         },
@@ -640,6 +689,12 @@ export class HomepageService {
       products: revision.featuredProducts.map(({ product }) =>
         this.publicProduct(product),
       ),
+      galleryProjects: revision.featuredGalleryProjects.flatMap(
+        ({ galleryProject }) =>
+          galleryProject.publishedRevision
+            ? this.publicGallerySummary(galleryProject.publishedRevision)
+            : [],
+      ),
       googleReviews: {
         live: false,
         reviewsUrl:
@@ -653,7 +708,7 @@ export class HomepageService {
   }
 
   private async defaultPublicHomepage() {
-    const [categories, products] = await prisma.$transaction([
+    const [categories, products, galleryProjects] = await prisma.$transaction([
       prisma.category.findMany({
         where: { isActive: true, deletedAt: null },
         orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }],
@@ -670,11 +725,28 @@ export class HomepageService {
         take: 8,
         select: publicProductSelect,
       }),
+      prisma.galleryProjectRevision.findMany({
+        where: {
+          featured: true,
+          publishedHeadOf: { is: { archivedAt: null } },
+        },
+        orderBy: [{ sortOrder: 'asc' }, { publishedAt: 'desc' }, { id: 'asc' }],
+        take: 4,
+        include: {
+          media: {
+            orderBy: [{ sortOrder: 'asc' }],
+            include: { media: true },
+          },
+        },
+      }),
     ]);
     return {
       content: this.publicContent(DEFAULT_HOMEPAGE_CONTENT, new Map()),
       categories: categories.map((category) => this.publicCategory(category)),
       products: products.map((product) => this.publicProduct(product)),
+      galleryProjects: galleryProjects.flatMap((revision) =>
+        this.publicGallerySummary(revision),
+      ),
       googleReviews: {
         live: false,
         reviewsUrl: safeGoogleUrl(process.env.GOOGLE_REVIEWS_URL),
@@ -697,6 +769,48 @@ export class HomepageService {
         isPrimary: image.isPrimary,
       })),
     };
+  }
+
+  private publicGallerySummary(revision: {
+    serviceType:
+      | 'FILM_PRODUCTION'
+      | 'EVENTS_FESTIVALS'
+      | 'CORPORATE_FUNCTIONS'
+      | 'PRIVATE_FUNCTIONS';
+    shortDescription: string;
+    slugSnapshot: string;
+    title: string;
+    eventDate?: Date | null;
+    location?: string | null;
+    media: Array<{
+      altText: string;
+      focalPoint: string;
+      media: { url: string };
+    }>;
+  }) {
+    const cover = revision.media[0];
+    if (!cover) return [];
+    return [
+      {
+        title: revision.title,
+        slug: revision.slugSnapshot,
+        shortDescription: revision.shortDescription,
+        eventDate: revision.eventDate?.toISOString().slice(0, 10) ?? null,
+        imageCount: revision.media.length,
+        location: revision.location ?? null,
+        service: GALLERY_SERVICE_PRESENTATION[revision.serviceType],
+        cover: {
+          url: cover.media.url,
+          altText: cover.altText,
+          focalPoint: cover.focalPoint as
+            | 'center'
+            | 'top'
+            | 'bottom'
+            | 'left'
+            | 'right',
+        },
+      },
+    ];
   }
 
   private publicCategory(
@@ -824,6 +938,7 @@ export class HomepageService {
     tx: Prisma.TransactionClient,
     categoryIds: string[],
     productIds: string[],
+    galleryProjectIds: string[],
     placements: MediaPlacementInput[],
     categoryOverrides: Array<{
       categoryId: string;
@@ -860,33 +975,42 @@ export class HomepageService {
           .map((ref) => ref.slice('product:'.length)),
       ),
     ];
-    const [categories, products, media, productImages] = await Promise.all([
-      tx.category.count({
-        where: { id: { in: categoryIds }, isActive: true, deletedAt: null },
-      }),
-      tx.product.count({
-        where: {
-          id: { in: productIds },
-          isActive: true,
-          deletedAt: null,
-          category: { isActive: true, deletedAt: null },
-        },
-      }),
-      tx.homepageMedia.count({ where: { id: { in: homepageMediaIds } } }),
-      tx.productImage.count({
-        where: {
-          id: { in: productImageIds },
-          product: {
+    const [categories, products, galleryProjects, media, productImages] =
+      await Promise.all([
+        tx.category.count({
+          where: { id: { in: categoryIds }, isActive: true, deletedAt: null },
+        }),
+        tx.product.count({
+          where: {
+            id: { in: productIds },
             isActive: true,
             deletedAt: null,
             category: { isActive: true, deletedAt: null },
           },
-        },
-      }),
-    ]);
+        }),
+        tx.galleryProject.count({
+          where: {
+            id: { in: galleryProjectIds },
+            archivedAt: null,
+            publishedRevisionId: { not: null },
+          },
+        }),
+        tx.homepageMedia.count({ where: { id: { in: homepageMediaIds } } }),
+        tx.productImage.count({
+          where: {
+            id: { in: productImageIds },
+            product: {
+              isActive: true,
+              deletedAt: null,
+              category: { isActive: true, deletedAt: null },
+            },
+          },
+        }),
+      ]);
     if (
       categories !== categoryIds.length ||
       products !== productIds.length ||
+      galleryProjects !== galleryProjectIds.length ||
       media !== homepageMediaIds.length ||
       productImages !== productImageIds.length
     )

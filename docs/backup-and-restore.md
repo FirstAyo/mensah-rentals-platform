@@ -1,5 +1,11 @@
 # PostgreSQL and media backup/restore runbook
 
+## Phase 19.2 coverage
+
+The PostgreSQL dump preserves `CustomerWorkflowSetting`, Gallery projects/revisions/media references/Homepage selections, Cart enquiries/item snapshots, and outbound email/attempt history. The backup summary explicitly records Gallery-project/revision and Cart-enquiry/item/outbound-email counts; the database integrity catalogue checks Gallery heads and missing enquiry lines. Gallery image bytes remain in the managed-media volume, so a PostgreSQL dump without the matching media archive is incomplete. Restores must verify both database summaries and exact media hashes.
+
+Cart enquiries and outbox rows are operational/customer data and must not be copied through the public-content transfer. Preserve them only in secured environment backups with the same confidentiality as contact details and rental records. A restored `SENT` marker is historical delivery state; restoring it must not trigger a duplicate send. Real production email/provider secrets do not belong in backup manifests.
+
 Phase 18 backup tooling is operator-only. The admin application shows verification metadata but cannot start a backup, restore, reveal a path, or download an artifact.
 
 ## Prerequisites on Windows
@@ -34,7 +40,7 @@ pnpm db:backup:test
 pnpm db:restore:test
 ```
 
-The restore command accepts guarded-test backup material only. It creates a random isolated `_verify_...` database on `postgres-test`, restores the schema/data, runs all 17 integrity checks, compares counts/inventory summaries, extracts media to an owned temporary directory, compares every hash, and removes both isolated resources in `finally` cleanup. Success says `Restore verification passed`, the migration/media counts, and that isolated resources were removed.
+The restore command accepts guarded-test backup material only. It creates a random isolated `_verify_...` database on `postgres-test`, restores the schema/data, runs the current integrity catalogue, compares counts/inventory summaries, extracts media to an owned temporary directory, compares every hash, and removes both isolated resources in `finally` cleanup. Success says `Restore verification passed`, the migration/media counts, and that isolated resources were removed.
 
 The System Status `Last verification` value represents the latest guarded-test restore verification. It is not an operational production-backup timestamp. `Last backup` remains `Not recorded` until deployment automation writes an independent operational backup record.
 

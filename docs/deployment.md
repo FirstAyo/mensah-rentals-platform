@@ -1,5 +1,15 @@
 # Staging-first VPS deployment
 
+## Phase 19.2 staging checklist (not executed automatically)
+
+Phase 19.2 adds migration `20260911170000_phase_19_2_gallery_email_enquiries`. Configure `CART_ENQUIRY_RECIPIENT_EMAIL` plus the `SMTP_*` settings in the permission-restricted deployment `.env`; do not commit mailbox credentials. Use a controlled staging recipient and sender. For Bluehost mail, confirm the current authenticated SMTP host and port in the provider UI before setting them; a typical STARTTLS configuration uses port `587` with `SMTP_SECURE=false`, while implicit TLS commonly uses port `465` with `SMTP_SECURE=true`.
+
+Before deployment, finish all local gates and create the reviewed staging commit. On the VPS, create and checksum both PostgreSQL and media backups, record the current commit/images, and confirm the shared Caddy/Tech Arena24 health. Fast-forward only `~/apps/mensah-rentals-staging`, build the new images, run deployment preflight and Prisma migration deploy, run `seed-rbac.js` and `verify-rbac.js`, then recreate only Mensah staging services. Never use `docker compose down -v`.
+
+Smoke-test Basic-auth/noindex protection, `/health`, `/health/database`, Homepage services/Gallery, `/gallery`, a published detail, Rentals desktop/mobile navigation, Cart email submission, durable Admin enquiry visibility, SMTP delivery to the controlled staging mailbox, and mode switching back to `PLATFORM_REQUEST`. Confirm Gallery media survives restart. A successful delivery becomes `SENT`; a provider failure remains durable as `FAILED`/retryable and must be investigated rather than treated as a lost enquiry.
+
+If application checks fail, switch back to the recorded prior images/commit without deleting volumes. If database/media checks fail, stop staging writers and restore the verified database dump and media archive together before returning to the prior application. Do not touch production DNS or main-domain traffic.
+
 This runbook adds Mensah Rentals beside Tech Arena24 without replacing the live site. It uses the one existing Caddy container as the only owner of VPS ports 80 and 443. Mensah application containers publish no host ports, PostgreSQL remains private, and staging comes before any production traffic change.
 
 ## Topology and hostnames

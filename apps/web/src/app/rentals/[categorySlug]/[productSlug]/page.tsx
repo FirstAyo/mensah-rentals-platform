@@ -135,7 +135,7 @@ export default async function ProductPage({
             </div>
           </aside>
 
-          {features.rentalRequests ? (
+          {features.cartSubmissionsAvailable ? (
             <AddToCartForm
               productName={product.name}
               productSlug={product.slug}
@@ -177,7 +177,7 @@ export default async function ProductPage({
               <ArrowLeft aria-hidden="true" className="h-4 w-4" />
               Browse {product.category.name}
             </Link>
-            {features.rentalRequests ? (
+            {features.cartSubmissionsAvailable ? (
               <span className="inline-flex items-center gap-2 text-sm text-muted-foreground">
                 <CheckCircle2
                   aria-hidden="true"

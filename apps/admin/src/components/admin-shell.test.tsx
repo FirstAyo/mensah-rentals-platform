@@ -79,4 +79,14 @@ describe('permission-aware admin shell', () => {
     );
     expect(render([])).not.toContain('href="/orders"');
   });
+
+  it('shows Gallery management only to staff with gallery.view', () => {
+    expect(render(['gallery.view'])).toContain('href="/website/gallery"');
+    expect(render([])).not.toContain('href="/website/gallery"');
+  });
+
+  it('shows cart enquiries only to staff with enquiry view permission', () => {
+    expect(render(['cart_enquiry.view'])).toContain('href="/enquiries"');
+    expect(render([])).not.toContain('href="/enquiries"');
+  });
 });

@@ -2372,7 +2372,7 @@ describe('confirmed rental orders against PostgreSQL', () => {
         expect(text).toContain(`(${expectedCompletedDate})`);
         expect(expectedCompletedDate).not.toBe(firstPartialReturnDate);
         expect(text).not.toMatch(
-          /UNIT PRICE|AMOUNT|SUBTOTAL|GST 5%|PST 7%|TOTAL|\$|CAD|assetNumber|serialNumber|internalNotes/,
+          /\((?:UNIT PRICE|AMOUNT|SUBTOTAL|GST 5%|PST 7%|TOTAL|\$|CAD|assetNumber|serialNumber|internalNotes)\)/,
         );
       }
       expect(

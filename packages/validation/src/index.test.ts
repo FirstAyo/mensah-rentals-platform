@@ -6,6 +6,7 @@ import {
   staffOperatorBootstrapEnvironmentSchema,
   staffLoginSchema,
   setCartItemSchema,
+  submitCartEnquirySchema,
   submitRentalRequestSchema,
 } from './index';
 
@@ -122,6 +123,29 @@ describe('public rental cart validation', () => {
   });
 });
 
+describe('cart enquiry validation', () => {
+  it('is stable when normalized optional fields cross the Web BFF', () => {
+    const input = {
+      additionalEquipment: '',
+      company: '',
+      contactEmail: 'customer@example.test',
+      contactPhone: '+1 604 555 0192',
+      customerName: 'Test Customer',
+      customerNotes: '',
+      fulfilmentMethod: 'PICKUP',
+      location: '',
+      operationId: '0f2773ba-0a7d-4f39-84f3-5a54f147de52',
+      projectName: '',
+      rentalEndDate: '2026-09-14',
+      rentalStartDate: '2026-09-12',
+      website: '',
+    };
+    const normalized = submitCartEnquirySchema.parse(input);
+    expect(normalized).toMatchObject({ company: null, location: null });
+    expect(submitCartEnquirySchema.parse(normalized)).toEqual(normalized);
+  });
+});
+
 describe('authentication environment validation', () => {
   it('defaults feature rollout classification to production-safe behavior', () => {
     const parsed = apiEnvironmentSchema.parse({
@@ -229,6 +253,34 @@ describe('authentication environment validation', () => {
         REPORT_EXPORT_MAX_ROWS: '1000000',
       }).success,
     ).toBe(false);
+  });
+
+  it('requires complete SMTP credentials when outbound delivery is enabled', () => {
+    expect(
+      apiEnvironmentSchema.safeParse({
+        DATABASE_URL: 'postgresql://example.invalid/database',
+        SMTP_ENABLED: 'true',
+      }).success,
+    ).toBe(false);
+
+    const parsed = apiEnvironmentSchema.parse({
+      DATABASE_URL: 'postgresql://example.invalid/database',
+      SMTP_ENABLED: 'true',
+      SMTP_FROM_EMAIL: 'info@mensahrentals.com',
+      SMTP_FROM_NAME: 'Mensah Rentals',
+      SMTP_HOST: 'mail.mensahrentals.com',
+      SMTP_PASSWORD: 'not-a-real-secret',
+      SMTP_PORT: '587',
+      SMTP_SECURE: 'false',
+      SMTP_USER: 'info@mensahrentals.com',
+    });
+
+    expect(parsed).toMatchObject({
+      SMTP_ENABLED: true,
+      SMTP_HOST: 'mail.mensahrentals.com',
+      SMTP_PORT: 587,
+      SMTP_SECURE: false,
+    });
   });
 
   it.each([undefined, 'production', 'test'])(

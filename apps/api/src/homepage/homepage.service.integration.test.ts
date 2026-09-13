@@ -40,7 +40,6 @@ describe('homepage immutable publication against PostgreSQL', () => {
     await prisma.homepageFeaturedProduct.deleteMany();
     await prisma.homepageMediaPlacement.deleteMany();
     await prisma.homepageRevision.deleteMany();
-    await prisma.homepageMedia.deleteMany();
     await prisma.homepageSite.deleteMany();
     const user = await prisma.user.create({
       data: {

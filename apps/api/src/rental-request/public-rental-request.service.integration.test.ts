@@ -70,6 +70,11 @@ describe('guest rental requests against PostgreSQL', () => {
 
   beforeAll(async () => {
     await runRbacSeed(prisma);
+    await prisma.customerWorkflowSetting.upsert({
+      create: { id: 'customer-workflow', mode: 'PLATFORM_REQUEST' },
+      update: { mode: 'PLATFORM_REQUEST' },
+      where: { id: 'customer-workflow' },
+    });
     const role = await prisma.role.findUniqueOrThrow({
       where: { name: 'ADMIN' },
       include: { permissions: { include: { permission: true } } },

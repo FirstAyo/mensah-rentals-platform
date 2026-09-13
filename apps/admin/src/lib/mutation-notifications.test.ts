@@ -14,6 +14,27 @@ describe('admin mutation notifications', () => {
     });
   });
 
+  it('uses cart enquiry status and delivery-specific feedback', () => {
+    expect(
+      mutationNotificationFor(
+        'PUT',
+        '/api/cart-enquiries/cm00000000000000000000000/status',
+      ),
+    ).toEqual({
+      success: 'Cart enquiry status updated successfully',
+      error: 'Cart enquiry status could not be updated',
+    });
+    expect(
+      mutationNotificationFor(
+        'POST',
+        '/api/cart-enquiries/cm00000000000000000000000/email/retry',
+      ),
+    ).toEqual({
+      success: 'Company email delivery retried successfully',
+      error: 'Company email delivery could not be retried',
+    });
+  });
+
   it.each([
     ['PATCH', '/api/inventory/inv-1', 'Inventory updated successfully'],
     [

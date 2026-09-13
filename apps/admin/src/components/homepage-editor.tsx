@@ -32,6 +32,7 @@ type Revision = {
   featuredCategoryIds: string[];
   featuredCategoryOverrides: CategoryOverride[];
   featuredProductIds: string[];
+  featuredGalleryProjectIds: string[];
   media: Media[];
   createdAt: string;
   publishedAt: string | null;
@@ -106,6 +107,7 @@ export function HomepageEditor({
   );
   const [categoryIds, setCategoryIds] = useState<string[]>([]);
   const [productIds, setProductIds] = useState<string[]>([]);
+  const [galleryProjectIds, setGalleryProjectIds] = useState<string[]>([]);
   const [categoryOverrides, setCategoryOverrides] = useState<
     CategoryOverride[]
   >([]);
@@ -114,6 +116,7 @@ export function HomepageEditor({
   >({});
   const [categories, setCategories] = useState<CatalogueItem[]>([]);
   const [products, setProducts] = useState<CatalogueItem[]>([]);
+  const [galleryProjects, setGalleryProjects] = useState<CatalogueItem[]>([]);
   const [media, setMedia] = useState<Media[]>([]);
   const [message, setMessage] = useState('');
   const [busy, setBusy] = useState(false);
@@ -129,20 +132,24 @@ export function HomepageEditor({
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
 
   async function load() {
-    const [home, cats, prods, mediaResponse] = await Promise.all([
-      fetch('/api/homepage', { cache: 'no-store' }),
-      fetch(
-        '/api/catalogue/categories?page=1&pageSize=100&sortBy=sortOrder&sortDirection=asc',
-        { cache: 'no-store' },
-      ),
-      fetch(
-        '/api/catalogue/products?page=1&pageSize=100&sortBy=name&sortDirection=asc',
-        { cache: 'no-store' },
-      ),
-      fetch('/api/homepage/media/library?page=1&pageSize=50&source=ALL', {
-        cache: 'no-store',
-      }),
-    ]);
+    const [home, cats, prods, galleryResponse, mediaResponse] =
+      await Promise.all([
+        fetch('/api/homepage', { cache: 'no-store' }),
+        fetch(
+          '/api/catalogue/categories?page=1&pageSize=100&sortBy=sortOrder&sortDirection=asc',
+          { cache: 'no-store' },
+        ),
+        fetch(
+          '/api/catalogue/products?page=1&pageSize=100&sortBy=name&sortDirection=asc',
+          { cache: 'no-store' },
+        ),
+        fetch('/api/gallery?page=1&pageSize=100&state=PUBLISHED', {
+          cache: 'no-store',
+        }),
+        fetch('/api/homepage/media/library?page=1&pageSize=50&source=ALL', {
+          cache: 'no-store',
+        }),
+      ]);
     if (!home.ok) throw new Error('Homepage content could not be loaded.');
     const next: State = await home.json();
     const source = next.draft ?? next.published;
@@ -150,9 +157,24 @@ export function HomepageEditor({
     setContent(source?.content ?? next.defaultContent);
     setCategoryIds(source?.featuredCategoryIds ?? []);
     setProductIds(source?.featuredProductIds ?? []);
+    setGalleryProjectIds(source?.featuredGalleryProjectIds ?? []);
     setCategoryOverrides(source?.featuredCategoryOverrides ?? []);
     if (cats.ok) setCategories((await cats.json()).items ?? []);
     if (prods.ok) setProducts((await prods.json()).items ?? []);
+    if (galleryResponse.ok) {
+      const items = (
+        (await galleryResponse.json()) as {
+          items: Array<{ id: string; title: string; slug: string }>;
+        }
+      ).items;
+      setGalleryProjects(
+        items.map((item) => ({
+          id: item.id,
+          name: item.title,
+          slug: item.slug,
+        })),
+      );
+    }
     if (mediaResponse.ok) {
       const library = ((await mediaResponse.json()) as { items: Media[] })
         .items;
@@ -219,16 +241,25 @@ export function HomepageEditor({
         content,
         categoryIds,
         productIds,
+        galleryProjectIds,
         categoryOverrides,
       }) !==
       JSON.stringify({
         content: source?.content ?? state.defaultContent,
         categoryIds: source?.featuredCategoryIds ?? [],
         productIds: source?.featuredProductIds ?? [],
+        galleryProjectIds: source?.featuredGalleryProjectIds ?? [],
         categoryOverrides: source?.featuredCategoryOverrides ?? [],
       })
     );
-  }, [categoryIds, categoryOverrides, content, productIds, state]);
+  }, [
+    categoryIds,
+    categoryOverrides,
+    content,
+    galleryProjectIds,
+    productIds,
+    state,
+  ]);
 
   function rememberMedia(item: Media) {
     setMedia((current) => [
@@ -250,6 +281,7 @@ export function HomepageEditor({
         'featuredProducts',
         'process',
         'solutions',
+        'gallery',
         'reviews',
         'pickupDelivery',
         'serviceAreas',
@@ -291,6 +323,7 @@ export function HomepageEditor({
           featuredCategoryIds: categoryIds,
           featuredCategoryOverrides: categoryOverrides,
           featuredProductIds: productIds,
+          featuredGalleryProjectIds: galleryProjectIds,
         }),
       });
       if (!response.ok)
@@ -1200,6 +1233,13 @@ export function HomepageEditor({
           max={12}
           onChange={setProductIds}
         />
+        <Selection
+          title="Featured Gallery projects"
+          items={galleryProjects}
+          selected={galleryProjectIds}
+          max={8}
+          onChange={setGalleryProjectIds}
+        />
       </fieldset>
 
       <section className="rounded-xl border border-border bg-card p-4 sm:p-6">
@@ -1535,6 +1575,7 @@ function SectionDetails({
     | 'featuredProducts'
     | 'process'
     | 'solutions'
+    | 'gallery'
     | 'reviews'
     | 'pickupDelivery'
     | 'serviceAreas';
@@ -1546,6 +1587,20 @@ function SectionDetails({
   onNotice: (message: string) => void;
   rememberMedia: (item: Media) => void;
 }) {
+  if (section === 'gallery') {
+    return (
+      <TextField
+        label="Gallery button label"
+        value={content.gallery.ctaLabel}
+        onChange={(ctaLabel) =>
+          setContent((current) => ({
+            ...current,
+            gallery: { ...current.gallery, ctaLabel },
+          }))
+        }
+      />
+    );
+  }
   if (section === 'benefits') {
     return content.benefits.items.map((item, index) => (
       <ItemEditor
@@ -1641,8 +1696,29 @@ function SectionDetails({
         key={`solution-${index}`}
       >
         <legend className="px-1 text-sm font-medium">
-          Solution {index + 1}
+          Service {index + 1}
         </legend>
+        <label className="flex items-center gap-3 text-sm font-medium">
+          <input
+            checked={item.enabled}
+            disabled={!canEdit}
+            onChange={(event) =>
+              setContent((current) => ({
+                ...current,
+                solutions: {
+                  ...current.solutions,
+                  items: current.solutions.items.map((entry, itemIndex) =>
+                    itemIndex === index
+                      ? { ...entry, enabled: event.target.checked }
+                      : entry,
+                  ),
+                },
+              }))
+            }
+            type="checkbox"
+          />
+          Show this service card
+        </label>
         <TextField
           label="Title"
           value={item.title}
@@ -1721,6 +1797,52 @@ function SectionDetails({
             }));
           }}
         />
+        <TextField
+          label="Image alternative text"
+          value={item.altText}
+          onChange={(altText) =>
+            setContent((current) => ({
+              ...current,
+              solutions: {
+                ...current.solutions,
+                items: current.solutions.items.map((entry, itemIndex) =>
+                  itemIndex === index ? { ...entry, altText } : entry,
+                ),
+              },
+            }))
+          }
+        />
+        <label className="grid gap-2 text-sm font-medium">
+          Image focal position
+          <select
+            className={inputClass}
+            disabled={!canEdit}
+            onChange={(event) =>
+              setContent((current) => ({
+                ...current,
+                solutions: {
+                  ...current.solutions,
+                  items: current.solutions.items.map((entry, itemIndex) =>
+                    itemIndex === index
+                      ? {
+                          ...entry,
+                          focalPoint: event.target
+                            .value as typeof item.focalPoint,
+                        }
+                      : entry,
+                  ),
+                },
+              }))
+            }
+            value={item.focalPoint}
+          >
+            <option value="center">Center</option>
+            <option value="top">Top</option>
+            <option value="bottom">Bottom</option>
+            <option value="left">Left</option>
+            <option value="right">Right</option>
+          </select>
+        </label>
       </fieldset>
     ));
   }

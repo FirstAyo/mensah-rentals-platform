@@ -1,5 +1,9 @@
 # Contact enquiries
 
+## Relationship to Cart enquiries
+
+General `ContactEnquiry` and structured `CartEnquiry` are deliberately separate. Cart enquiries snapshot selected equipment, quantities, rental dates, fulfilment and project/contact details, and own a company-delivery outbox that can use authenticated SMTP. General Contact enquiries continue to use their existing database queue, are not routed through that SMTP transport, and are not silently converted. Both remain durable even when mail delivery is unavailable.
+
 ## Architecture
 
 `POST /public/contact-enquiries` accepts a small allowlisted contact payload and creates one durable `ContactEnquiry`. This database-backed queue is the source of truth. Phase 18.6 does not configure an outbound email provider and never reports email delivery. Authorized staff review enquiries at `/contact-enquiries` in Admin.
@@ -32,4 +36,6 @@ SUPER_ADMIN receives all permissions. ADMIN and SALES_PERSON receive both contac
 
 ## Email-provider direction
 
-Phase 19 may add a transactional email provider or durable delivery outbox only after production credentials, sender-domain authentication, retry/dead-letter policy, privacy terms, monitoring, and operational ownership are decided. A future delivery worker must treat the existing contact record as the accepted source and record delivery attempts separately; it must not reinterpret database storage as proof of delivery.
+Phase 19.2 adds a durable outbox and optional authenticated SMTP transport only for structured Cart enquiries. `SMTP_ENABLED=true` selects it and validated deployment configuration supplies the host, port/TLS mode, username, password, and sender identity. This does not retrofit general Contact enquiries: their Admin queue remains the notification source and the application makes no email-delivery claim for them.
+
+Cart delivery records attempts separately from the accepted enquiry. SMTP delivery is not exactly once: provider acceptance followed by an interrupted database update can leave an ambiguous `PROCESSING` row, and an operator retry could send a duplicate. Staff may recover a claim older than ten minutes with the audited manual retry action, but there is no scheduled retry worker. A future shared delivery worker must preserve each accepted source record, use bounded retry/dead-letter handling, alert operators, and use provider-supported idempotency where available.

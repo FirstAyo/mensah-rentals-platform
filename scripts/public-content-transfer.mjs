@@ -30,7 +30,7 @@ const require = createRequire(
 );
 const { PrismaClient } = require('@prisma/client');
 
-export const TRANSFER_FORMAT = 1;
+export const TRANSFER_FORMAT = 2;
 export const CONTENT_MODELS = Object.freeze([
   'category',
   'product',
@@ -41,7 +41,11 @@ export const CONTENT_MODELS = Object.freeze([
   'homepageRevision',
   'homepageFeaturedCategory',
   'homepageFeaturedProduct',
+  'homepageFeaturedGalleryProject',
   'homepageMediaPlacement',
+  'galleryProject',
+  'galleryProjectRevision',
+  'galleryProjectRevisionMedia',
   'publicPage',
   'publicPageRevision',
   'publicPageMediaPlacement',
@@ -65,7 +69,9 @@ export const FORBIDDEN_TRANSFER_KEYS = new Set([
 
 const DATE_KEYS = new Set([
   'createdAt',
+  'eventDate',
   'deletedAt',
+  'archivedAt',
   'publishedAt',
   'updatedAt',
 ]);
@@ -141,6 +147,26 @@ export function filterTransferContent(rawContent) {
   content.homepageFeaturedProduct = content.homepageFeaturedProduct.filter(
     (row) => productIds.has(row.productId),
   );
+  content.galleryProject = content.galleryProject.filter(
+    (row) => row.archivedAt == null,
+  );
+  const galleryProjectIds = new Set(
+    content.galleryProject.map((row) => row.id),
+  );
+  content.galleryProjectRevision = content.galleryProjectRevision.filter(
+    (row) => galleryProjectIds.has(row.galleryProjectId),
+  );
+  const galleryRevisionIds = new Set(
+    content.galleryProjectRevision.map((row) => row.id),
+  );
+  content.galleryProjectRevisionMedia =
+    content.galleryProjectRevisionMedia.filter((row) =>
+      galleryRevisionIds.has(row.revisionId),
+    );
+  content.homepageFeaturedGalleryProject =
+    content.homepageFeaturedGalleryProject.filter((row) =>
+      galleryProjectIds.has(row.galleryProjectId),
+    );
   content.homepageMediaPlacement = content.homepageMediaPlacement.filter(
     (row) =>
       row.productImageId == null || productImageIds.has(row.productImageId),
@@ -408,6 +434,42 @@ async function importContent(environment, bundlePath) {
               createdByUserId: actor.id,
             })),
           });
+        if (content.galleryProject.length)
+          await tx.galleryProject.createMany({
+            data: content.galleryProject.map((row) => ({
+              ...reviveRow(row),
+              draftRevisionId: null,
+              publishedRevisionId: null,
+              createdByUserId: actor.id,
+            })),
+          });
+        for (const row of [...content.galleryProjectRevision].sort(
+          (left, right) => left.version - right.version,
+        )) {
+          await tx.galleryProjectRevision.create({
+            data: {
+              ...reviveRow(row),
+              basedOnRevisionId: null,
+              restoredFromRevisionId: null,
+              operationId: null,
+              payloadHash: null,
+              createdByUserId: actor.id,
+              publishedByUserId: row.publishedAt ? actor.id : null,
+            },
+          });
+        }
+        if (content.galleryProjectRevisionMedia.length)
+          await tx.galleryProjectRevisionMedia.createMany({
+            data: content.galleryProjectRevisionMedia.map(reviveRow),
+          });
+        for (const row of content.galleryProject)
+          await tx.galleryProject.update({
+            where: { id: row.id },
+            data: {
+              draftRevisionId: row.draftRevisionId,
+              publishedRevisionId: row.publishedRevisionId,
+            },
+          });
         if (content.homepageSite.length)
           await tx.homepageSite.createMany({
             data: content.homepageSite.map((row) => ({
@@ -434,6 +496,7 @@ async function importContent(environment, bundlePath) {
         for (const model of [
           'homepageFeaturedCategory',
           'homepageFeaturedProduct',
+          'homepageFeaturedGalleryProject',
           'homepageMediaPlacement',
         ]) {
           if (content[model].length)

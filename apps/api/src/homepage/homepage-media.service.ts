@@ -109,6 +109,7 @@ export class HomepageMediaService {
               homepageCategoryOverrides: true,
               categoryCovers: true,
               publicPagePlacements: true,
+              galleryRevisionMedia: true,
             },
           },
         },
@@ -118,10 +119,11 @@ export class HomepageMediaService {
         media._count.placements > 0 ||
         media._count.homepageCategoryOverrides > 0 ||
         media._count.categoryCovers > 0 ||
-        media._count.publicPagePlacements > 0
+        media._count.publicPagePlacements > 0 ||
+        media._count.galleryRevisionMedia > 0
       )
         throw new ConflictException(
-          'This image is used by homepage history and cannot be removed',
+          'This image is used by website or Gallery history and cannot be removed',
         );
       await tx.homepageMedia.delete({ where: { id } });
       await this.recordActivity(tx, actorUserId, 'MEDIA_REMOVED', {
@@ -182,6 +184,7 @@ export class HomepageMediaService {
               homepageCategoryOverrides: true,
               categoryCovers: true,
               publicPagePlacements: true,
+              galleryRevisionMedia: true,
             },
           },
         },
@@ -220,7 +223,8 @@ export class HomepageMediaService {
           item._count.placements +
           item._count.homepageCategoryOverrides +
           item._count.categoryCovers +
-          item._count.publicPagePlacements,
+          item._count.publicPagePlacements +
+          item._count.galleryRevisionMedia,
         productName: null,
       })),
       ...(query.source === 'HOMEPAGE' ? [] : product).map((item) => ({
@@ -291,6 +295,15 @@ export class HomepageMediaService {
                   publicPagePlacements: {
                     some: {
                       revision: { publishedHeadOf: { isNot: null } },
+                    },
+                  },
+                },
+                {
+                  galleryRevisionMedia: {
+                    some: {
+                      revision: {
+                        publishedHeadOf: { is: { archivedAt: null } },
+                      },
                     },
                   },
                 },

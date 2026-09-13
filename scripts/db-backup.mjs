@@ -40,7 +40,12 @@ counts AS (
     'MaintenanceWorkOrder', (SELECT count(*) FROM "MaintenanceWorkOrder"),
     'EquipmentInspection', (SELECT count(*) FROM "EquipmentInspection"),
     'HomepageRevision', (SELECT count(*) FROM "HomepageRevision"),
-    'HomepageMedia', (SELECT count(*) FROM "HomepageMedia")
+    'HomepageMedia', (SELECT count(*) FROM "HomepageMedia"),
+    'GalleryProject', (SELECT count(*) FROM "GalleryProject"),
+    'GalleryProjectRevision', (SELECT count(*) FROM "GalleryProjectRevision"),
+    'CartEnquiry', (SELECT count(*) FROM "CartEnquiry"),
+    'CartEnquiryItem', (SELECT count(*) FROM "CartEnquiryItem"),
+    'OutboundEmail', (SELECT count(*) FROM "OutboundEmail")
   ) AS value
 ),
 bulk_delta AS (

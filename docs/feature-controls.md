@@ -1,5 +1,11 @@
 # Feature controls and progressive rollout
 
+## Phase 19.2 customer submission mode
+
+The versioned `CustomerWorkflowSetting` is separate from the 11 optional feature states. It chooses `EMAIL_INQUIRY` (the seeded/default launch path) or `PLATFORM_REQUEST` for new Cart submissions. The API rechecks it at submission time; switching it never rewrites historical enquiries or Rental Requests.
+
+The new **Website + Email Enquiries** preset atomically disables optional operational modules and selects `EMAIL_INQUIRY`. The existing advanced presets remain available for controlled testing. Changes require `feature_settings.manage`, use expected-version and operation-ID protection, and create audit events. Website/catalogue/Gallery/Cart browsing, security, legal pages, health, backup, and SEO remain permanently available.
+
 ## Core company pages
 
 Homepage, Rentals catalogue, About, Contact, Privacy, Terms, sitemap, and robots are core public-web capabilities and are not toggleable. Contact enquiries remain available so visitors have a truthful fallback when rental requests are Disabled or production-hidden in Testing. About and global navigation do not render a broken request CTA: the catalogue remains available and About explains temporary request unavailability when applicable.
@@ -40,6 +46,7 @@ Full disable is rejected when requests await review or re-review, approved or pa
 ## Presets
 
 - **Website Only:** all optional operations Disabled; core public website and catalogue stay available.
+- **Website + Email Enquiries:** all optional operations Disabled and new Cart submissions use the durable email-enquiry path.
 - **Website + Rental Requests:** Rental Requests Enabled and other optional modules Disabled.
 - **Staged Operations Test:** every optional module Testing.
 - **Full Operations:** every optional module Enabled.
@@ -60,7 +67,7 @@ The reusable NestJS `@RequireFeature` decorator and global `FeatureGuard` enforc
 
 Admin navigation uses an authenticated, allowlisted availability response. Disabled direct routes first enforce normal page permission and then show a polished disabled page. Testing items have a text-and-icon badge. Audit History and System Status remain available independently.
 
-The public response contains only `rentalRequests` and `customerOrderPortal` booleans. It contains no internal state names, graph, version, reason, actor, audit, inventory, or workflow data. Catalogue pages remain public and indexable. Disabled transactional pages retain noindex behavior and are excluded from the sitemap.
+The public response contains only safe Cart/request/order availability booleans and `customerSubmissionMode`. It contains no internal state names, graph, version, reason, actor, audit, inventory, or workflow data. Catalogue, Gallery, and Cart browsing remain public and indexable as appropriate; private submission/transactional pages retain noindex behavior and are excluded from the sitemap.
 
 ## Admin UX and notifications
 

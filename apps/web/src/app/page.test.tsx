@@ -57,6 +57,7 @@ vi.mock('@/lib/public-homepage', async () => {
           slug: 'folding-chair',
         },
       ],
+      galleryProjects: [],
       googleReviews: {
         live: false,
         reviewsUrl: null,

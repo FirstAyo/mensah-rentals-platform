@@ -1,5 +1,48 @@
 # Testing Guide
 
+## Phase 19.2 Gallery and launch-enquiry verification
+
+Start PostgreSQL and run the additive database/RBAC/static gates:
+
+```powershell
+docker compose up -d postgres postgres-test
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm db:integrity
+pnpm seo:audit
+git diff --check
+```
+
+Success means every command exits 0, migration status is current, the integrity report passes, RBAC contains the Gallery/Cart-enquiry mappings, and SEO finds no unpublished Gallery, internal price, inventory availability, localhost URL, or fabricated offer data.
+
+Run the focused browser flow and relevant regressions with ordinary local dev servers stopped:
+
+```powershell
+pnpm test:e2e:gallery-homepage-launch-flow
+pnpm test:e2e:homepage-all
+pnpm test:e2e:homepage-admin
+pnpm test:e2e:homepage-media
+pnpm test:e2e:public-navigation
+pnpm test:e2e:public-company-pages
+pnpm test:e2e:public-pages-cms
+pnpm test:e2e:feature-settings
+pnpm test:e2e:staging-workflow-corrections
+pnpm test:e2e:seo
+```
+
+The focused test must use only the guarded database ending `_test`. Verify Published-only Gallery visibility/filter/detail/sitemap; CMS draft-preview-publish/archive, media ordering/reference safety and audit; four exact service cards; Homepage carousel pause/manual/reduced-motion behavior; accessible desktop mega menu/mobile accordion; email-mode Cart persistence/idempotency/outbox/Admin visibility; no advanced records or inventory mutations; and Full Platform regression.
+
+Manually test 320, 375, 390, 430, 768, 1024, and 1440 px in both themes. Check no overflow, active categories only, keyboard Escape/focus, lightbox, carousel, Cart badge, validation/errors, double submit, and zero serious/critical Axe issues. In local/test, email delivery is capture-only. In SMTP-enabled staging, verify both the durable Admin enquiry and delivery to the controlled staging mailbox. Provider failure must leave a visible retryable record; it must never discard the accepted enquiry.
+
 ## Phase 19.1 focused browser verification
 
 Run from the repository root after Docker Desktop is ready and ports 3000, 3001, and 4000 are free:

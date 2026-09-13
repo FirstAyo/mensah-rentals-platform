@@ -1,5 +1,13 @@
 # Phase 19.1 staging workflow corrections
 
+## Phase 19.2 staging follow-up
+
+Phase 19.2 does not change the deferred customer acceptance/price-visibility decision below. It adds an authoritative launch mode: `EMAIL_INQUIRY` is the default for new Cart submissions, while `PLATFORM_REQUEST` preserves this complete advanced workflow for controlled activation. Historical requests, prices, orders, and inventory ledgers are never converted when mode changes.
+
+Before staging, use the checklist in [Cart email enquiries](cart-email-enquiries.md): verified database and media backups, additive migration, RBAC seed/verify, a controlled `CART_ENQUIRY_RECIPIENT_EMAIL`, authenticated `SMTP_*` values, Basic auth/noindex checks, and Gallery/enquiry smoke tests. With `SMTP_ENABLED=true`, submit one test-owned Cart enquiry and confirm both the durable Admin record and receipt in the controlled staging mailbox. With SMTP disabled, the durable job remains queued and no delivery should be claimed.
+
+Treat mail as at-least-once operational delivery, not exactly once. If an SMTP attempt is interrupted after provider acceptance but before database confirmation, verify the mailbox/provider and Admin delivery history before using the audited retry action because a retry may send a duplicate. A `PROCESSING` claim must be at least ten minutes old before that manual action can recover it; the application does not schedule background retries.
+
 Phase 19.1 responds to staging QA without changing the customer acceptance business rules. It adds operational discoverability and small workflow improvements while retaining the existing Request → Decision → Quote → Confirmed Order → Reservation → Fulfilment → Return lifecycle.
 
 ## Approved Orders and assignment

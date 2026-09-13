@@ -163,6 +163,23 @@ const EXACT_MESSAGES: Array<{
 }> = [
   {
     matches: (method, path) =>
+      method === 'PUT' && /^\/api\/cart-enquiries\/[^/]+\/status$/.test(path),
+    message: {
+      success: 'Cart enquiry status updated successfully',
+      error: 'Cart enquiry status could not be updated',
+    },
+  },
+  {
+    matches: (method, path) =>
+      method === 'POST' &&
+      /^\/api\/cart-enquiries\/[^/]+\/email\/retry$/.test(path),
+    message: {
+      success: 'Company email delivery retried successfully',
+      error: 'Company email delivery could not be retried',
+    },
+  },
+  {
+    matches: (method, path) =>
       method === 'PATCH' && /^\/api\/orders\/[^/]+\/assignment$/.test(path),
     message: {
       success: 'Order assigned successfully',

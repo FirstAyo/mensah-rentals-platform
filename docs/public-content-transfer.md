@@ -1,8 +1,14 @@
 # Public-content transfer to staging
 
+## Phase 19.2 allowlist
+
+The public-content bundle now includes Gallery projects, immutable Gallery revisions, ordered managed-media references, Homepage featured-Gallery selections, and the referenced normalized media files. It carries the existing `PlatformFeatureSetting` rows, but it does **not** transfer `CustomerWorkflowSetting`; select the staging customer-submission mode explicitly after import. Local actor IDs, operation IDs, payload hashes, and audit history are stripped/remapped under the existing staging-attribution policy.
+
+`CartEnquiry`, `CartEnquiryItem`, `OutboundEmail`, and `OutboundEmailAttempt` are explicitly excluded because they contain operational/customer communication data. Create staging test enquiries through the UI after import. Set `CART_ENQUIRY_RECIPIENT_EMAIL` in the staging environment independently; it is not public content and is never exported.
+
 This operator workflow copies local catalogue/CMS content and media to an empty staging database. It deliberately excludes users, password/session/capability data, customers, enquiries, carts, rental requests, decisions, quotes, orders, inventory, reservations, fulfilment, returns, maintenance, audit events, and reports.
 
-The allowlist contains non-deleted categories and products, their product images/specifications, homepage content/media, category covers, public pages, and platform feature states. Soft-deleted local test fixtures and dependent records are excluded. Staff attribution and operation/payload identifiers are removed from the bundle. During import, content requiring attribution is assigned to one explicitly selected active staging `SUPER_ADMIN`.
+The allowlist contains non-deleted categories and products, their product images/specifications, homepage content/media and featured Gallery choices, Gallery project publication history/media references, category covers, public pages, and platform feature states. Soft-deleted local test fixtures and dependent records are excluded. Staff attribution and operation/payload identifiers are removed from the bundle. During import, content requiring attribution is assigned to one explicitly selected active staging `SUPER_ADMIN`.
 
 ## Safety rules
 
@@ -47,4 +53,4 @@ The deployment operator should follow the command sequence supplied for the spec
 
 Catalogue records retain their identifiers and current state. Homepage and public-page revision content is retained, but local staff attribution, idempotency operation IDs, and payload hashes are intentionally removed. Staging attribution points to the selected staging super administrator. Operational/audit history is not transferred.
 
-After import, verify public catalogue routes, product images, homepage sections, About/Contact/Terms/Privacy pages, feature states, admin catalogue/CMS pages, and both light/dark themes. Create new staging rental requests, quotes, orders, reservations, fulfilment, returns, and maintenance records through the normal interfaces.
+After import, verify public catalogue routes, product images, Homepage services/featured Gallery, Gallery listing/filter/detail/media, About/Contact/Terms/Privacy pages, feature/customer-submission state, admin catalogue/Gallery CMS pages, and both light/dark themes. Create new staging Cart enquiries, Rental Requests, quotes, orders, reservations, fulfilment, returns, and maintenance records through the normal interfaces.

@@ -1,5 +1,9 @@
 # Theme Foundation
 
+## Phase 19.2 company-experience surfaces
+
+Services, Gallery cards/detail/lightbox, the Homepage Gallery carousel, Rentals mega menu/mobile accordion, Cart enquiry form, and Admin Gallery/enquiry screens use the same semantic light/dark tokens. Focus indicators, overlays, status labels, controls, and error/success states must remain readable in both modes. Motion uses transforms/opacity and respects `prefers-reduced-motion`; the carousel does not autoplay for reduced-motion users.
+
 Phase 16.4 homepage and CMS components use the existing semantic tokens and system-first persisted theme provider. Hero overlays provide stable contrast in both modes; the guarded browser suite checks 320px layout, dark persistence, and serious/critical Axe findings.
 
 The customer website, admin dashboard, and staff login use a shared `ThemeProvider` and accessible `ThemeToggle` from `packages/ui`. `next-themes` applies a class to the document, follows the operating-system theme on first visit, and stores a manual light/dark choice in browser storage for future visits on that application origin.

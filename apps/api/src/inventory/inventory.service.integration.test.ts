@@ -461,6 +461,15 @@ describe('inventory service against PostgreSQL', () => {
       reason: 'No physical stock or live commitment remains',
     });
     expect((await service.get(created.id)).isActive).toBe(false);
+    await prisma.$transaction(async (tx) => {
+      // Remove the guarded-test-only orphan fixture once its assertions are
+      // complete so the reusable test database remains restorable.
+      await tx.$executeRaw`SET LOCAL session_replication_role = replica`;
+      await tx.inventoryReservationItem.delete({
+        where: { id: reservationItemId },
+      });
+      await tx.inventoryReservation.delete({ where: { id: reservationId } });
+    });
   });
 
   it('updates metadata, archives historical zero-stock inventory, and restores it', async () => {

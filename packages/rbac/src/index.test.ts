@@ -12,7 +12,7 @@ describe('RBAC catalogue', () => {
     expect(new Set(SYSTEM_ROLES.map(({ name }) => name)).size).toBe(
       SYSTEM_ROLES.length,
     );
-    expect(PERMISSION_CATALOGUE).toHaveLength(102);
+    expect(PERMISSION_CATALOGUE).toHaveLength(108);
   });
   it('grants SUPER_ADMIN every seeded permission', () => {
     expect(DEFAULT_ROLE_PERMISSION_KEYS.SUPER_ADMIN).toEqual(
@@ -170,5 +170,31 @@ describe('RBAC catalogue', () => {
     expect(DEFAULT_ROLE_PERMISSION_KEYS.SALES_PERSON).not.toContain(
       'public_pages.view',
     );
+  });
+  it('grants Gallery CMS authority to website editors without exposing it to sales', () => {
+    for (const permission of [
+      'gallery.view',
+      'gallery.edit',
+      'gallery.publish',
+      'gallery.preview',
+    ] as const) {
+      expect(DEFAULT_ROLE_PERMISSION_KEYS.SUPER_ADMIN).toContain(permission);
+      expect(DEFAULT_ROLE_PERMISSION_KEYS.ADMIN).toContain(permission);
+      expect(DEFAULT_ROLE_PERMISSION_KEYS.EDITOR).toContain(permission);
+      expect(DEFAULT_ROLE_PERMISSION_KEYS.SALES_PERSON).not.toContain(
+        permission,
+      );
+    }
+  });
+  it('grants Cart enquiry operations to Admin and Sales without exposing them to Editor', () => {
+    for (const permission of [
+      'cart_enquiry.view',
+      'cart_enquiry.manage',
+    ] as const) {
+      expect(DEFAULT_ROLE_PERMISSION_KEYS.SUPER_ADMIN).toContain(permission);
+      expect(DEFAULT_ROLE_PERMISSION_KEYS.ADMIN).toContain(permission);
+      expect(DEFAULT_ROLE_PERMISSION_KEYS.SALES_PERSON).toContain(permission);
+      expect(DEFAULT_ROLE_PERMISSION_KEYS.EDITOR).not.toContain(permission);
+    }
   });
 });

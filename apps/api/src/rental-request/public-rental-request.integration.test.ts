@@ -6,6 +6,7 @@ import request from 'supertest';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import { AuthModule } from '../auth/auth.module';
+import { FeatureSettingsService } from '../feature-settings/feature-settings.service';
 import { RentalRequestModule } from './rental-request.module';
 import { PublicRentalRequestRateLimitGuard } from './public-rental-request-rate-limit.guard';
 import { PublicRentalRequestService } from './public-rental-request.service';
@@ -51,6 +52,11 @@ describe('public rental request HTTP boundary', () => {
     })
       .overrideProvider(PublicRentalRequestService)
       .useValue(service)
+      .overrideProvider(FeatureSettingsService)
+      .useValue({
+        assertAvailable: vi.fn(async () => undefined),
+        assertCustomerSubmissionMode: vi.fn(async () => undefined),
+      })
       .overrideGuard(PublicRentalRequestRateLimitGuard)
       .useValue({ canActivate: () => true })
       .compile();

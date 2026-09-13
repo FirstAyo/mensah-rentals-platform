@@ -327,7 +327,9 @@ describe('feature settings against PostgreSQL', () => {
     });
     const response = await service.publicCapabilities();
     expect(response).toEqual({
+      cartSubmissionsAvailable: true,
       customerOrderPortal: false,
+      customerSubmissionMode: 'EMAIL_INQUIRY',
       rentalRequests: true,
     });
     expect(JSON.stringify(response)).not.toMatch(

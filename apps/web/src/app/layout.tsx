@@ -5,6 +5,7 @@ import { PublicShell } from '@/components/public-shell';
 import { AppProviders } from '@/components/app-providers';
 import { indexingEnabled, siteOrigin } from '@/lib/site-config';
 import { getPublicFeatures } from '@/lib/public-features';
+import { getPublicNavigationCategories } from '@/lib/public-navigation';
 
 import './globals.css';
 
@@ -23,13 +24,21 @@ export const metadata: Metadata = {
 export default async function RootLayout({
   children,
 }: Readonly<{ children: ReactNode }>) {
-  const features = await getPublicFeatures();
+  const [features, rentalCategories] = await Promise.all([
+    getPublicFeatures(),
+    getPublicNavigationCategories(),
+  ]);
   return (
     <html lang="en" suppressHydrationWarning>
       <body>
         <ThemeProvider>
           <AppProviders>
-            <PublicShell features={features}>{children}</PublicShell>
+            <PublicShell
+              features={features}
+              rentalCategories={rentalCategories}
+            >
+              {children}
+            </PublicShell>
           </AppProviders>
         </ThemeProvider>
       </body>

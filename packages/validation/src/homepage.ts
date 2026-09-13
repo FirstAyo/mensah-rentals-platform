@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { galleryServiceSlugSchema, gallerySlugSchema } from './gallery';
 
 const text = (max: number) => z.string().trim().min(1).max(max);
 const optionalText = (max: number) => z.string().trim().max(max).default('');
@@ -33,6 +34,18 @@ const headingBlock = z
   .strict();
 
 const mediaId = z.string().cuid();
+const homepageServiceTypes = [
+  'FILM_PRODUCTION',
+  'EVENTS_FESTIVALS',
+  'CORPORATE_FUNCTIONS',
+  'PRIVATE_FUNCTIONS',
+] as const;
+const homepageServiceHrefs = {
+  FILM_PRODUCTION: '/gallery?type=film-production',
+  EVENTS_FESTIVALS: '/gallery?type=events-festivals',
+  CORPORATE_FUNCTIONS: '/gallery?type=corporate-functions',
+  PRIVATE_FUNCTIONS: '/gallery?type=private-functions',
+} as const;
 export const homepageMediaReferenceSchema = z.union([
   mediaId,
   z.string().regex(/^product:[a-z0-9]+$/),
@@ -44,6 +57,18 @@ export const homepageFocalPointSchema = z.enum([
   'left',
   'right',
 ]);
+const homepageServiceItemSchema = z
+  .object({
+    serviceType: z.enum(homepageServiceTypes),
+    title: text(100),
+    description: text(300),
+    href: internalHref,
+    mediaId: homepageMediaReferenceSchema.nullable().default(null),
+    altText: optionalText(300),
+    focalPoint: homepageFocalPointSchema.default('center'),
+    enabled: z.boolean().default(true),
+  })
+  .strict();
 const iconKey = z.enum([
   'badge-check',
   'calendar-check',
@@ -147,20 +172,45 @@ export const homepageContentSchema = z
         .max(4),
     }),
     solutions: headingBlock.extend({
-      items: z
-        .array(
-          z
-            .object({
-              title: text(100),
-              description: text(300),
-              href: internalHref,
-              mediaId: homepageMediaReferenceSchema.nullable().default(null),
-              enabled: z.boolean().default(true),
-            })
-            .strict(),
-        )
-        .min(1)
-        .max(4),
+      items: z.preprocess(
+        (value) =>
+          Array.isArray(value)
+            ? value.map((item, index) => {
+                if (!item || typeof item !== 'object') return item;
+                const record = item as Record<string, unknown>;
+                const serviceType = homepageServiceTypes.includes(
+                  record.serviceType as (typeof homepageServiceTypes)[number],
+                )
+                  ? (record.serviceType as (typeof homepageServiceTypes)[number])
+                  : homepageServiceTypes[index];
+                return serviceType
+                  ? {
+                      altText: '',
+                      focalPoint: 'center',
+                      ...item,
+                      serviceType,
+                      href: homepageServiceHrefs[serviceType],
+                    }
+                  : item;
+              })
+            : value,
+        z
+          .array(homepageServiceItemSchema)
+          .length(4)
+          .refine(
+            (items) =>
+              new Set(items.map((item) => item.serviceType)).size === 4,
+            'Each controlled service type must appear exactly once.',
+          ),
+      ),
+    }),
+    gallery: headingBlock.extend({ ctaLabel: text(50) }).default({
+      enabled: true,
+      eyebrow: 'Recent work',
+      heading: 'See how the equipment comes together',
+      description:
+        'Explore selected projects and functions supported by Mensah Rentals.',
+      ctaLabel: 'View the full Gallery',
     }),
     reviews: headingBlock.extend({
       enabled: z.boolean().default(true),
@@ -228,6 +278,11 @@ export const saveHomepageDraftSchema = z
       .array(mediaId)
       .max(12)
       .refine((ids) => new Set(ids).size === ids.length),
+    featuredGalleryProjectIds: z
+      .array(mediaId)
+      .max(8)
+      .default([])
+      .refine((ids) => new Set(ids).size === ids.length),
   })
   .strict();
 
@@ -294,7 +349,7 @@ export const publicHomepageContentSchema = homepageContentSchema
       .omit({ items: true })
       .extend({
         items: z.array(
-          homepageContentSchema.shape.solutions.shape.items.element
+          homepageServiceItemSchema
             .omit({ mediaId: true })
             .extend({ imageUrl: publicHomepageMediaUrl.nullable() })
             .strict(),
@@ -360,6 +415,28 @@ export const publicHomepageResponseSchema = z
           rentalUnit: z.string(),
           shortDescription: z.string(),
           slug: z.string(),
+        })
+        .strict(),
+    ),
+    galleryProjects: z.array(
+      z
+        .object({
+          title: z.string(),
+          slug: gallerySlugSchema,
+          shortDescription: z.string(),
+          eventDate: z.string().nullable(),
+          imageCount: z.number().int().min(1),
+          location: z.string().nullable(),
+          service: z
+            .object({ label: z.string(), slug: galleryServiceSlugSchema })
+            .strict(),
+          cover: z
+            .object({
+              url: publicHomepageMediaUrl,
+              altText: z.string(),
+              focalPoint: homepageFocalPointSchema,
+            })
+            .strict(),
         })
         .strict(),
     ),
@@ -511,34 +588,58 @@ export const DEFAULT_HOMEPAGE_CONTENT: HomepageContent = {
       'Plan an equipment request for gatherings, productions, organizations, and field projects.',
     items: [
       {
-        title: 'Events',
-        description: 'Equipment for gatherings and live experiences.',
-        href: '/rentals',
+        serviceType: 'FILM_PRODUCTION',
+        title: 'Film Production',
+        description:
+          'Practical rental support for crews, sets, and production days.',
+        href: '/gallery?type=film-production',
         mediaId: null,
+        altText: '',
+        focalPoint: 'center',
         enabled: true,
       },
       {
-        title: 'Film productions',
-        description: 'Practical support for production environments.',
-        href: '/rentals',
+        serviceType: 'EVENTS_FESTIVALS',
+        title: 'Events & Festivals',
+        description:
+          'Equipment support for live gatherings, festivals, and public events.',
+        href: '/gallery?type=events-festivals',
         mediaId: null,
+        altText: '',
+        focalPoint: 'center',
         enabled: true,
       },
       {
-        title: 'Corporate projects',
-        description: 'Flexible equipment for teams and organized programs.',
-        href: '/rentals',
+        serviceType: 'CORPORATE_FUNCTIONS',
+        title: 'Corporate Functions',
+        description:
+          'Reliable equipment for meetings, launches, and company occasions.',
+        href: '/gallery?type=corporate-functions',
         mediaId: null,
+        altText: '',
+        focalPoint: 'center',
         enabled: true,
       },
       {
-        title: 'Community work',
-        description: 'Rental support for local initiatives and field activity.',
-        href: '/rentals',
+        serviceType: 'PRIVATE_FUNCTIONS',
+        title: 'Private Functions',
+        description:
+          'Thoughtful equipment support for celebrations and private gatherings.',
+        href: '/gallery?type=private-functions',
         mediaId: null,
+        altText: '',
+        focalPoint: 'center',
         enabled: true,
       },
     ],
+  },
+  gallery: {
+    enabled: true,
+    eyebrow: 'Recent work',
+    heading: 'See how the equipment comes together',
+    description:
+      'Explore selected productions, events, corporate functions, and private occasions supported by Mensah Rentals.',
+    ctaLabel: 'View the full Gallery',
   },
   reviews: {
     enabled: true,

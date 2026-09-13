@@ -169,7 +169,11 @@ function CartLine({ item }: { item: PublicCartItemResponse }) {
   );
 }
 
-export function RentalCart() {
+export function RentalCart({
+  submissionMode,
+}: {
+  submissionMode: 'EMAIL_INQUIRY' | 'PLATFORM_REQUEST';
+}) {
   const cart = useCart();
   const clear = useClearCart();
   const dialog = useRef<HTMLDialogElement>(null);
@@ -274,17 +278,22 @@ export function RentalCart() {
         </dl>
         <div className="mt-6 rounded-xl bg-accent p-4 text-sm leading-6 text-accent-foreground">
           Adding items does not reserve equipment. Staff will privately review
-          your dates and desired quantities after you submit a rental request.
+          your dates and desired quantities after you submit.
         </div>
         <p className="mt-4 text-sm leading-6 text-muted-foreground">
-          No final rental price is calculated here. Staff may approve, partially
-          approve, or reject the request after review.
+          No final rental price or inventory availability is calculated here.
         </p>
         <a
           className="mt-6 inline-flex min-h-12 w-full items-center justify-center rounded-lg bg-primary px-5 font-semibold text-primary-foreground"
-          href="/rental-request"
+          href={
+            submissionMode === 'EMAIL_INQUIRY'
+              ? '/cart/enquiry'
+              : '/rental-request'
+          }
         >
-          Continue to rental request
+          {submissionMode === 'EMAIL_INQUIRY'
+            ? 'Send rental enquiry'
+            : 'Continue to rental request'}
         </a>
       </aside>
 

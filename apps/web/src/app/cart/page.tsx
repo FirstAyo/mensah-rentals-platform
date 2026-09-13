@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 
 export default async function CartPage() {
   const features = await getPublicFeatures();
-  if (!features.rentalRequests)
+  if (!features.cartSubmissionsAvailable)
     return <PublicFeatureUnavailable title="Rental cart" />;
   return (
     <div className="mx-auto max-w-[1760px] px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
@@ -30,7 +30,7 @@ export default async function CartPage() {
         </p>
       </div>
       <div className="mt-10">
-        <RentalCart />
+        <RentalCart submissionMode={features.customerSubmissionMode} />
       </div>
     </div>
   );

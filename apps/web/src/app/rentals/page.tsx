@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
-import { PackageSearch } from 'lucide-react';
+import { ArrowRight, PackageSearch, SearchCheck } from 'lucide-react';
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { CatalogueFilters } from '@/components/catalogue-filters';
 import { CataloguePagination } from '@/components/catalogue-pagination';
@@ -137,6 +138,29 @@ export default async function RentalsPage({
           totalPages={products.meta.totalPages}
         />
       </section>
+
+      <aside className="mt-16 flex flex-col gap-5 rounded-3xl border border-border bg-muted/45 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
+        <div className="flex max-w-3xl gap-4">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
+            <SearchCheck aria-hidden="true" className="h-5 w-5" />
+          </span>
+          <div>
+            <h2 className="text-xl font-semibold">Can’t find what you need?</h2>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Tell our team about unlisted or specialist equipment. You can also
+              include additional equipment details when sending your cart
+              enquiry.
+            </p>
+          </div>
+        </div>
+        <Link
+          className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-xl bg-primary px-5 font-semibold text-primary-foreground outline-none transition hover:opacity-90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transition-none"
+          href="/contact"
+        >
+          Contact our team
+          <ArrowRight aria-hidden="true" className="h-4 w-4" />
+        </Link>
+      </aside>
     </div>
   );
 }

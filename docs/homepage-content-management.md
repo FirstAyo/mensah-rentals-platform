@@ -1,5 +1,11 @@
 # Homepage Content Management
 
+## Phase 19.2 services and featured Gallery
+
+Homepage content now includes exactly four typed photographic service cards—Film Production, Events & Festivals, Corporate Functions, and Private Functions—and a featured Gallery section. Editors may change bounded title/copy, managed image, alt text, focal position, visibility, and presentation ordering, but may not invent or rename service types. Cards link to validated `/gallery?type=...` filters.
+
+Each immutable Homepage revision stores its ordered `HomepageFeaturedGalleryProject` selection. Only projects with a current Published, non-archived revision render publicly. The carousel copy/timing is bounded, has manual controls, and pauses for hover, keyboard focus, hidden tabs, and reduced motion. The early services placement, Gallery section, Product merchandising, and company messaging preserve the Homepage revision/preview/publish boundary.
+
 ## Phase 16.4.1 live Google Reviews
 
 The published reviews section can now render current Google Places API (New) data through a separate server-only, no-store boundary. CMS fields continue to own only the enabled state, eyebrow, heading, truthful fallback message, and Google read/write links. Staff cannot edit or publish ratings, counts, authors, review copy, dates, or source links, and no Google content is added to an immutable homepage revision.
@@ -26,7 +32,7 @@ Every save, publish, restore, media upload, and media removal records append-onl
 
 ## Editable content
 
-The strict shared Zod contract covers SEO, hero copy and calls to action, up to three hero slides, trust items, featured-category copy, benefits, featured-product copy, the four-step process, solutions, Google review links, pickup/delivery content, service areas, and the final call to action. Inputs are bounded plain text; HTML and unsafe URLs are rejected.
+The strict shared Zod contract covers SEO, hero copy and calls to action, up to three hero slides, trust items, the four typed services, featured-category copy, featured Gallery copy/selection, benefits, featured-product copy, the four-step process, legacy solutions, Google review links, pickup/delivery content, service areas, and the final call to action. Inputs are bounded plain text; HTML and unsafe URLs are rejected.
 
 Featured categories and products are relationships, not copied catalogue records. Selecting them does not change slugs, descriptions, images, inventory, or rental workflows. Only active, non-deleted records can be saved or published. If a selected record is later inactive or tombstoned, the public mapper omits it while history remains intact.
 

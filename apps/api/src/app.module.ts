@@ -25,6 +25,8 @@ import { AuditModule } from './audit/audit.module';
 import { SystemStatusModule } from './system/system-status.module';
 import { ContactEnquiryModule } from './contact-enquiries/contact-enquiry.module';
 import { PublicPagesModule } from './public-pages/public-pages.module';
+import { CartEnquiryModule } from './cart-enquiries/cart-enquiry.module';
+import { GalleryModule } from './gallery/gallery.module';
 
 @Module({
   imports: [
@@ -51,6 +53,8 @@ import { PublicPagesModule } from './public-pages/public-pages.module';
     SystemStatusModule,
     ContactEnquiryModule,
     PublicPagesModule,
+    CartEnquiryModule,
+    GalleryModule,
   ],
   controllers: [HealthController],
   providers: [DatabaseService, HealthService],

@@ -62,23 +62,21 @@ test('@feature-settings Website Only preserves the public catalogue and hides op
   await expect(page.getByRole('link', { name: /track request/i })).toHaveCount(
     0,
   );
-  await expect(page.getByRole('link', { name: /rental cart/i })).toHaveCount(0);
-  const disabledCart = await page.request.get(
+  await expect(page.getByRole('link', { name: /rental cart/i })).toBeVisible();
+  const enquiryCart = await page.request.get(
     'http://localhost:4000/public/cart',
   );
-  expect(disabledCart.status()).toBe(409);
+  expect(enquiryCart.status()).toBe(200);
   await page.goto('http://localhost:3000/cart');
   await expect(
-    page.getByRole('heading', {
-      name: /Rental cart is currently unavailable/i,
-    }),
+    page.getByRole('heading', { name: /Equipment your project needs/i }),
   ).toBeVisible();
   await page.goto('http://localhost:3000/rentals');
   const productLink = page.getByRole('link', { name: /^View / }).first();
   await expect(productLink).toBeVisible();
   await productLink.click();
   await expect(
-    page.getByText('Rental requests are currently offline'),
+    page.getByRole('button', { name: 'Add to rental cart' }),
   ).toBeVisible();
 });
 

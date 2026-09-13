@@ -1,5 +1,11 @@
 # Public SEO and Indexability
 
+## Phase 19.2 Gallery SEO
+
+`/gallery` has unique title, description, Open Graph/Twitter metadata, and canonical `https://mensahrentals.com/gallery`. Valid `?type=` filters are user-facing views but canonicalize to the base Gallery and are not separate thin indexable pages. Each Published, non-archived `/gallery/[slug]` detail has unique metadata, canonical, managed cover image where present, and factual breadcrumb structured data. Draft and archived projects return true 404 publicly and never enter the sitemap.
+
+Structured data does not invent Event facts, organizers, attendees, offers, price, availability, reviews, or ratings. Gallery and navigation images use managed optimized assets, dimensions, meaningful alt text, responsive sizing, and lazy loading below the fold. Staging remains globally noindex with no sitemap regardless of Gallery publication.
+
 ## Production origin
 
 `https://mensahrentals.com` is the authoritative public origin. Canonicals, Open Graph URLs, sitemap entries, and JSON-LD URLs use the HTTPS non-www host. `SITE_URL` controls SEO-visible URLs; `WEB_ORIGIN` remains a separate runtime/CORS setting. When `SITE_INDEXING_ENABLED=true`, startup fails unless `SITE_URL` is exactly `https://mensahrentals.com`. Local development uses `SITE_URL=http://localhost:3000` with indexing disabled.

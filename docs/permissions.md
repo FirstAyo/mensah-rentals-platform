@@ -1,5 +1,13 @@
 # Permissions and Roles
 
+## Phase 19.2 Gallery and Cart enquiries
+
+- `gallery.view`, `gallery.edit`, `gallery.publish`, and `gallery.preview` protect the revisioned Gallery CMS. ADMIN and EDITOR receive all four; SALES_PERSON receives none.
+- `cart_enquiry.view` reads enquiry snapshots and delivery state. `cart_enquiry.manage` changes staff status or requeues delivery. ADMIN and SALES_PERSON receive both; EDITOR receives neither.
+- SUPER_ADMIN receives every seeded permission. Backend enforcement is authoritative; hidden navigation is not authorization.
+
+The idempotent RBAC seed adds these keys and mappings without overwriting intentional custom-role changes.
+
 ## Phase 18.6 contact enquiries
 
 - `contact_enquiry.view` permits the protected list/detail queue.

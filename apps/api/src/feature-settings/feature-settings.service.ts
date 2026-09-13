@@ -26,6 +26,8 @@ import {
   type FeatureChangePreviewInput,
   type FeaturePresetApplyInput,
   type FeaturePresetPreviewInput,
+  type CustomerSubmissionMode,
+  type CustomerWorkflowChangeInput,
   type PlatformEnvironment,
 } from '@mensah-rentals/validation';
 
@@ -52,12 +54,14 @@ export class FeatureSettingsService {
   }
 
   async list(): Promise<AdminFeatureSettingsResponse> {
-    const rows = await prisma.platformFeatureSetting.findMany({
-      orderBy: { key: 'asc' },
-    });
+    const [rows, customerWorkflow] = await Promise.all([
+      prisma.platformFeatureSetting.findMany({ orderBy: { key: 'asc' } }),
+      this.customerWorkflow(),
+    ]);
     const dependents = this.dependents();
     return {
       environment: this.environment(),
+      customerWorkflow,
       features: rows.map((row) => ({
         dependencies: [...FEATURE_DEPENDENCIES[row.key]],
         dependents: dependents[row.key],
@@ -72,15 +76,20 @@ export class FeatureSettingsService {
   }
 
   async publicCapabilities(): Promise<PublicPlatformCapabilitiesResponse> {
-    const rows = await prisma.platformFeatureSetting.findMany({
-      where: { key: { in: ['RENTAL_REQUESTS', 'CUSTOMER_ORDER_PORTAL'] } },
-      select: { key: true, state: true },
-    });
+    const [rows, customerWorkflow] = await Promise.all([
+      prisma.platformFeatureSetting.findMany({
+        where: { key: { in: ['RENTAL_REQUESTS', 'CUSTOMER_ORDER_PORTAL'] } },
+        select: { key: true, state: true },
+      }),
+      this.customerWorkflow(),
+    ]);
     const states = Object.fromEntries(
       rows.map((row) => [row.key, row.state]),
     ) as Partial<StateMap>;
     const environment = this.environment();
     return {
+      cartSubmissionsAvailable: true,
+      customerSubmissionMode: customerWorkflow.mode,
       customerOrderPortal: isFeatureAvailable(
         states.CUSTOMER_ORDER_PORTAL ?? 'DISABLED',
         environment,
@@ -92,6 +101,94 @@ export class FeatureSettingsService {
         'PUBLIC',
       ),
     };
+  }
+
+  async assertCustomerSubmissionMode(expected: CustomerSubmissionMode) {
+    const setting = await this.customerWorkflow();
+    if (setting.mode !== expected) {
+      throw new ConflictException({
+        code: 'CUSTOMER_SUBMISSION_MODE_CHANGED',
+        error: 'Conflict',
+        message:
+          'The customer submission option changed. Refresh and try again.',
+        statusCode: 409,
+      });
+    }
+  }
+
+  async changeCustomerWorkflow(
+    actorUserId: string,
+    input: CustomerWorkflowChangeInput,
+  ) {
+    const payloadHash = this.hash(input);
+    return this.coordinator.withWrite(() =>
+      prisma.$transaction(
+        async (tx) => {
+          await tx.$executeRaw`SELECT pg_advisory_xact_lock(1885, 1)`;
+          const sourceKey = `customer-workflow:${input.operationId}`;
+          const existing = await tx.platformAuditEvent.findUnique({
+            where: { sourceKey },
+          });
+          if (existing) {
+            const metadata = existing.metadata as {
+              payloadHash?: string;
+            } | null;
+            if (metadata?.payloadHash !== payloadHash) {
+              throw new ConflictException({
+                code: 'OPERATION_ID_CONFLICT',
+                error: 'Conflict',
+                message:
+                  'This operation ID was already used for a different change.',
+                statusCode: 409,
+              });
+            }
+            return this.listWith(tx);
+          }
+          const current = await tx.customerWorkflowSetting.upsert({
+            where: { id: 'customer-workflow' },
+            create: { id: 'customer-workflow' },
+            update: {},
+          });
+          if (current.version !== input.expectedVersion) {
+            throw new ConflictException({
+              code: 'CUSTOMER_WORKFLOW_STALE',
+              error: 'Conflict',
+              message:
+                'Customer workflow settings changed. Refresh and try again.',
+              statusCode: 409,
+            });
+          }
+          const next = await tx.customerWorkflowSetting.update({
+            where: { id: current.id },
+            data: {
+              mode: input.mode,
+              updatedByUserId: actorUserId,
+              version: { increment: 1 },
+            },
+          });
+          await tx.platformAuditEvent.create({
+            data: {
+              action: 'CUSTOMER_SUBMISSION_MODE_CHANGED',
+              actorUserId,
+              domain: 'FEATURE_SETTINGS',
+              entityReference: next.id,
+              entityType: 'CustomerWorkflowSetting',
+              metadata: {
+                from: current.mode,
+                operationId: input.operationId,
+                payloadHash,
+                to: next.mode,
+              },
+              sourceKey,
+              sourceType: 'CUSTOMER_SUBMISSION_MODE_CHANGED',
+              summary: `Changed customer submission mode from ${current.mode} to ${next.mode}.`,
+            },
+          });
+          return this.listWith(tx);
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      ),
+    );
   }
 
   async adminAvailability(): Promise<AdminFeatureAvailabilityResponse> {
@@ -517,6 +614,34 @@ export class FeatureSettingsService {
         },
       });
     }
+    let customerSubmissionModeChange:
+      | { from: CustomerSubmissionMode; to: CustomerSubmissionMode }
+      | undefined;
+    if (preset) {
+      const desiredMode: CustomerSubmissionMode =
+        preset === 'WEBSITE_ONLY' || preset === 'WEBSITE_AND_EMAIL_ENQUIRIES'
+          ? 'EMAIL_INQUIRY'
+          : 'PLATFORM_REQUEST';
+      const currentWorkflow = await tx.customerWorkflowSetting.upsert({
+        where: { id: 'customer-workflow' },
+        create: { id: 'customer-workflow' },
+        update: {},
+      });
+      if (currentWorkflow.mode !== desiredMode) {
+        await tx.customerWorkflowSetting.update({
+          where: { id: currentWorkflow.id },
+          data: {
+            mode: desiredMode,
+            updatedByUserId: actorUserId,
+            version: { increment: 1 },
+          },
+        });
+        customerSubmissionModeChange = {
+          from: currentWorkflow.mode,
+          to: desiredMode,
+        };
+      }
+    }
     await tx.platformAuditEvent.create({
       data: {
         action,
@@ -530,6 +655,9 @@ export class FeatureSettingsService {
           operationId,
           payloadHash,
           ...(preset ? { preset } : {}),
+          ...(customerSubmissionModeChange
+            ? { customerSubmissionModeChange }
+            : {}),
           ...(reason ? { reason } : {}),
         } as Prisma.InputJsonValue,
         sourceKey: `feature-settings:${operationId}`,
@@ -566,12 +694,14 @@ export class FeatureSettingsService {
   private async listWith(
     tx: Prisma.TransactionClient,
   ): Promise<AdminFeatureSettingsResponse> {
-    const rows = await tx.platformFeatureSetting.findMany({
-      orderBy: { key: 'asc' },
-    });
+    const [rows, customerWorkflow] = await Promise.all([
+      tx.platformFeatureSetting.findMany({ orderBy: { key: 'asc' } }),
+      this.customerWorkflow(tx),
+    ]);
     const dependents = this.dependents();
     return {
       environment: this.environment(),
+      customerWorkflow,
       features: rows.map((row) => ({
         dependencies: [...FEATURE_DEPENDENCIES[row.key]],
         dependents: dependents[row.key],
@@ -582,6 +712,21 @@ export class FeatureSettingsService {
         updatedAt: row.updatedAt.toISOString(),
         version: row.version,
       })),
+    };
+  }
+
+  private async customerWorkflow(
+    tx: Prisma.TransactionClient | typeof prisma = prisma,
+  ) {
+    const row = await tx.customerWorkflowSetting.upsert({
+      where: { id: 'customer-workflow' },
+      create: { id: 'customer-workflow' },
+      update: {},
+    });
+    return {
+      mode: row.mode,
+      updatedAt: row.updatedAt.toISOString(),
+      version: row.version,
     };
   }
 

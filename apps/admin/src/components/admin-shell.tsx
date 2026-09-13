@@ -23,7 +23,9 @@ import {
   Activity,
   Settings,
   MessagesSquare,
+  Send,
   Files,
+  Images,
 } from 'lucide-react';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
@@ -40,6 +42,12 @@ const links = [
     permission: 'contact_enquiry.view',
   },
   {
+    href: '/enquiries',
+    icon: Send,
+    label: 'Cart Enquiries',
+    permission: 'cart_enquiry.view',
+  },
+  {
     href: '/website/homepage',
     icon: PanelsTopLeft,
     label: 'Homepage',
@@ -50,6 +58,12 @@ const links = [
     icon: Files,
     label: 'Public Pages',
     permission: 'public_pages.view',
+  },
+  {
+    href: '/website/gallery',
+    icon: Images,
+    label: 'Gallery',
+    permission: 'gallery.view',
   },
   {
     href: '/products',

@@ -1,5 +1,34 @@
 # Local Development on Windows
 
+## Phase 19.2 Gallery and Cart enquiries (PowerShell)
+
+Do not reset the development database. Before applying the additive migration, start Docker, create a verified ignored backup, and record integrity:
+
+```powershell
+docker compose up -d postgres postgres-test
+pnpm db:status
+pnpm db:integrity
+pnpm db:backup
+pnpm db:validate
+pnpm db:generate
+pnpm db:migrate
+pnpm db:status
+pnpm rbac:seed
+pnpm rbac:verify
+```
+
+Migration `20260911170000_phase_19_2_gallery_email_enquiries` adds Gallery revisions/media selection, customer workflow settings, Cart enquiries/item snapshots, and outbound email/attempt history. Never use `prisma migrate reset`, `db push --force-reset`, `TRUNCATE`, `docker compose down -v`, or a destructive seed on development/staging/production.
+
+Copy `.env.example` only when `.env` does not already exist, then set `CART_ENQUIRY_RECIPIENT_EMAIL` to a safe local address. Do not put production credentials in source control. Local/test uses capture-only delivery and makes no network email request.
+
+```powershell
+pnpm dev
+```
+
+Open `http://localhost:3000`, `http://localhost:3000/gallery`, and `http://localhost:3000/cart/enquiry`. Sign in at `http://localhost:3001/login`; use Website → Gallery for draft/preview/publish and Settings → Features to choose **Website + Email Enquiries** or Full Platform. Review submissions under Admin → Enquiries. A local `SENT` status means safe capture, not delivery to a real inbox.
+
+To test `PLATFORM_REQUEST`, switch mode in Settings and submit a newly prepared Cart through the existing Rental Request flow. Switch back to Email Enquiries and confirm historical requests/enquiries remain unchanged. Do not expect an acknowledgement email; the current customer confirmation is the receipt page/message.
+
 > VPS staging uses optimized production containers and a separate environment; it does not replace this Windows workflow. Follow [VPS deployment](deployment.md) only after all local gates pass. Never reuse local `.env` credentials or local database data on the VPS.
 
 ## Phase 18.6 company pages and contact enquiries
@@ -31,7 +60,7 @@ Submit the Contact form with a test-owned email address. A success message and `
 
 If `Contact enquiry service is temporarily unavailable` appears, confirm API health at http://localhost:4000/health/database, confirm migration status with `pnpm db:status`, and ensure Web and API use the same `WEB_ORIGIN=http://localhost:3000`. A `429` response means the bounded development rate limit was reached; wait for the configured window instead of weakening production defaults.
 
-No SMTP or transactional-email credentials are required in Phase 18.6. Production email delivery is a Phase 19 provider, sender-domain, privacy, retry, and monitoring decision.
+The Phase 18.6 Contact form remains a database/Admin queue and does not send email. Phase 19.2 SMTP configuration applies only to the newer Cart enquiry company notification.
 
 ## Phase 18.4 SEO checks
 
@@ -1654,7 +1683,7 @@ docker compose down
 
 6. Start the platform with `pnpm dev`, sign in at `http://localhost:3001/login`, and open `http://localhost:3001/settings/features`.
 7. Preview a state or preset before confirming. A disable requires a meaningful internal reason. Blocked live work must be completed, or the feature can remain Testing where safe.
-8. Confirm public behavior at `http://localhost:3000/` and `http://localhost:3000/rentals`. Website Only keeps these pages available but removes online request/cart entry points.
+8. Confirm public behavior at `http://localhost:3000/` and `http://localhost:3000/rentals`. Website Only keeps browsing and Cart available and directs new Cart submissions to the durable email-enquiry path; it does not expose the advanced Rental Request entry point.
 9. After manual QA, apply **Full Operations** to return the development environment to the pre-Phase-18.5 behavior unless you intentionally need another local rollout.
 
 Run the guarded browser suite with:

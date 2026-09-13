@@ -32,6 +32,7 @@ import {
 } from './public-rental-request.service';
 import { Public } from '../auth/public.decorator';
 import { RequireFeature } from '../feature-settings/requires-feature.decorator';
+import { FeatureSettingsService } from '../feature-settings/feature-settings.service';
 import { ZodBodyPipe } from '../auth/zod-body.pipe';
 
 const CART_TOKEN_HEADER = 'x-rental-cart-token';
@@ -46,6 +47,8 @@ export class PublicRentalRequestController {
   constructor(
     @Inject(PublicRentalRequestService)
     private readonly requests: PublicRentalRequestService,
+    @Inject(FeatureSettingsService)
+    private readonly featureSettings: FeatureSettingsService,
   ) {}
 
   @Post()
@@ -56,6 +59,7 @@ export class PublicRentalRequestController {
     input: SubmitRentalRequestInput,
     @Res({ passthrough: true }) response: Response,
   ): Promise<PublicRentalRequestResponse> {
+    await this.featureSettings.assertCustomerSubmissionMode('PLATFORM_REQUEST');
     return this.respond(
       response,
       await this.requests.submit(cartToken, requestToken, input),

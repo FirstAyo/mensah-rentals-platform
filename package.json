@@ -85,6 +85,7 @@
     "test:e2e:public-company-pages": "pnpm --filter @mensah-rentals/web test:e2e:public-company-pages",
     "test:e2e:public-pages-cms": "pnpm --filter @mensah-rentals/web test:e2e:public-pages-cms",
     "test:e2e:staging-workflow-corrections": "pnpm --filter @mensah-rentals/web test:e2e:staging-workflow-corrections",
+    "test:e2e:gallery-homepage-launch-flow": "pnpm --filter @mensah-rentals/web test:e2e:gallery-homepage-launch-flow",
     "seo:audit": "pnpm --filter @mensah-rentals/web seo:audit && node scripts/seo-audit.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check .",

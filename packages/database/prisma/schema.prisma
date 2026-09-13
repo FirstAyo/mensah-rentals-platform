@@ -473,6 +473,41 @@ enum ContactEnquiryStatus {
   RESOLVED
 }
 
+enum CustomerSubmissionMode {
+  EMAIL_INQUIRY
+  PLATFORM_REQUEST
+}
+
+enum CartEnquiryStatus {
+  NEW
+  READ
+  RESOLVED
+}
+
+enum OutboundEmailPurpose {
+  CART_ENQUIRY_COMPANY
+  CART_ENQUIRY_CUSTOMER_ACKNOWLEDGEMENT
+}
+
+enum OutboundEmailStatus {
+  QUEUED
+  PROCESSING
+  SENT
+  FAILED
+}
+
+enum GalleryServiceType {
+  FILM_PRODUCTION
+  EVENTS_FESTIVALS
+  CORPORATE_FUNCTIONS
+  PRIVATE_FUNCTIONS
+}
+
+enum GalleryRevisionKind {
+  DRAFT
+  PUBLISHED
+}
+
 model User {
   id                               String                          @id @default(cuid())
   email                            String                          @unique
@@ -541,6 +576,11 @@ model User {
   contactEnquiriesUpdated          ContactEnquiry[]                  @relation("ContactEnquiryStatusUpdater")
   publicPageRevisionsCreated       PublicPageRevision[]              @relation("PublicPageRevisionCreator")
   publicPageRevisionsPublished     PublicPageRevision[]              @relation("PublicPageRevisionPublisher")
+  customerWorkflowSettingsUpdated CustomerWorkflowSetting[]         @relation("CustomerWorkflowSettingUpdater")
+  cartEnquiriesUpdated             CartEnquiry[]                     @relation("CartEnquiryStatusUpdater")
+  galleryProjectsCreated           GalleryProject[]                  @relation("GalleryProjectCreator")
+  galleryRevisionsCreated          GalleryProjectRevision[]          @relation("GalleryRevisionCreator")
+  galleryRevisionsPublished        GalleryProjectRevision[]          @relation("GalleryRevisionPublisher")
 }
 
 model StaffSession {
@@ -615,6 +655,106 @@ model ContactEnquiry {
   @@index([createdAt, id])
   @@index([email, createdAt])
   @@index([statusUpdatedByUserId, updatedAt])
+}
+
+model CustomerWorkflowSetting {
+  id              String                 @id @default("customer-workflow")
+  mode            CustomerSubmissionMode @default(EMAIL_INQUIRY)
+  version         Int                    @default(0)
+  updatedByUserId String?
+  createdAt       DateTime               @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime               @updatedAt @db.Timestamptz(3)
+  updatedBy       User?                  @relation("CustomerWorkflowSettingUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+
+  @@index([updatedByUserId, updatedAt])
+}
+
+model CartEnquiry {
+  id                    String                          @id @default(cuid())
+  referenceNumber       String                          @unique @db.VarChar(32)
+  customerName          String                          @db.VarChar(160)
+  contactEmail          String                          @db.VarChar(254)
+  contactPhone          String                          @db.VarChar(40)
+  company               String?                         @db.VarChar(160)
+  projectName           String?                         @db.VarChar(180)
+  rentalStartDate       DateTime                        @db.Date
+  rentalEndDate         DateTime                        @db.Date
+  fulfilmentMethod      RentalRequestFulfillmentMethod
+  location              String?                         @db.VarChar(300)
+  additionalEquipment   String?                         @db.Text
+  customerNotes         String?                         @db.Text
+  status                CartEnquiryStatus               @default(NEW)
+  operationId           String                          @unique @db.Uuid
+  payloadHash           String                          @db.Char(64)
+  sourceCartTokenHash   String                          @unique @db.Char(64)
+  statusUpdatedByUserId String?
+  createdAt             DateTime                        @default(now()) @db.Timestamptz(3)
+  updatedAt             DateTime                        @updatedAt @db.Timestamptz(3)
+  statusUpdatedBy       User?                           @relation("CartEnquiryStatusUpdater", fields: [statusUpdatedByUserId], references: [id], onDelete: Restrict)
+  items                 CartEnquiryItem[]
+  outboundEmails        OutboundEmail[]
+
+  @@index([status, createdAt, id])
+  @@index([contactEmail, createdAt])
+  @@index([statusUpdatedByUserId, updatedAt])
+}
+
+model CartEnquiryItem {
+  id                   String      @id @default(cuid())
+  cartEnquiryId        String
+  productId            String?
+  productNameSnapshot  String      @db.VarChar(200)
+  productSlugSnapshot  String      @db.VarChar(160)
+  categoryNameSnapshot String      @db.VarChar(160)
+  categorySlugSnapshot String      @db.VarChar(160)
+  rentalUnitSnapshot   String      @db.VarChar(80)
+  requestedQuantity    Int
+  sortOrder            Int
+  createdAt            DateTime    @default(now()) @db.Timestamptz(3)
+  cartEnquiry          CartEnquiry @relation(fields: [cartEnquiryId], references: [id], onDelete: Restrict)
+  product              Product?    @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@unique([cartEnquiryId, productId])
+  @@unique([cartEnquiryId, sortOrder])
+  @@index([productId])
+}
+
+model OutboundEmail {
+  id                String               @id @default(cuid())
+  cartEnquiryId     String
+  purpose           OutboundEmailPurpose
+  status            OutboundEmailStatus  @default(QUEUED)
+  recipient         String               @db.VarChar(254)
+  subject           String               @db.VarChar(240)
+  textBody          String               @db.Text
+  attemptCount      Int                  @default(0)
+  nextAttemptAt     DateTime?             @db.Timestamptz(3)
+  lockedAt          DateTime?             @db.Timestamptz(3)
+  sentAt            DateTime?             @db.Timestamptz(3)
+  providerMessageId String?               @db.VarChar(300)
+  lastErrorCode     String?               @db.VarChar(80)
+  lastErrorMessage  String?               @db.VarChar(500)
+  createdAt         DateTime              @default(now()) @db.Timestamptz(3)
+  updatedAt         DateTime              @updatedAt @db.Timestamptz(3)
+  cartEnquiry       CartEnquiry           @relation(fields: [cartEnquiryId], references: [id], onDelete: Restrict)
+  attempts          OutboundEmailAttempt[]
+
+  @@unique([cartEnquiryId, purpose])
+  @@index([status, nextAttemptAt, createdAt])
+}
+
+model OutboundEmailAttempt {
+  id               String        @id @default(cuid())
+  outboundEmailId  String
+  attemptNumber    Int
+  outcome          String        @db.VarChar(40)
+  safeErrorCode    String?       @db.VarChar(80)
+  safeErrorMessage String?       @db.VarChar(500)
+  attemptedAt      DateTime      @default(now()) @db.Timestamptz(3)
+  outboundEmail    OutboundEmail @relation(fields: [outboundEmailId], references: [id], onDelete: Restrict)
+
+  @@unique([outboundEmailId, attemptNumber])
+  @@index([attemptedAt, id])
 }
 
 model Role {
@@ -703,6 +843,7 @@ model Product {
   rentalRequestRevisionItems RentalRequestRevisionItem[]
   rentalChangeRequestItems   RentalChangeRequestItem[]
   homepageSelections         HomepageFeaturedProduct[]
+  cartEnquiryItems           CartEnquiryItem[]
 
   @@index([categoryId, isActive, name, id])
   @@index([isActive, isFeatured, updatedAt, id])
@@ -2255,6 +2396,7 @@ model HomepageRevision {
   publishedHeadOf        HomepageSite?              @relation("HomepagePublishedHead")
   featuredCategories     HomepageFeaturedCategory[]
   featuredProducts       HomepageFeaturedProduct[]
+  featuredGalleryProjects HomepageFeaturedGalleryProject[]
   mediaPlacements        HomepageMediaPlacement[]
   activities             HomepageActivity[]
 
@@ -2296,6 +2438,18 @@ model HomepageFeaturedProduct {
   @@index([productId])
 }
 
+model HomepageFeaturedGalleryProject {
+  revisionId       String
+  galleryProjectId String
+  sortOrder        Int
+  revision         HomepageRevision @relation(fields: [revisionId], references: [id], onDelete: Restrict)
+  galleryProject   GalleryProject   @relation(fields: [galleryProjectId], references: [id], onDelete: Restrict)
+
+  @@id([revisionId, galleryProjectId])
+  @@unique([revisionId, sortOrder])
+  @@index([galleryProjectId])
+}
+
 model HomepageMedia {
   id                        String                     @id @default(cuid())
   contentHash               String                     @unique @db.Char(64)
@@ -2313,8 +2467,84 @@ model HomepageMedia {
   homepageCategoryOverrides HomepageFeaturedCategory[] @relation("HomepageCategoryOverrideMedia")
   categoryCovers            CategoryCover[]            @relation("CategoryCoverHomepageMedia")
   publicPagePlacements      PublicPageMediaPlacement[]
+  galleryRevisionMedia      GalleryProjectRevisionMedia[]
 
   @@index([createdByUserId, createdAt])
+}
+
+model GalleryProject {
+  id                  String                   @id @default(cuid())
+  slug                String                   @unique @db.VarChar(160)
+  draftRevisionId     String?                  @unique
+  publishedRevisionId String?                  @unique
+  lockVersion         Int                      @default(0)
+  archivedAt          DateTime?                @db.Timestamptz(3)
+  createdByUserId     String
+  createdAt           DateTime                 @default(now()) @db.Timestamptz(3)
+  updatedAt           DateTime                 @updatedAt @db.Timestamptz(3)
+  createdBy           User                     @relation("GalleryProjectCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  revisions           GalleryProjectRevision[] @relation("GalleryProjectRevisions")
+  draftRevision       GalleryProjectRevision?  @relation("GalleryProjectDraftHead", fields: [draftRevisionId], references: [id], onDelete: Restrict)
+  publishedRevision   GalleryProjectRevision?  @relation("GalleryProjectPublishedHead", fields: [publishedRevisionId], references: [id], onDelete: Restrict)
+  homepageSelections  HomepageFeaturedGalleryProject[]
+
+  @@index([archivedAt, updatedAt, id])
+  @@index([createdByUserId, createdAt])
+}
+
+model GalleryProjectRevision {
+  id                     String                        @id @default(cuid())
+  galleryProjectId       String
+  version                Int
+  kind                   GalleryRevisionKind
+  slugSnapshot           String                        @db.VarChar(160)
+  title                  String                        @db.VarChar(180)
+  serviceType            GalleryServiceType
+  shortDescription       String                        @db.VarChar(400)
+  description            String?                       @db.Text
+  eventDate              DateTime?                     @db.Date
+  location               String?                       @db.VarChar(240)
+  featured               Boolean                       @default(false)
+  sortOrder              Int                           @default(0)
+  seoTitle               String?                       @db.VarChar(70)
+  seoDescription         String?                       @db.VarChar(180)
+  basedOnRevisionId      String?
+  restoredFromRevisionId String?
+  operationId            String?                       @unique @db.Uuid
+  payloadHash            String?                       @db.Char(64)
+  createdByUserId        String
+  publishedByUserId      String?
+  createdAt              DateTime                      @default(now()) @db.Timestamptz(3)
+  publishedAt            DateTime?                     @db.Timestamptz(3)
+  galleryProject         GalleryProject                @relation("GalleryProjectRevisions", fields: [galleryProjectId], references: [id], onDelete: Restrict)
+  draftHeadOf            GalleryProject?               @relation("GalleryProjectDraftHead")
+  publishedHeadOf        GalleryProject?               @relation("GalleryProjectPublishedHead")
+  basedOnRevision        GalleryProjectRevision?       @relation("GalleryRevisionBasis", fields: [basedOnRevisionId], references: [id], onDelete: Restrict)
+  basedRevisions         GalleryProjectRevision[]      @relation("GalleryRevisionBasis")
+  restoredFromRevision   GalleryProjectRevision?       @relation("GalleryRevisionRestore", fields: [restoredFromRevisionId], references: [id], onDelete: Restrict)
+  restoredRevisions      GalleryProjectRevision[]      @relation("GalleryRevisionRestore")
+  createdBy              User                          @relation("GalleryRevisionCreator", fields: [createdByUserId], references: [id], onDelete: Restrict)
+  publishedBy            User?                         @relation("GalleryRevisionPublisher", fields: [publishedByUserId], references: [id], onDelete: Restrict)
+  media                  GalleryProjectRevisionMedia[]
+
+  @@unique([galleryProjectId, version])
+  @@index([galleryProjectId, kind, createdAt])
+  @@index([serviceType, featured, sortOrder, createdAt])
+  @@index([createdByUserId, createdAt])
+}
+
+model GalleryProjectRevisionMedia {
+  revisionId String
+  mediaId    String
+  altText    String                 @db.VarChar(300)
+  focalPoint String                 @default("center") @db.VarChar(20)
+  sortOrder  Int
+  revision   GalleryProjectRevision @relation(fields: [revisionId], references: [id], onDelete: Restrict)
+  media      HomepageMedia          @relation(fields: [mediaId], references: [id], onDelete: Restrict)
+
+  @@id([revisionId, mediaId])
+  @@unique([revisionId, sortOrder])
+  @@index([mediaId])
 }
 
 model PublicPage {

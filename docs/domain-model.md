@@ -1,5 +1,11 @@
 # Planned Domain Model
 
+## Phase 19.2 Gallery, customer workflow, and Cart enquiry
+
+`GalleryProject` supplies stable slug/archive/head identity. Immutable `GalleryProjectRevision` rows hold Draft or Published content and SEO snapshots; append-only `GalleryProjectRevisionMedia` rows reference normalized `HomepageMedia`. `HomepageFeaturedGalleryProject` preserves the ordered project choice of an immutable Homepage revision.
+
+`CustomerWorkflowSetting` is the versioned singleton authority for `EMAIL_INQUIRY` or `PLATFORM_REQUEST`. `CartEnquiry` is a durable immutable contact/project/date/fulfilment snapshot with a separately mutable staff status. `CartEnquiryItem` preserves complete Product/category/quantity snapshots. `OutboundEmail` is delivery state and `OutboundEmailAttempt` is append-only attempt history. Cart, Cart Enquiry, Rental Request, Quote, Order, Reservation, and inventory transaction remain separate concepts.
+
 ## Phase 18.6 contact enquiry
 
 `ContactEnquiry` is a small independent customer-contact aggregate, not a Rental Request, Quote, Order, Customer Account, or notification-delivery record. It stores one immutable normalized submission plus a mutable `NEW | READ | RESOLVED` staff-review status, the last status actor, operation UUID/payload hash for retry safety, and timestamps. A database trigger prevents submitted identity/content from being rewritten. Status changes create immutable platform audit events.

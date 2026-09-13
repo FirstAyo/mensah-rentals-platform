@@ -14,10 +14,12 @@ import {
   featureChangeSchema,
   featurePresetApplySchema,
   featurePresetPreviewSchema,
+  customerWorkflowChangeSchema,
   type FeatureChangeInput,
   type FeatureChangePreviewInput,
   type FeaturePresetApplyInput,
   type FeaturePresetPreviewInput,
+  type CustomerWorkflowChangeInput,
 } from '@mensah-rentals/validation';
 
 import { CurrentStaffUser } from '../auth/current-staff-user.decorator';
@@ -81,6 +83,16 @@ export class AdminFeatureSettingsController {
     input: FeaturePresetApplyInput,
   ) {
     return this.features.applyPreset(actor.id, input);
+  }
+
+  @Put('customer-workflow')
+  @RequirePermissions('feature_settings.manage')
+  updateCustomerWorkflow(
+    @CurrentStaffUser() actor: StaffUserResponse,
+    @Body(new ZodBodyPipe(customerWorkflowChangeSchema))
+    input: CustomerWorkflowChangeInput,
+  ) {
+    return this.features.changeCustomerWorkflow(actor.id, input);
   }
 }
 

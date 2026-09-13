@@ -22,6 +22,7 @@ export const platformFeatureStates = [
 
 export const platformFeaturePresets = [
   'WEBSITE_ONLY',
+  'WEBSITE_AND_EMAIL_ENQUIRIES',
   'WEBSITE_AND_RENTAL_REQUESTS',
   'STAGED_OPERATIONS_TEST',
   'FULL_OPERATIONS',
@@ -74,6 +75,9 @@ export const FEATURE_PRESET_STATES: Readonly<
       key,
       key === 'RENTAL_REQUESTS' ? 'ENABLED' : 'DISABLED',
     ]),
+  ) as Record<PlatformFeatureKey, PlatformFeatureState>,
+  WEBSITE_AND_EMAIL_ENQUIRIES: Object.fromEntries(
+    platformFeatureKeys.map((key) => [key, 'DISABLED']),
   ) as Record<PlatformFeatureKey, PlatformFeatureState>,
   WEBSITE_ONLY: Object.fromEntries(
     platformFeatureKeys.map((key) => [key, 'DISABLED']),

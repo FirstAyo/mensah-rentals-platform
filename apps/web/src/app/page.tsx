@@ -16,12 +16,15 @@ import {
   Warehouse,
 } from 'lucide-react';
 import { HomepageHero } from '@/components/homepage-hero';
+import { HomepageGalleryCarousel } from '@/components/homepage-gallery-carousel';
+import { HomepageServices } from '@/components/homepage-services';
 import {
   HomepageGoogleReviews,
   HomepageGoogleReviewsFallback,
 } from '@/components/homepage-google-reviews';
 import { ProductCard } from '@/components/product-card';
 import { getPublicHomepage } from '@/lib/public-homepage';
+import { getPublicGallery } from '@/lib/public-gallery';
 import { publicPageRobots, siteOrigin } from '@/lib/site-config';
 import {
   organizationJsonLd,
@@ -92,8 +95,11 @@ const icons = {
 } as const;
 
 export default async function HomePage() {
-  const { content, categories, products, googleReviews } =
-    await getPublicHomepage();
+  const [homepage, gallery] = await Promise.all([
+    getPublicHomepage(),
+    getPublicGallery().catch(() => null),
+  ]);
+  const { content, categories, products, googleReviews } = homepage;
   return (
     <>
       <script
@@ -131,6 +137,8 @@ export default async function HomePage() {
             );
           })}
       </ul>
+
+      <HomepageServices block={content.solutions} />
 
       {content.featuredCategories.enabled && categories.length ? (
         <section className="mx-auto max-w-[1760px] px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
@@ -173,6 +181,18 @@ export default async function HomePage() {
             ))}
           </div>
         </section>
+      ) : null}
+
+      {content.gallery.enabled &&
+      (homepage.galleryProjects.length || gallery?.items.length) ? (
+        <HomepageGalleryCarousel
+          content={content.gallery}
+          projects={
+            homepage.galleryProjects.length
+              ? homepage.galleryProjects
+              : (gallery?.items.slice(0, 8) ?? [])
+          }
+        />
       ) : null}
 
       {content.benefits.enabled ? (
@@ -251,40 +271,6 @@ export default async function HomePage() {
                 </li>
               ))}
             </ol>
-          </div>
-        </section>
-      ) : null}
-
-      {content.solutions.enabled ? (
-        <section className="mx-auto max-w-[1760px] px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
-          <Heading block={content.solutions} />
-          <div className="mt-9 grid gap-4 sm:grid-cols-2">
-            {content.solutions.items
-              .filter((item) => item.enabled)
-              .map((item) => {
-                return (
-                  <Link
-                    className="group relative min-h-80 overflow-hidden rounded-3xl bg-slate-900 p-7 text-white"
-                    href={item.href}
-                    key={item.title}
-                  >
-                    {item.imageUrl ? (
-                      <span
-                        aria-hidden="true"
-                        className="absolute inset-0 bg-cover bg-center transition duration-500 group-hover:scale-105"
-                        style={{ backgroundImage: `url(${item.imageUrl})` }}
-                      />
-                    ) : null}
-                    <span className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/65 to-slate-950/20" />
-                    <span className="relative flex h-full flex-col justify-end">
-                      <h3 className="text-3xl font-bold">{item.title}</h3>
-                      <p className="mt-2 max-w-xl text-slate-200">
-                        {item.description}
-                      </p>
-                    </span>
-                  </Link>
-                );
-              })}
           </div>
         </section>
       ) : null}

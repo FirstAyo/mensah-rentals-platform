@@ -1,5 +1,11 @@
 # API Data Visibility
 
+## Phase 19.2 Gallery and Cart-enquiry visibility
+
+Public Gallery DTOs contain only published customer copy, friendly service label/slug, factual date/location, ordered public media URL/alt/focal data, and image count. They omit revisions, staff, managed-media storage keys/hashes, operation data, audit, price, inventory, availability, and RBAC. Draft/archived projects return no public record.
+
+`GET /public/features` now projects only the customer submission mode and minimum Cart/request/order availability booleans. A public Cart-enquiry receipt contains only acceptance, a safe message, and reference number. Contact snapshots, email content/status, Cart token/hash, idempotency data, staff, internal Product price, inventory, reservations, and availability are never public. Admin Cart-enquiry and Gallery APIs require staff authentication and exact permissions; see [Cart email enquiries](cart-email-enquiries.md) and [Gallery](gallery.md).
+
 ## Phase 19.1 price and assignment boundary
 
 Administrative product responses may contain `defaultUnitPriceCents`; public product/category responses never do. Order assignment and assignment activity are staff-only. Customer order and fulfilment responses omit staff identities, internal handoff notes, inventory/reservation quantities, serialized identifiers, operation IDs, payload hashes, and capabilities.
@@ -271,7 +277,7 @@ Customer Order and Return PDF renderers receive no monetary, inventory, reservat
 
 ## Phase 18.5 capability visibility
 
-`GET /public/features` is explicitly mapped to `{ rentalRequests, customerOrderPortal }`. It never serializes feature rows and omits state names, Testing detail, dependencies, versions, reasons, actors, audit fields, RBAC data, inventory, or internal workflow state. Authenticated staff navigation receives only key/available/testing values. Full settings, previews, blockers, and mutations require the new settings permissions.
+`GET /public/features` is explicitly mapped to safe booleans plus `customerSubmissionMode`. It never serializes feature rows and omits internal state names, Testing detail, dependencies, versions, reasons, actors, audit fields, RBAC data, inventory, or internal workflow state. Authenticated staff navigation receives only key/available/testing values. Full settings, previews, blockers, and mutations require the settings permissions.
 
 ## Published public pages
 

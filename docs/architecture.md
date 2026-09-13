@@ -1,5 +1,13 @@
 # Architecture
 
+## Phase 19.2 company experience and enquiry boundaries
+
+Gallery is a separate revisioned CMS aggregate backed by existing normalized `HomepageMedia`; public reads project only Published, non-archived revisions through explicit DTOs. Homepage selections point to stable Gallery projects while each Homepage revision preserves its ordered selection. The public Homepage adds controlled service cards, a featured Gallery carousel, and active-category navigation without exposing storage paths, staff data, price, inventory, or availability. See [Gallery](gallery.md).
+
+The guest Cart remains mutable intent and does not reserve inventory. A singleton `CustomerWorkflowSetting` authoritatively selects `EMAIL_INQUIRY` (seeded default) or `PLATFORM_REQUEST` for new submissions. Both API submission boundaries re-read that row; the browser receives only a minimal safe capability projection. Email mode transactionally creates an immutable `CartEnquiry` snapshot and company `OutboundEmail` job, while the complete advanced Rental Request pipeline remains unchanged. Local/test delivery defaults to non-networked capture. A protected deployment can select the authenticated SMTP transport with `SMTP_ENABLED=true`; startup validation then requires its host, credentials, sender, port, and TLS settings. See [Cart email enquiries](cart-email-enquiries.md).
+
+The outbox commits before SMTP is attempted, so an SMTP failure cannot discard the accepted enquiry. Delivery claiming prevents two ordinary workers from sending the same queued row concurrently, and failed jobs retain a safe diagnostic for an audited staff retry. A `PROCESSING` claim older than ten minutes is treated as stale and can be recovered through the audited manual retry action. This is not exactly-once mail: if SMTP accepts a message but the process or database fails before `SENT` is committed, delivery is ambiguous and a later operator retry can duplicate it. The current implementation has no background scheduler; operators must inspect delivery state before requeueing, and a future worker should add bounded automatic retries, dead-letter/alerting, and provider idempotency where available.
+
 ## Phase 19 staging deployment boundary
 
 Mensah Rentals deploys as separate Web, Admin, API, migration/operator, and PostgreSQL containers. PostgreSQL is attached only to an internal Compose network and publishes no host port. Web, Admin, and API additionally join the external `caddy_proxy` network under environment-unique aliases. The one pre-existing Caddy container remains the only process that owns VPS ports 80/443 and routes Tech Arena24 and Mensah independently.
@@ -12,7 +20,7 @@ The API remains the only application database boundary. External web/mobile clie
 
 About, Contact, Terms, and Privacy are server-rendered core public pages and are not controlled by optional operational feature flags. Their metadata and JSON-LD are constructed from fixed verified facts. The conflicting street-address sources remain unresolved, so neither visible NAP nor structured data selects a street address.
 
-Contact submission crosses a fixed 8 KiB public Web BFF route into a dedicated NestJS module. Both layers enforce exact Origin/content type; shared Zod schemas bound and normalize input. The API applies bounded IP/email and global rate limits, ignores honeypot traffic without persistence, and creates one immutable `ContactEnquiry` per operation/payload. PostgreSQL is the durable acceptance queue. There is deliberately no SMTP/provider integration, Redis dependency, inventory call, rental request, reservation, or automatic customer account.
+Contact submission crosses a fixed 8 KiB public Web BFF route into a dedicated NestJS module. Both layers enforce exact Origin/content type; shared Zod schemas bound and normalize input. The API applies bounded IP/email and global rate limits, ignores honeypot traffic without persistence, and creates one immutable `ContactEnquiry` per operation/payload. PostgreSQL is the durable acceptance queue. The general Contact-enquiry flow is not connected to the Phase 19.2 Cart-enquiry SMTP outbox; it has no mail-delivery claim, Redis dependency, inventory call, rental request, reservation, or automatic customer account.
 
 Admin uses a separate fixed same-origin BFF and `contact_enquiry.view`/`contact_enquiry.manage`. Status updates are audited. Public receipts are explicit allowlists and cannot serialize the Prisma record.
 
@@ -462,7 +470,7 @@ Customer Order and Return forms use a dedicated, dependency-free A4 renderer in 
 
 ## Phase 18.5 feature-control boundary
 
-Optional operational modules are governed by durable `PlatformFeatureSetting` rows. NestJS resolves the current database state for guarded requests; `FeatureGuard` runs after staff authentication and permission enforcement and holds a request lease against concurrent state changes. Admin receives only authenticated availability needed for navigation, while Web receives only two public booleans. Missing configuration and capability reads fail closed, and Testing is public only under explicit LOCAL/STAGING classification, never by hostname. Core website, security, audit, integrity, health, backup, and SEO boundaries do not have switches. See [feature-controls.md](feature-controls.md).
+Optional operational modules are governed by durable `PlatformFeatureSetting` rows. NestJS resolves the current database state for guarded requests; `FeatureGuard` runs after staff authentication and permission enforcement and holds a request lease against concurrent state changes. Admin receives only authenticated availability needed for navigation, while Web receives safe availability booleans and the typed customer submission mode. Missing configuration and capability reads fail closed, and Testing is public only under explicit LOCAL/STAGING classification, never by hostname. Core website, Gallery, Cart browsing, security, audit, integrity, health, backup, and SEO boundaries do not have switches. See [feature-controls.md](feature-controls.md).
 
 ## Phase 18.6.1 public page boundary
 

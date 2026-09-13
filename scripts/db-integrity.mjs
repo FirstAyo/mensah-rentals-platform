@@ -187,6 +187,32 @@ checks AS (
       WHERE ("homepageMediaId" IS NOT NULL)=("productImageId" IS NOT NULL))
 
   UNION ALL
+  SELECT 'gallery_head_integrity', count(*)::bigint
+  FROM "GalleryProject" project
+  WHERE (project."draftRevisionId" IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM "GalleryProjectRevision" revision
+      WHERE revision.id=project."draftRevisionId"
+        AND revision."galleryProjectId"=project.id AND revision.kind='DRAFT'
+    ))
+    OR (project."publishedRevisionId" IS NOT NULL AND NOT EXISTS (
+      SELECT 1 FROM "GalleryProjectRevision" revision
+      WHERE revision.id=project."publishedRevisionId"
+        AND revision."galleryProjectId"=project.id AND revision.kind='PUBLISHED'
+    ))
+
+  UNION ALL
+  SELECT 'cart_enquiry_snapshot_integrity', count(*)::bigint
+  FROM "CartEnquiry" enquiry
+  WHERE NOT EXISTS (
+    SELECT 1 FROM "CartEnquiryItem" item
+    WHERE item."cartEnquiryId"=enquiry.id AND item."requestedQuantity">0
+  ) OR NOT EXISTS (
+    SELECT 1 FROM "OutboundEmail" email
+    WHERE email."cartEnquiryId"=enquiry.id
+      AND email.purpose='CART_ENQUIRY_COMPANY'
+  )
+
+  UNION ALL
   SELECT 'unfinished_prisma_migrations', count(*)::bigint
   FROM "_prisma_migrations"
   WHERE finished_at IS NULL AND rolled_back_at IS NULL

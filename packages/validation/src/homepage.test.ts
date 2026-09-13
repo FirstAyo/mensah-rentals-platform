@@ -40,6 +40,7 @@ describe('homepage validation', () => {
       content: publicContent,
       categories: [],
       products: [],
+      galleryProjects: [],
       googleReviews: {
         live: false as const,
         reviewsUrl: null,
