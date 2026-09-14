@@ -1,5 +1,9 @@
-import { ArrowUpRight } from 'lucide-react';
+'use client';
+
+import { ArrowLeft, ArrowRight, ArrowUpRight } from 'lucide-react';
 import Link from 'next/link';
+
+import { useHorizontalCarousel } from '@/lib/use-horizontal-carousel';
 
 const services = [
   {
@@ -45,13 +49,31 @@ export function HomepageServices({
     items: Solution[];
   };
 }) {
-  if (!block.enabled) return null;
   const enabled = block.items.filter((item) => item.enabled);
+  const cards = services.flatMap((service, index) => {
+    const serviceType = [
+      'FILM_PRODUCTION',
+      'EVENTS_FESTIVALS',
+      'CORPORATE_FUNCTIONS',
+      'PRIVATE_FUNCTIONS',
+    ][index];
+    const source =
+      enabled.find((item) => item.serviceType === serviceType) ??
+      enabled.find((item) => service.match.test(item.title));
+    return source ? [{ service, source }] : [];
+  });
+  const carousel = useHorizontalCarousel({
+    activeQuery: '(max-width: 639px)',
+    intervalMs: 6000,
+    itemCount: cards.length,
+  });
+  if (!block.enabled) return null;
   return (
     <section
       className="public-container pb-12 pt-16 sm:pb-16 lg:pb-14 lg:pt-24"
       aria-labelledby="services-title"
       data-homepage-section="services"
+      {...carousel.sectionProps}
     >
       <div className="max-w-3xl">
         <p className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">
@@ -69,53 +91,65 @@ export function HomepageServices({
           </p>
         ) : null}
       </div>
-      <div className="mt-9 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {services.map((service, index) => {
-          const serviceType = [
-            'FILM_PRODUCTION',
-            'EVENTS_FESTIVALS',
-            'CORPORATE_FUNCTIONS',
-            'PRIVATE_FUNCTIONS',
-          ][index];
-          const source =
-            enabled.find((item) => item.serviceType === serviceType) ??
-            enabled.find((item) => service.match.test(item.title));
-          if (!source) return null;
-          return (
-            <Link
-              className="group relative min-h-72 overflow-hidden rounded-3xl border border-border bg-slate-900 p-6 text-white shadow-sm outline-none transition hover:-translate-y-1 hover:shadow-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transform-none motion-reduce:transition-none"
-              href={`/gallery?type=${service.slug}`}
-              key={service.slug}
-            >
-              {source?.imageUrl ? (
-                <span
+      <div
+        aria-label="Services carousel"
+        className="-mx-4 mt-9 flex snap-x snap-mandatory gap-4 overflow-x-auto px-4 pb-3 sm:mx-0 sm:grid sm:grid-cols-2 sm:overflow-visible sm:px-0 sm:pb-0 xl:grid-cols-4"
+        {...carousel.trackProps}
+      >
+        {cards.map(({ service, source }) => (
+          <Link
+            className="group relative min-h-72 w-[88%] shrink-0 snap-start overflow-hidden rounded-3xl border border-border bg-slate-900 p-6 text-white shadow-sm outline-none transition hover:-translate-y-1 hover:shadow-xl focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background motion-reduce:transform-none motion-reduce:transition-none sm:w-auto"
+            href={`/gallery?type=${service.slug}`}
+            key={service.slug}
+          >
+            {source?.imageUrl ? (
+              <span
+                aria-hidden="true"
+                className="absolute inset-0 bg-cover transition duration-500 group-hover:scale-105 motion-reduce:transform-none motion-reduce:transition-none"
+                style={{
+                  backgroundImage: `url(${source.imageUrl})`,
+                  backgroundPosition: source.focalPoint,
+                }}
+              />
+            ) : null}
+            <span className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/65 to-slate-950/15" />
+            <span className="relative flex h-full flex-col justify-end">
+              <span className="flex items-end justify-between gap-4">
+                <span className="text-2xl font-bold">{service.label}</span>
+                <ArrowUpRight
                   aria-hidden="true"
-                  className="absolute inset-0 bg-cover transition duration-500 group-hover:scale-105 motion-reduce:transform-none motion-reduce:transition-none"
-                  style={{
-                    backgroundImage: `url(${source.imageUrl})`,
-                    backgroundPosition: source.focalPoint,
-                  }}
+                  className="h-5 w-5 shrink-0 text-amber-300 transition group-hover:-translate-y-1 group-hover:translate-x-1 motion-reduce:transform-none motion-reduce:transition-none"
                 />
-              ) : null}
-              <span className="absolute inset-0 bg-gradient-to-t from-slate-950 via-slate-950/65 to-slate-950/15" />
-              <span className="relative flex h-full flex-col justify-end">
-                <span className="flex items-end justify-between gap-4">
-                  <span className="text-2xl font-bold">{service.label}</span>
-                  <ArrowUpRight
-                    aria-hidden="true"
-                    className="h-5 w-5 shrink-0 text-amber-300 transition group-hover:-translate-y-1 group-hover:translate-x-1 motion-reduce:transform-none motion-reduce:transition-none"
-                  />
-                </span>
-                {source?.description ? (
-                  <span className="mt-3 text-sm leading-6 text-slate-200">
-                    {source.description}
-                  </span>
-                ) : null}
               </span>
-            </Link>
-          );
-        })}
+              {source?.description ? (
+                <span className="mt-3 text-sm leading-6 text-slate-200">
+                  {source.description}
+                </span>
+              ) : null}
+            </span>
+          </Link>
+        ))}
       </div>
+      {cards.length > 1 ? (
+        <div className="mt-4 flex justify-end gap-2 sm:hidden">
+          <button
+            aria-label="Previous service"
+            className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            onClick={() => carousel.move(-1)}
+            type="button"
+          >
+            <ArrowLeft aria-hidden="true" className="h-5 w-5" />
+          </button>
+          <button
+            aria-label="Next service"
+            className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            onClick={() => carousel.move(1)}
+            type="button"
+          >
+            <ArrowRight aria-hidden="true" className="h-5 w-5" />
+          </button>
+        </div>
+      ) : null}
     </section>
   );
 }

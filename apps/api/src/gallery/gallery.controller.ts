@@ -81,6 +81,16 @@ export class AdminGalleryController {
     return this.gallery.create(input, actor.id);
   }
 
+  @Post('publish')
+  @RequirePermissions('gallery.edit', 'gallery.publish')
+  createAndPublish(
+    @Body(new ZodBodyPipe(createGalleryProjectSchema))
+    input: CreateGalleryProjectInput,
+    @CurrentStaffUser() actor: StaffUserResponse,
+  ) {
+    return this.gallery.createAndPublish(input, actor.id);
+  }
+
   @Get(':id')
   @RequirePermissions('gallery.view')
   detail(@Param('id', new ZodBodyPipe(cuidParamSchema)) id: string) {
@@ -95,6 +105,16 @@ export class AdminGalleryController {
     @CurrentStaffUser() actor: StaffUserResponse,
   ) {
     return this.gallery.saveDraft(id, input, actor.id);
+  }
+
+  @Post(':id/publish')
+  @RequirePermissions('gallery.edit', 'gallery.publish')
+  saveAndPublish(
+    @Param('id', new ZodBodyPipe(cuidParamSchema)) id: string,
+    @Body(new ZodBodyPipe(saveGalleryDraftSchema)) input: SaveGalleryDraftInput,
+    @CurrentStaffUser() actor: StaffUserResponse,
+  ) {
+    return this.gallery.saveAndPublish(id, input, actor.id);
   }
 
   @Get(':id/revisions/:revisionId/preview')

@@ -3,9 +3,9 @@
 import type { PublicGalleryProjectSummaryResponse } from '@mensah-rentals/types';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import Link from 'next/link';
-import { useCallback, useEffect, useRef, useState } from 'react';
 
 import { GalleryCard } from './gallery-card';
+import { useHorizontalCarousel } from '@/lib/use-horizontal-carousel';
 
 export function HomepageGalleryCarousel({
   projects,
@@ -19,52 +19,17 @@ export function HomepageGalleryCarousel({
     heading: string;
   };
 }) {
-  const track = useRef<HTMLDivElement>(null);
-  const section = useRef<HTMLElement>(null);
-  const [paused, setPaused] = useState(false);
-  const [visible, setVisible] = useState(true);
-  const move = useCallback((direction: -1 | 1) => {
-    track.current?.scrollBy({
-      left: direction * (track.current.clientWidth * 0.82),
-      behavior: 'smooth',
-    });
-  }, []);
-
-  useEffect(() => {
-    const node = section.current;
-    if (!node) return;
-    const observer = new IntersectionObserver(
-      ([entry]) => setVisible(Boolean(entry?.isIntersecting)),
-      { threshold: 0.2 },
-    );
-    observer.observe(node);
-    return () => observer.disconnect();
-  }, []);
-
-  useEffect(() => {
-    if (
-      paused ||
-      !visible ||
-      projects.length < 2 ||
-      window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    )
-      return;
-    const timer = window.setInterval(() => move(1), 6500);
-    return () => window.clearInterval(timer);
-  }, [move, paused, projects.length, visible]);
+  const carousel = useHorizontalCarousel({
+    intervalMs: 6500,
+    itemCount: projects.length,
+  });
 
   return (
     <section
       className="border-y border-border bg-muted/35"
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget))
-          setPaused(false);
-      }}
-      onFocus={() => setPaused(true)}
-      onMouseEnter={() => setPaused(true)}
-      onMouseLeave={() => setPaused(false)}
-      ref={section}
       aria-labelledby="homepage-gallery-title"
+      data-homepage-section="recent-work"
+      {...carousel.sectionProps}
     >
       <div className="public-container py-16 lg:py-24">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
@@ -86,7 +51,7 @@ export function HomepageGalleryCarousel({
             <button
               aria-label="Previous Gallery projects"
               className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              onClick={() => move(-1)}
+              onClick={() => carousel.move(-1)}
               type="button"
             >
               <ArrowLeft aria-hidden="true" className="h-5 w-5" />
@@ -94,7 +59,7 @@ export function HomepageGalleryCarousel({
             <button
               aria-label="Next Gallery projects"
               className="grid h-11 w-11 place-items-center rounded-full border border-border bg-card focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              onClick={() => move(1)}
+              onClick={() => carousel.move(1)}
               type="button"
             >
               <ArrowRight aria-hidden="true" className="h-5 w-5" />
@@ -103,7 +68,7 @@ export function HomepageGalleryCarousel({
         </div>
         <div
           className="-mx-4 mt-9 flex snap-x snap-mandatory gap-5 overflow-x-auto px-4 pb-5 sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8"
-          ref={track}
+          {...carousel.trackProps}
         >
           {projects.map((project) => (
             <div

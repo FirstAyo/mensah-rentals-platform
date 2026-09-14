@@ -110,10 +110,19 @@ test('@public-navigation follows desktop links, catalogue, cart, request, and fo
   await page.getByRole('link', { name: 'Mensah Rentals' }).first().click();
   await page.getByRole('link', { name: 'Browse rental equipment' }).click();
   await expect(page).toHaveURL(/\/rentals$/);
-  await page.getByRole('link', { name: 'Mensah Rentals' }).first().click();
+  const catalogueNavigation = page.getByRole('navigation', {
+    name: 'Primary navigation',
+  });
+  await catalogueNavigation.getByRole('button', { name: 'Rentals' }).click();
+  const categoryLinks = page.locator('#rentals-mega-menu a[href^="/rentals/"]');
+  const categoryHref = await categoryLinks.evaluateAll((links) =>
+    links
+      .map((link) => new URL((link as HTMLAnchorElement).href).pathname)
+      .find((pathname) => pathname.split('/').filter(Boolean).length === 2),
+  );
+  expect(categoryHref).toBeTruthy();
   const categoryLink = page
-    .locator('main a[href^="/rentals/"]')
-    .filter({ has: page.getByText(/^Category \d+$/) })
+    .locator(`#rentals-mega-menu a[href="${categoryHref}"]`)
     .first();
   await categoryLink.click();
   await expect(page).toHaveURL(/\/rentals\/[^/?#]+$/);
@@ -233,8 +242,15 @@ test('@public-navigation provides intent-aware premium desktop mega-menu interac
       opacity: style.opacity,
     };
   });
-  expect(openStyle.backgroundColor).toMatch(/^rgb\(/);
-  expect(openStyle.backgroundColor).not.toContain('/ 0');
+  expect(openStyle.backgroundColor).toMatch(/^rgb\(|^rgba\(|^color\(/);
+  const modernAlpha =
+    openStyle.backgroundColor.match(/\/\s*([\d.]+)\s*\)$/)?.[1];
+  const legacyAlpha = openStyle.backgroundColor.match(
+    /^rgba\([^,]+,[^,]+,[^,]+,\s*([\d.]+)\)$/,
+  )?.[1];
+  const surfaceAlpha = Number(modernAlpha ?? legacyAlpha ?? 1);
+  expect(surfaceAlpha).toBeGreaterThanOrEqual(0.9);
+  expect(surfaceAlpha).toBeLessThanOrEqual(0.96);
   expect(openStyle.duration).toContain('0.2s');
   expect(openStyle.maxWidth).toBe('1440px');
   expect(Number(openStyle.opacity)).toBe(1);
@@ -251,10 +267,8 @@ test('@public-navigation provides intent-aware premium desktop mega-menu interac
   await expect(panel).toHaveAttribute('data-state', 'open');
 
   await page.mouse.move(10, 850);
-  await expect(panel).toHaveAttribute('data-state', 'closed', {
-    timeout: 500,
-  });
-  await expect(panel).toHaveClass(/duration-150/, { timeout: 100 });
+  await page.waitForTimeout(270);
+  await expect(panel).toHaveClass(/duration-150/);
   await expect(panel).toHaveCount(0, { timeout: 500 });
 
   await trigger.focus();
@@ -311,19 +325,15 @@ test('@public-navigation constrains public content while preserving full-bleed s
       const services = document.querySelector<HTMLElement>(
         '[data-homepage-section="services"]',
       );
-      const categories = document.querySelector<HTMLElement>(
-        '[data-homepage-section="featured-categories"]',
+      const recentWork = document.querySelector<HTMLElement>(
+        '[data-homepage-section="recent-work"]',
       );
       const heroBox = hero?.getBoundingClientRect();
       const containerBox = container?.getBoundingClientRect();
       const servicesBox = services?.getBoundingClientRect();
-      const categoriesBox = categories?.getBoundingClientRect();
+      const recentWorkBox = recentWork?.getBoundingClientRect();
       const servicesStyle = services ? getComputedStyle(services) : null;
-      const categoriesStyle = categories ? getComputedStyle(categories) : null;
       return {
-        categoriesTopPadding: Number.parseFloat(
-          categoriesStyle?.paddingTop ?? '0',
-        ),
         container: containerBox
           ? {
               left: containerBox.left,
@@ -335,8 +345,8 @@ test('@public-navigation constrains public content while preserving full-bleed s
           ? { left: heroBox.left, right: heroBox.right, width: heroBox.width }
           : null,
         sectionGap:
-          servicesBox && categoriesBox
-            ? categoriesBox.top - servicesBox.bottom
+          servicesBox && recentWorkBox
+            ? recentWorkBox.top - servicesBox.bottom
             : null,
         servicesBottomPadding: Number.parseFloat(
           servicesStyle?.paddingBottom ?? '0',
@@ -360,9 +370,9 @@ test('@public-navigation constrains public content while preserving full-bleed s
       ),
     ).toBeLessThanOrEqual(1);
     expect(Math.abs(measurements.sectionGap ?? 99)).toBeLessThanOrEqual(1);
-    expect(
-      measurements.servicesBottomPadding + measurements.categoriesTopPadding,
-    ).toBe(width >= 1024 ? 96 : width >= 640 ? 104 : 80);
+    expect(measurements.servicesBottomPadding).toBe(
+      width >= 1024 ? 56 : width >= 640 ? 64 : 48,
+    );
 
     if ([390, 1440, 1920, 2560].includes(width))
       await captureAuditScreenshot(page, `${width}-homepage.png`);

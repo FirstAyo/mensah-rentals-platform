@@ -1172,7 +1172,7 @@ if (mode === 'products') {
   browserEnvironment.PHASE16_3_EDITOR_EMAIL = editor.email;
   browserEnvironment.PHASE16_3_EDITOR_PASSWORD = editorPassword;
 }
-if (mode.startsWith('homepage')) {
+if (mode.startsWith('homepage') || mode === 'public-navigation') {
   const product = await prisma.product.findFirst({
     where: { isActive: true, deletedAt: null },
     include: { category: true },
@@ -1212,6 +1212,65 @@ if (mode.startsWith('homepage')) {
       sortOrder: 0,
       isPrimary: true,
     },
+  });
+  const galleryMediaId = `cm${randomUUID().replaceAll('-', '').slice(0, 23)}`;
+  const galleryMediaDirectory = resolve(
+    repositoryRoot,
+    browserEnvironment.MEDIA_STORAGE_ROOT,
+    'homepage',
+    galleryMediaId,
+  );
+  await mkdir(galleryMediaDirectory, { recursive: true });
+  await writeFile(
+    resolve(galleryMediaDirectory, `${contentHash}.webp`),
+    productBuffer,
+  );
+  await prisma.homepageMedia.create({
+    data: {
+      id: galleryMediaId,
+      byteSize: productBuffer.byteLength,
+      contentHash,
+      createdByUserId: fixture.id,
+      description: 'Homepage Gallery browser fixture',
+      format: 'webp',
+      height: 420,
+      originalFilename: 'homepage-gallery-fixture.webp',
+      url: `/media/homepage/${galleryMediaId}/${contentHash}.webp`,
+      width: 640,
+    },
+  });
+  const gallerySlug = `homepage-gallery-${randomUUID().slice(0, 8)}`;
+  const galleryProject = await prisma.galleryProject.create({
+    data: { createdByUserId: fixture.id, slug: gallerySlug },
+  });
+  const galleryRevision = await prisma.galleryProjectRevision.create({
+    data: {
+      galleryProjectId: galleryProject.id,
+      version: 1,
+      kind: 'PUBLISHED',
+      slugSnapshot: gallerySlug,
+      title: 'Homepage Gallery Fixture',
+      serviceType: 'EVENTS_FESTIVALS',
+      shortDescription:
+        'A published project used to verify the homepage composition.',
+      featured: true,
+      sortOrder: 1,
+      createdByUserId: fixture.id,
+      publishedByUserId: fixture.id,
+      publishedAt: new Date(),
+      media: {
+        create: {
+          mediaId: galleryMediaId,
+          altText: 'Homepage Gallery browser fixture',
+          focalPoint: 'center',
+          sortOrder: 0,
+        },
+      },
+    },
+  });
+  await prisma.galleryProject.update({
+    where: { id: galleryProject.id },
+    data: { publishedRevisionId: galleryRevision.id, lockVersion: 1 },
   });
   browserEnvironment.PHASE16_4A_CATEGORY_ID = product.categoryId;
   browserEnvironment.PHASE16_4A_CATEGORY_NAME = product.category.name;

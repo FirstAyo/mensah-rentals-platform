@@ -163,6 +163,26 @@ const EXACT_MESSAGES: Array<{
 }> = [
   {
     matches: (method, path) =>
+      method === 'POST' &&
+      (/^\/api\/gallery\/publish$/.test(path) ||
+        /^\/api\/gallery\/[^/]+\/publish$/.test(path) ||
+        /^\/api\/gallery\/[^/]+\/drafts\/[^/]+\/publish$/.test(path)),
+    message: {
+      success: 'Gallery project published successfully',
+      error: 'Gallery project could not be published',
+    },
+  },
+  {
+    matches: (method, path) =>
+      method === 'POST' &&
+      (path === '/api/gallery' || /^\/api\/gallery\/[^/]+\/drafts$/.test(path)),
+    message: {
+      success: 'Gallery draft saved successfully',
+      error: 'Gallery draft could not be saved',
+    },
+  },
+  {
+    matches: (method, path) =>
       method === 'PUT' && /^\/api\/cart-enquiries\/[^/]+\/status$/.test(path),
     message: {
       success: 'Cart enquiry status updated successfully',

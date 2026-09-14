@@ -1,5 +1,11 @@
 # Architecture
 
+## Phase 19.2.2 Gallery publication and presentation correction
+
+Gallery slug derivation is shared validation-domain logic, while uniqueness remains a PostgreSQL-backed API decision made under the existing Gallery advisory lock. Automatic creation may choose a deterministic numeric suffix; manual slugs fail explicitly on conflict. Atomic create-and-publish and save-and-publish operations write immutable Draft and Published snapshots, update the single public head, and append audit history in one serializable transaction. No schema migration or mutable revision behavior was introduced.
+
+Private Admin media remains behind authenticated fixed-route BFFs. Browser previews load those URLs directly rather than through Next Image's server optimizer, which cannot carry a browser-only staff cookie. Public media and public DTO boundaries are unchanged. Homepage responsive carousels share one client interaction controller; CMS state, catalogue selection, SEO routes, and public confidentiality remain server-owned and unchanged.
+
 ## Phase 19.2 company experience and enquiry boundaries
 
 Gallery is a separate revisioned CMS aggregate backed by existing normalized `HomepageMedia`; public reads project only Published, non-archived revisions through explicit DTOs. Homepage selections point to stable Gallery projects while each Homepage revision preserves its ordered selection. The public Homepage adds controlled service cards, a featured Gallery carousel, and active-category navigation without exposing storage paths, staff data, price, inventory, or availability. See [Gallery](gallery.md).

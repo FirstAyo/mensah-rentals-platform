@@ -19,6 +19,8 @@ import type {
 } from '@mensah-rentals/types';
 import {
   GALLERY_SERVICE_PRESENTATION,
+  createGallerySlug,
+  gallerySlugWithSuffix,
   galleryServiceTypeFromSlug,
   type CreateGalleryProjectInput,
   type GalleryAdminListQuery,
@@ -198,9 +200,15 @@ export class GalleryService {
         tx,
         input.media.map(({ mediaId }) => mediaId),
       );
+      const slug = await this.resolveSlug(
+        tx,
+        input.content.slug,
+        input.content.title,
+        input.slugMode ?? 'MANUAL',
+      );
       const project = await tx.galleryProject.create({
         data: {
-          slug: input.content.slug,
+          slug,
           createdByUserId: actorUserId,
         },
       });
@@ -209,7 +217,7 @@ export class GalleryService {
           galleryProjectId: project.id,
           version: 1,
           kind: 'DRAFT',
-          ...this.revisionFields(input.content),
+          ...this.revisionFields({ ...input.content, slug }),
           operationId: input.operationId,
           payloadHash: hash,
           createdByUserId: actorUserId,
@@ -226,7 +234,74 @@ export class GalleryService {
         operationId: input.operationId,
         hash,
         projectId: project.id,
-        slug: input.content.slug,
+        slug,
+      });
+      return project.id;
+    });
+    return this.adminDetail(projectId);
+  }
+
+  async createAndPublish(
+    input: CreateGalleryProjectInput,
+    actorUserId: string,
+  ) {
+    const hash = payloadHash({ action: 'CREATE_AND_PUBLISH', ...input });
+    const projectId = await this.mutate(async (tx) => {
+      await this.requireActorPermission(tx, actorUserId, 'gallery.edit');
+      await this.requireActorPermission(tx, actorUserId, 'gallery.publish');
+      const replay = await tx.galleryProjectRevision.findUnique({
+        where: { operationId: input.operationId },
+      });
+      if (replay) return this.replayRevision(replay, hash);
+      await this.validateMedia(
+        tx,
+        input.media.map(({ mediaId }) => mediaId),
+      );
+      const slug = await this.resolveSlug(
+        tx,
+        input.content.slug,
+        input.content.title,
+        input.slugMode ?? 'MANUAL',
+      );
+      const project = await tx.galleryProject.create({
+        data: { slug, createdByUserId: actorUserId },
+      });
+      const draft = await tx.galleryProjectRevision.create({
+        data: {
+          galleryProjectId: project.id,
+          version: 1,
+          kind: 'DRAFT',
+          ...this.revisionFields({ ...input.content, slug }),
+          createdByUserId: actorUserId,
+          media: { create: this.mediaRows(input.media) },
+        },
+      });
+      const published = await tx.galleryProjectRevision.create({
+        data: {
+          galleryProjectId: project.id,
+          version: 2,
+          kind: 'PUBLISHED',
+          ...this.revisionFields({ ...input.content, slug }),
+          basedOnRevisionId: draft.id,
+          operationId: input.operationId,
+          payloadHash: hash,
+          createdByUserId: actorUserId,
+          publishedByUserId: actorUserId,
+          publishedAt: new Date(),
+          media: { create: this.mediaRows(input.media) },
+        },
+      });
+      await tx.galleryProject.update({
+        where: { id: project.id },
+        data: { publishedRevisionId: published.id, lockVersion: 1 },
+      });
+      await this.audit(tx, {
+        action: 'GALLERY_PROJECT_CREATED_AND_PUBLISHED',
+        actorUserId,
+        operationId: input.operationId,
+        hash,
+        projectId: project.id,
+        slug,
       });
       return project.id;
     });
@@ -255,6 +330,13 @@ export class GalleryService {
         tx,
         input.media.map(({ mediaId }) => mediaId),
       );
+      const slug = await this.resolveSlug(
+        tx,
+        input.content.slug,
+        input.content.title,
+        input.slugMode ?? 'MANUAL',
+        id,
+      );
       const latest = await tx.galleryProjectRevision.aggregate({
         where: { galleryProjectId: id },
         _max: { version: true },
@@ -264,7 +346,7 @@ export class GalleryService {
           galleryProjectId: id,
           version: (latest._max.version ?? 0) + 1,
           kind: 'DRAFT',
-          ...this.revisionFields(input.content),
+          ...this.revisionFields({ ...input.content, slug }),
           basedOnRevisionId:
             project.draftRevisionId ?? project.publishedRevisionId,
           operationId: input.operationId,
@@ -283,7 +365,95 @@ export class GalleryService {
         operationId: input.operationId,
         hash,
         projectId: id,
-        slug: input.content.slug,
+        slug,
+      });
+      return id;
+    });
+    return this.adminDetail(projectId);
+  }
+
+  async saveAndPublish(
+    id: string,
+    input: SaveGalleryDraftInput,
+    actorUserId: string,
+  ) {
+    const hash = payloadHash({
+      action: 'SAVE_AND_PUBLISH',
+      projectId: id,
+      ...input,
+    });
+    const projectId = await this.mutate(async (tx) => {
+      await this.requireActorPermission(tx, actorUserId, 'gallery.edit');
+      await this.requireActorPermission(tx, actorUserId, 'gallery.publish');
+      const replay = await tx.galleryProjectRevision.findUnique({
+        where: { operationId: input.operationId },
+      });
+      if (replay) return this.replayRevision(replay, hash, id);
+      const project = await this.lockProject(tx, id);
+      this.assertEditable(project.archivedAt);
+      if (project.lockVersion !== input.expectedLockVersion)
+        throw new ConflictException(
+          'Gallery project changed. Reload and try again.',
+        );
+      await this.validateMedia(
+        tx,
+        input.media.map(({ mediaId }) => mediaId),
+      );
+      const slug = await this.resolveSlug(
+        tx,
+        input.content.slug,
+        input.content.title,
+        input.slugMode ?? 'MANUAL',
+        id,
+      );
+      const latest = await tx.galleryProjectRevision.aggregate({
+        where: { galleryProjectId: id },
+        _max: { version: true },
+      });
+      const draftVersion = (latest._max.version ?? 0) + 1;
+      const draft = await tx.galleryProjectRevision.create({
+        data: {
+          galleryProjectId: id,
+          version: draftVersion,
+          kind: 'DRAFT',
+          ...this.revisionFields({ ...input.content, slug }),
+          basedOnRevisionId:
+            project.draftRevisionId ?? project.publishedRevisionId,
+          createdByUserId: actorUserId,
+          media: { create: this.mediaRows(input.media) },
+        },
+      });
+      const published = await tx.galleryProjectRevision.create({
+        data: {
+          galleryProjectId: id,
+          version: draftVersion + 1,
+          kind: 'PUBLISHED',
+          ...this.revisionFields({ ...input.content, slug }),
+          basedOnRevisionId: draft.id,
+          operationId: input.operationId,
+          payloadHash: hash,
+          createdByUserId: actorUserId,
+          publishedByUserId: actorUserId,
+          publishedAt: new Date(),
+          media: { create: this.mediaRows(input.media) },
+        },
+      });
+      await tx.galleryProject.update({
+        where: { id },
+        data: {
+          slug,
+          draftRevisionId: null,
+          publishedRevisionId: published.id,
+          lockVersion: { increment: 1 },
+        },
+      });
+      await this.audit(tx, {
+        action: 'GALLERY_DRAFT_SAVED_AND_PUBLISHED',
+        actorUserId,
+        operationId: input.operationId,
+        hash,
+        projectId: id,
+        slug,
       });
       return id;
     });
@@ -624,6 +794,70 @@ export class GalleryService {
       publishedAt: revision.publishedAt?.toISOString() ?? null,
       version: revision.version,
     };
+  }
+
+  private async resolveSlug(
+    tx: Prisma.TransactionClient,
+    requestedSlug: string,
+    title: string,
+    mode: 'AUTO' | 'MANUAL',
+    excludeProjectId?: string,
+  ) {
+    if (mode === 'MANUAL') {
+      if (
+        await this.slugBelongsToAnotherProject(
+          tx,
+          requestedSlug,
+          excludeProjectId,
+        )
+      )
+        throw new ConflictException(
+          'This Gallery URL is already being used by another Gallery project.',
+        );
+      return requestedSlug;
+    }
+
+    const base = createGallerySlug(title);
+    if (!base)
+      throw new UnprocessableEntityException(
+        'Enter a title containing letters or numbers so a valid URL can be created.',
+      );
+
+    if (!(await this.slugBelongsToAnotherProject(tx, base, excludeProjectId)))
+      return base;
+
+    for (let suffix = 2; suffix <= 10_000; suffix += 1) {
+      const candidate = gallerySlugWithSuffix(base, suffix);
+      if (
+        !(await this.slugBelongsToAnotherProject(
+          tx,
+          candidate,
+          excludeProjectId,
+        ))
+      )
+        return candidate;
+    }
+    throw new ConflictException('A unique Gallery URL could not be created.');
+  }
+
+  private async slugBelongsToAnotherProject(
+    tx: Prisma.TransactionClient,
+    slug: string,
+    excludeProjectId?: string,
+  ) {
+    return Boolean(
+      await tx.galleryProject.findFirst({
+        where: {
+          ...(excludeProjectId ? { id: { not: excludeProjectId } } : {}),
+          OR: [
+            { slug },
+            { draftRevision: { is: { slugSnapshot: slug } } },
+            { publishedRevision: { is: { slugSnapshot: slug } } },
+          ],
+        },
+        select: { id: true },
+      }),
+    );
   }
 
   private revisionFields(content: GalleryProjectContentInput) {

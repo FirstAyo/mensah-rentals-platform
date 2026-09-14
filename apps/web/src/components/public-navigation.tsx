@@ -150,7 +150,7 @@ export function DesktopNavigation({
         {rendered ? (
           <div
             aria-hidden={!open}
-            className={`absolute left-0 right-0 top-[calc(100%-1px)] z-50 border-t border-border/80 bg-background px-3 pb-4 pt-3 shadow-[0_24px_55px_-30px_hsl(var(--foreground)/0.45)] transition-[opacity,transform] motion-reduce:transform-none motion-reduce:transition-opacity ${
+            className={`absolute left-0 right-0 top-[calc(100%-1px)] z-50 border-t border-border/80 bg-background/95 px-3 pb-4 pt-3 shadow-[0_24px_55px_-30px_hsl(var(--foreground)/0.45)] backdrop-blur-sm transition-[opacity,transform] motion-reduce:transform-none motion-reduce:transition-opacity ${
               open
                 ? 'translate-y-0 scale-100 opacity-100 duration-200 ease-out'
                 : '-translate-y-2 scale-[0.99] opacity-0 duration-150 ease-in'

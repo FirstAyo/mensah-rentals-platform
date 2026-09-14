@@ -49,6 +49,7 @@ describe('Gallery authorization and public visibility', () => {
     })),
     archive: vi.fn(async () => ({ id: 'project-id' })),
     create: vi.fn(async () => ({ id: 'project-id' })),
+    createAndPublish: vi.fn(async () => ({ id: 'project-id' })),
     preview: vi.fn(async () => ({
       slug: 'safe-project',
       title: 'Safe project',
@@ -66,6 +67,7 @@ describe('Gallery authorization and public visibility', () => {
     })),
     publish: vi.fn(async () => ({ id: 'project-id' })),
     saveDraft: vi.fn(async () => ({ id: 'project-id' })),
+    saveAndPublish: vi.fn(async () => ({ id: 'project-id' })),
     unpublish: vi.fn(async () => ({ id: 'project-id' })),
   };
 
@@ -162,6 +164,32 @@ describe('Gallery authorization and public visibility', () => {
       .set('Origin', 'http://localhost:3001')
       .send({
         operationId,
+        content,
+        media: [{ mediaId: id, altText: 'Event' }],
+      })
+      .expect(201);
+    await request(app.getHttpServer())
+      .post('/admin/gallery/projects/publish')
+      .set('Cookie', 'mensah_staff_session=x')
+      .set('Origin', 'http://localhost:3001')
+      .send({
+        operationId: crypto.randomUUID(),
+        slugMode: 'AUTO',
+        content,
+        media: [{ mediaId: id, altText: 'Event' }],
+      })
+      .expect(403);
+    current = {
+      ...baseUser,
+      permissionKeys: ['gallery.edit', 'gallery.publish'],
+    };
+    await request(app.getHttpServer())
+      .post('/admin/gallery/projects/publish')
+      .set('Cookie', 'mensah_staff_session=x')
+      .set('Origin', 'http://localhost:3001')
+      .send({
+        operationId: crypto.randomUUID(),
+        slugMode: 'AUTO',
         content,
         media: [{ mediaId: id, altText: 'Event' }],
       })

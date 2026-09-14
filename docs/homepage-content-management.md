@@ -1,5 +1,13 @@
 # Homepage Content Management
 
+## Phase 19.2.2 public composition
+
+The published Homepage order is Hero, reassurance, Services, Recent Work, Featured Equipment, Why Mensah Rentals, How It Works, Google Reviews, Pickup/Delivery, Service Areas, and Final CTA. Featured Categories is intentionally not rendered, but its component, CMS fields, relationships, and immutable revision history remain intact; the editor labels it as currently hidden.
+
+At widths below 640 px, the four typed Services cards use a horizontal snap carousel with roughly one card plus a next-card preview, native touch/manual scrolling, Previous/Next controls, and 6-second autoplay. Recent Work uses the same interaction controller with 6.5-second autoplay. Both pause for pointer/focus interaction, while hidden tabs, offscreen sections, and reduced-motion preferences disable autoplay. Services returns to the approved grid at tablet/desktop widths; Recent Work retains its wider horizontal presentation.
+
+The reassurance parent now uses the same light surface as its items (and the semantic dark card surface in dark mode). The desktop Rentals mega-menu retains its 140 ms open and 240 ms close timing while its outer surface uses a 95%-opaque semantic background and light backdrop blur; the inner content card remains opaque.
+
 ## Phase 19.2 services and featured Gallery
 
 Homepage content now includes exactly four typed photographic service cards—Film Production, Events & Festivals, Corporate Functions, and Private Functions—and a featured Gallery section. Editors may change bounded title/copy, managed image, alt text, focal position, visibility, and presentation ordering, but may not invent or rename service types. Cards link to validated `/gallery?type=...` filters.

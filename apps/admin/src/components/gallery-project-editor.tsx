@@ -6,7 +6,9 @@ import type {
   PublicGalleryProjectResponse,
 } from '@mensah-rentals/types';
 import {
+  GALLERY_PROJECT_MEDIA_LIMIT,
   GALLERY_SERVICE_PRESENTATION,
+  createGallerySlug,
   galleryProjectContentSchema,
   galleryServiceTypes,
   type GalleryProjectContentInput,
@@ -18,16 +20,25 @@ import {
   Eye,
   EyeOff,
   ImagePlus,
+  RotateCcw,
   Send,
   Trash2,
 } from 'lucide-react';
-import Image from 'next/image';
 import Link from 'next/link';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  cloneElement,
+  isValidElement,
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactElement,
+} from 'react';
 
 import { adminHomepageMediaUrl } from '@/lib/homepage-media-url';
 import {
   MediaPickerDialog,
+  ManagedMediaPreview,
   mediaPreviewUrl,
   type MediaLibraryItem,
 } from './media-picker-dialog';
@@ -47,6 +58,21 @@ const blankContent: GalleryProjectContentInput = {
 };
 
 type EditableMedia = AdminGalleryMediaResponse & { previewUrl: string };
+type FieldErrors = Record<string, string>;
+
+const galleryFieldOrder = [
+  'title',
+  'slug',
+  'serviceType',
+  'eventDate',
+  'location',
+  'sortOrder',
+  'shortDescription',
+  'description',
+  'media',
+  'seoTitle',
+  'seoDescription',
+] as const;
 
 function messageFrom(response: Response, fallback: string) {
   return response
@@ -68,12 +94,14 @@ export function GalleryProjectEditor({
   canPreview,
   canPublish,
   projectId,
+  publicOrigin,
 }: {
   canEdit: boolean;
   canManageMedia: boolean;
   canPreview: boolean;
   canPublish: boolean;
   projectId?: string;
+  publicOrigin: string;
 }) {
   const [project, setProject] = useState<AdminGalleryProjectResponse | null>(
     null,
@@ -82,14 +110,24 @@ export function GalleryProjectEditor({
     useState<GalleryProjectContentInput>(blankContent);
   const [media, setMedia] = useState<EditableMedia[]>([]);
   const [loading, setLoading] = useState(Boolean(projectId));
-  const [busy, setBusy] = useState(false);
+  const [busyAction, setBusyAction] = useState<
+    'save' | 'publish' | 'unpublish' | 'archive' | 'preview' | null
+  >(null);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
+  const [pendingFocusField, setPendingFocusField] = useState<string | null>(
+    null,
+  );
+  const [slugMode, setSlugMode] = useState<'AUTO' | 'MANUAL'>(
+    projectId ? 'MANUAL' : 'AUTO',
+  );
   const [pickerOpen, setPickerOpen] = useState(false);
   const [preview, setPreview] = useState<PublicGalleryProjectResponse | null>(
     null,
   );
   const pickerTrigger = useRef<HTMLButtonElement>(null);
+  const busy = busyAction !== null;
 
   const apply = useCallback((value: AdminGalleryProjectResponse) => {
     setProject(value);
@@ -126,16 +164,100 @@ export function GalleryProjectEditor({
 
   useEffect(() => void load(), [load]);
 
+  useEffect(() => {
+    if (!pendingFocusField || busy) return;
+    const frame = window.requestAnimationFrame(() => {
+      const element = document.querySelector<HTMLElement>(
+        `[data-gallery-field="${CSS.escape(pendingFocusField)}"]`,
+      );
+      element?.focus({ preventScroll: true });
+      element?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setPendingFocusField(null);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [busy, pendingFocusField]);
+
   function update<K extends keyof GalleryProjectContentInput>(
     key: K,
     value: GalleryProjectContentInput[K],
   ) {
     setContent((current) => ({ ...current, [key]: value }));
+    setFieldErrors((current) => {
+      if (!current[key]) return current;
+      const next = { ...current };
+      delete next[key];
+      return next;
+    });
+  }
+
+  function updateTitle(value: string) {
+    setContent((current) => ({
+      ...current,
+      title: value,
+      ...(slugMode === 'AUTO' ? { slug: createGallerySlug(value) } : {}),
+    }));
+    setFieldErrors((current) => {
+      const next = { ...current };
+      delete next.title;
+      if (slugMode === 'AUTO') delete next.slug;
+      return next;
+    });
+  }
+
+  function focusFirstInvalid(errors: FieldErrors) {
+    const keys = Object.keys(errors);
+    const first =
+      galleryFieldOrder.find((field) => keys.includes(field)) ?? keys[0];
+    if (!first) return;
+    setPendingFocusField(first);
+  }
+
+  function validateProject() {
+    const nextErrors: FieldErrors = {};
+    if (
+      slugMode === 'AUTO' &&
+      content.title.trim() &&
+      !createGallerySlug(content.title)
+    ) {
+      nextErrors.title =
+        'Enter a title containing letters or numbers so a valid URL can be created.';
+      nextErrors.slug = 'A valid Gallery URL could not be generated.';
+    }
+    const parsed = galleryProjectContentSchema.safeParse(content);
+    if (!parsed.success) {
+      for (const issue of parsed.error.issues) {
+        const field = String(issue.path[0] ?? 'title');
+        nextErrors[field] ??= issue.message;
+      }
+    }
+    if (!media.length) nextErrors.media = 'Add at least one Gallery image.';
+    if (media.length > GALLERY_PROJECT_MEDIA_LIMIT)
+      nextErrors.media = `You can add up to ${GALLERY_PROJECT_MEDIA_LIMIT} images to a Gallery project.`;
+    media.forEach((item, index) => {
+      if (!item.altText.trim())
+        nextErrors[`media.${index}.altText`] =
+          'Add alt text describing this image.';
+    });
+    setFieldErrors(nextErrors);
+    if (Object.keys(nextErrors).length) {
+      setError(
+        `${Object.keys(nextErrors).length} ${Object.keys(nextErrors).length === 1 ? 'field needs' : 'fields need'} attention.`,
+      );
+      focusFirstInvalid(nextErrors);
+      return null;
+    }
+    return parsed.success ? parsed.data : null;
   }
 
   function addMedia(item: MediaLibraryItem) {
     if (media.some((entry) => entry.mediaId === item.id)) {
       setNotice('That image is already in this project.');
+      return;
+    }
+    if (media.length >= GALLERY_PROJECT_MEDIA_LIMIT) {
+      const message = `This Gallery project can contain up to ${GALLERY_PROJECT_MEDIA_LIMIT} images.`;
+      setFieldErrors((current) => ({ ...current, media: message }));
+      setError(message);
       return;
     }
     setMedia((current) => [
@@ -149,46 +271,50 @@ export function GalleryProjectEditor({
       },
     ]);
     setNotice('Image added. Review its alternative text before saving.');
+    setFieldErrors((current) => {
+      const next = { ...current };
+      delete next.media;
+      return next;
+    });
   }
 
   async function mutate(action: 'save' | 'publish' | 'unpublish' | 'archive') {
     setError('');
     setNotice('');
-    setBusy(true);
+    setFieldErrors({});
     try {
       let url = '/api/gallery';
       let body: unknown;
-      if (action === 'save') {
-        const parsed = galleryProjectContentSchema.safeParse(content);
-        if (!parsed.success)
-          throw new Error(
-            parsed.error.issues[0]?.message ?? 'Check the project details.',
-          );
-        if (!media.length) throw new Error('Add at least one Gallery image.');
-        if (media.some((item) => !item.altText.trim()))
-          throw new Error('Every image needs descriptive alternative text.');
+      if (action === 'save' || action === 'publish') {
+        const parsed = validateProject();
+        if (!parsed) return;
+        setBusyAction(action);
         body = {
           operationId: crypto.randomUUID(),
           ...(project ? { expectedLockVersion: project.lockVersion } : {}),
-          content: parsed.data,
+          slugMode,
+          content: parsed,
           media: media.map(({ mediaId, altText, focalPoint }) => ({
             mediaId,
             altText: altText.trim(),
             focalPoint,
           })),
         };
-        if (project) url = `/api/gallery/${project.id}/drafts`;
+        if (action === 'save') {
+          if (project) url = `/api/gallery/${project.id}/drafts`;
+        } else {
+          url = project
+            ? `/api/gallery/${project.id}/publish`
+            : '/api/gallery/publish';
+        }
       } else {
+        setBusyAction(action);
         if (!project) throw new Error('Save the project before continuing.');
         body = {
           operationId: crypto.randomUUID(),
           expectedLockVersion: project.lockVersion,
         };
-        if (action === 'publish') {
-          if (!project.draft)
-            throw new Error('There is no current draft to publish.');
-          url = `/api/gallery/${project.id}/drafts/${project.draft.id}/publish`;
-        } else if (action === 'unpublish') {
+        if (action === 'unpublish') {
           if (!project.published)
             throw new Error('This Gallery project is not published.');
           if (
@@ -213,16 +339,26 @@ export function GalleryProjectEditor({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(body),
       });
-      if (!response.ok)
-        throw new Error(
-          await messageFrom(response, 'The Gallery change could not be saved.'),
+      if (!response.ok) {
+        const message = await messageFrom(
+          response,
+          action === 'publish'
+            ? 'Gallery project could not be published.'
+            : 'The Gallery change could not be saved.',
         );
+        if (/Gallery URL|slug.*already|URL.*already/i.test(message)) {
+          const nextErrors = { slug: message };
+          setFieldErrors(nextErrors);
+          focusFirstInvalid(nextErrors);
+        }
+        throw new Error(message);
+      }
       const result = (await response.json()) as AdminGalleryProjectResponse;
       apply(result);
       setPreview(null);
       setNotice(
         action === 'save'
-          ? 'Draft saved.'
+          ? 'Saved'
           : action === 'publish'
             ? 'Gallery project published.'
             : action === 'unpublish'
@@ -231,6 +367,13 @@ export function GalleryProjectEditor({
       );
       if (!projectId && action === 'save')
         window.history.replaceState(null, '', `/website/gallery/${result.id}`);
+      if (action === 'publish') {
+        window.setTimeout(() => {
+          window.location.assign(
+            `${publicOrigin.replace(/\/$/, '')}/gallery/${result.slug}`,
+          );
+        }, 600);
+      }
     } catch (cause) {
       setError(
         cause instanceof Error
@@ -238,14 +381,14 @@ export function GalleryProjectEditor({
           : 'The Gallery change could not be saved.',
       );
     } finally {
-      setBusy(false);
+      setBusyAction(null);
     }
   }
 
   async function showPreview() {
     const revision = project?.draft ?? project?.publishedRevision;
     if (!project || !revision) return;
-    setBusy(true);
+    setBusyAction('preview');
     setError('');
     try {
       const response = await fetch(
@@ -266,7 +409,7 @@ export function GalleryProjectEditor({
         cause instanceof Error ? cause.message : 'Preview could not be loaded.',
       );
     } finally {
-      setBusy(false);
+      setBusyAction(null);
     }
   }
 
@@ -342,24 +485,61 @@ export function GalleryProjectEditor({
         <legend className="sr-only">Gallery project details</legend>
         <section className="grid gap-4 rounded-xl border bg-card p-4 sm:p-6 md:grid-cols-2">
           <h2 className="col-span-full text-xl font-semibold">Project story</h2>
-          <Field label="Title">
+          <Field error={fieldErrors.title} label="Title" name="title">
             <input
               className="control"
               maxLength={180}
-              onChange={(e) => update('title', e.target.value)}
+              onChange={(e) => updateTitle(e.target.value)}
               value={content.title}
             />
           </Field>
-          <Field label="URL slug">
-            <input
-              className="control"
-              maxLength={160}
-              onChange={(e) => update('slug', e.target.value)}
-              placeholder="project-name"
-              value={content.slug}
-            />
+          <Field
+            decorateControl={false}
+            error={fieldErrors.slug}
+            label="URL slug"
+            name="slug"
+          >
+            <div>
+              <div className="flex gap-2">
+                <input
+                  aria-describedby={fieldErrors.slug ? 'slug-error' : undefined}
+                  aria-invalid={Boolean(fieldErrors.slug)}
+                  className="control"
+                  data-gallery-field="slug"
+                  id="slug"
+                  maxLength={160}
+                  onChange={(e) => {
+                    setSlugMode('MANUAL');
+                    update('slug', createGallerySlug(e.target.value));
+                  }}
+                  placeholder="project-name"
+                  value={content.slug}
+                />
+                {slugMode === 'MANUAL' ? (
+                  <button
+                    className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-lg border px-3 text-xs font-semibold"
+                    onClick={() => {
+                      setSlugMode('AUTO');
+                      update('slug', createGallerySlug(content.title));
+                    }}
+                    type="button"
+                  >
+                    <RotateCcw aria-hidden="true" className="h-4 w-4" />
+                    Regenerate
+                  </button>
+                ) : null}
+              </div>
+              <span className="mt-1.5 block break-all text-xs font-normal text-muted-foreground">
+                {publicOrigin.replace(/\/$/, '')}/gallery/
+                {content.slug || 'your-project'}
+              </span>
+            </div>
           </Field>
-          <Field label="Service">
+          <Field
+            error={fieldErrors.serviceType}
+            label="Service"
+            name="serviceType"
+          >
             <select
               className="control"
               onChange={(e) =>
@@ -377,7 +557,11 @@ export function GalleryProjectEditor({
               ))}
             </select>
           </Field>
-          <Field label="Event date (optional)">
+          <Field
+            error={fieldErrors.eventDate}
+            label="Event date (optional)"
+            name="eventDate"
+          >
             <input
               className="control"
               onChange={(e) => update('eventDate', e.target.value || null)}
@@ -385,7 +569,11 @@ export function GalleryProjectEditor({
               value={content.eventDate ?? ''}
             />
           </Field>
-          <Field label="Location (optional)">
+          <Field
+            error={fieldErrors.location}
+            label="Location (optional)"
+            name="location"
+          >
             <input
               className="control"
               maxLength={240}
@@ -393,7 +581,11 @@ export function GalleryProjectEditor({
               value={content.location ?? ''}
             />
           </Field>
-          <Field label="Sort order">
+          <Field
+            error={fieldErrors.sortOrder}
+            label="Sort order"
+            name="sortOrder"
+          >
             <input
               className="control"
               min={0}
@@ -403,7 +595,12 @@ export function GalleryProjectEditor({
               value={content.sortOrder}
             />
           </Field>
-          <Field full label="Short description">
+          <Field
+            error={fieldErrors.shortDescription}
+            full
+            label="Short description"
+            name="shortDescription"
+          >
             <textarea
               className="control min-h-24"
               maxLength={400}
@@ -411,7 +608,12 @@ export function GalleryProjectEditor({
               value={content.shortDescription}
             />
           </Field>
-          <Field full label="Full story (optional)">
+          <Field
+            error={fieldErrors.description}
+            full
+            label="Full story (optional)"
+            name="description"
+          >
             <textarea
               className="control min-h-40"
               maxLength={5000}
@@ -437,10 +639,15 @@ export function GalleryProjectEditor({
                 The first image is the cover. Reorder images and write
                 meaningful alternative text.
               </p>
+              <p className="mt-1 text-sm font-medium">
+                Images {media.length} / {GALLERY_PROJECT_MEDIA_LIMIT}
+              </p>
             </div>
             {canEdit ? (
               <button
                 className="inline-flex min-h-11 items-center gap-2 rounded-lg border px-4 text-sm font-semibold"
+                data-gallery-field="media"
+                disabled={media.length >= GALLERY_PROJECT_MEDIA_LIMIT}
                 onClick={() => setPickerOpen(true)}
                 ref={pickerTrigger}
                 type="button"
@@ -449,6 +656,15 @@ export function GalleryProjectEditor({
               </button>
             ) : null}
           </div>
+          {fieldErrors.media ? (
+            <p
+              className="text-sm text-destructive"
+              id="media-error"
+              role="alert"
+            >
+              {fieldErrors.media}
+            </p>
+          ) : null}
           {!media.length ? (
             <div className="grid min-h-32 place-items-center rounded-lg border border-dashed text-sm text-muted-foreground">
               No images selected.
@@ -461,13 +677,7 @@ export function GalleryProjectEditor({
                   key={item.mediaId}
                 >
                   <div className="relative aspect-video overflow-hidden rounded-lg bg-muted">
-                    <Image
-                      alt=""
-                      className="object-cover"
-                      fill
-                      sizes="160px"
-                      src={item.previewUrl}
-                    />
+                    <ManagedMediaPreview sizes="160px" src={item.previewUrl} />
                   </div>
                   <div className="min-w-0 space-y-3">
                     <div className="flex items-center justify-between gap-2">
@@ -507,23 +717,35 @@ export function GalleryProjectEditor({
                         </IconButton>
                       </div>
                     </div>
-                    <Field label="Alternative text">
+                    <Field
+                      error={fieldErrors[`media.${index}.altText`]}
+                      label="Alternative text"
+                      name={`media.${index}.altText`}
+                    >
                       <input
                         className="control"
                         maxLength={300}
-                        onChange={(e) =>
+                        onChange={(e) => {
                           setMedia((items) =>
                             items.map((entry) =>
                               entry.mediaId === item.mediaId
                                 ? { ...entry, altText: e.target.value }
                                 : entry,
                             ),
-                          )
-                        }
+                          );
+                          setFieldErrors((current) => {
+                            const next = { ...current };
+                            delete next[`media.${index}.altText`];
+                            return next;
+                          });
+                        }}
                         value={item.altText}
                       />
                     </Field>
-                    <Field label="Focal point">
+                    <Field
+                      label="Focal point"
+                      name={`media.${index}.focalPoint`}
+                    >
                       <select
                         className="control"
                         onChange={(e) =>
@@ -557,7 +779,11 @@ export function GalleryProjectEditor({
           <h2 className="col-span-full text-xl font-semibold">
             Search preview
           </h2>
-          <Field label="SEO title (optional)">
+          <Field
+            error={fieldErrors.seoTitle}
+            label="SEO title (optional)"
+            name="seoTitle"
+          >
             <input
               className="control"
               maxLength={70}
@@ -565,7 +791,11 @@ export function GalleryProjectEditor({
               value={content.seoTitle ?? ''}
             />
           </Field>
-          <Field label="SEO description (optional)">
+          <Field
+            error={fieldErrors.seoDescription}
+            label="SEO description (optional)"
+            name="seoDescription"
+          >
             <textarea
               className="control min-h-24"
               maxLength={180}
@@ -579,12 +809,12 @@ export function GalleryProjectEditor({
       <div className="sticky bottom-3 z-10 flex flex-wrap gap-2 rounded-xl border bg-card/95 p-3 shadow-lg backdrop-blur">
         {canEdit && !project?.archivedAt ? (
           <button
-            className="min-h-11 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-50"
+            className="min-h-11 rounded-lg border px-4 text-sm font-semibold disabled:opacity-50"
             disabled={busy}
             onClick={() => void mutate('save')}
             type="button"
           >
-            {busy ? 'Working…' : 'Save draft'}
+            {busyAction === 'save' ? 'Saving...' : 'Save Draft'}
           </button>
         ) : null}
         {canPreview && project ? (
@@ -598,14 +828,15 @@ export function GalleryProjectEditor({
             revision
           </button>
         ) : null}
-        {canPublish && project?.draft && !project.archivedAt ? (
+        {canPublish && canEdit && !project?.archivedAt ? (
           <button
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg border border-primary px-4 text-sm font-semibold text-primary disabled:opacity-50"
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-primary px-4 text-sm font-semibold text-primary-foreground disabled:opacity-50"
             disabled={busy}
             onClick={() => void mutate('publish')}
             type="button"
           >
-            <Send aria-hidden="true" className="h-4 w-4" /> Publish draft
+            <Send aria-hidden="true" className="h-4 w-4" />{' '}
+            {busyAction === 'publish' ? 'Publishing...' : 'Publish'}
           </button>
         ) : null}
         {canPublish && project?.published && !project.archivedAt ? (
@@ -663,12 +894,13 @@ export function GalleryProjectEditor({
                 className="relative aspect-[4/3] overflow-hidden rounded-lg bg-muted"
                 key={`${item.url}-${index}`}
               >
-                <Image
+                <ManagedMediaPreview
                   alt={item.altText}
-                  className="object-cover"
-                  fill
                   sizes="(min-width:1024px) 30vw, 50vw"
-                  src={item.url}
+                  src={
+                    media.find((entry) => entry.url === item.url)?.previewUrl ??
+                    item.url
+                  }
                 />
               </div>
             ))}
@@ -699,6 +931,7 @@ export function GalleryProjectEditor({
 
       <MediaPickerDialog
         canUpload={canManageMedia}
+        homepageOnly
         label="Gallery project"
         onClose={() => setPickerOpen(false)}
         onNotice={setNotice}
@@ -715,17 +948,41 @@ export function GalleryProjectEditor({
 
 function Field({
   children,
+  decorateControl = true,
+  error,
   full = false,
   label,
+  name,
 }: {
-  children: React.ReactNode;
+  children: ReactElement<Record<string, unknown>>;
+  decorateControl?: boolean;
+  error?: string;
   full?: boolean;
   label: string;
+  name: string;
 }) {
+  const errorId = `${name.replaceAll('.', '-')}-error`;
+  const control =
+    decorateControl && isValidElement(children)
+      ? cloneElement(children, {
+          'aria-describedby': error ? errorId : undefined,
+          'aria-invalid': Boolean(error),
+          'data-gallery-field': name,
+          id: name.replaceAll('.', '-'),
+        })
+      : children;
   return (
-    <label className={`text-sm font-medium ${full ? 'md:col-span-2' : ''}`}>
+    <label
+      className={`text-sm font-medium ${error ? 'text-destructive' : ''} ${full ? 'md:col-span-2' : ''}`}
+      htmlFor={name.replaceAll('.', '-')}
+    >
       {label}
-      <span className="mt-2 block">{children}</span>
+      <span className="mt-2 block">{control}</span>
+      {error ? (
+        <span className="mt-1.5 block text-sm text-destructive" id={errorId}>
+          {error}
+        </span>
+      ) : null}
     </label>
   );
 }

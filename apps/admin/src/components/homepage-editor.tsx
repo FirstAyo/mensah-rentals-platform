@@ -1113,13 +1113,19 @@ export function HomepageEditor({
           />
         </Section>
 
-        <Selection
-          title="Featured categories"
-          items={categories}
-          selected={categoryIds}
-          max={8}
-          onChange={setCategoryIds}
-        />
+        <div className="space-y-3">
+          <p className="rounded-xl border border-border bg-muted/35 p-3 text-sm text-muted-foreground">
+            Featured categories are currently hidden from the public Homepage.
+            Their selections and revision history are preserved for future use.
+          </p>
+          <Selection
+            title="Featured categories"
+            items={categories}
+            selected={categoryIds}
+            max={8}
+            onChange={setCategoryIds}
+          />
+        </div>
         {categoryIds.length ? (
           <Section title="Featured category card images">
             {categoryIds.map((categoryId) => {

@@ -36,6 +36,39 @@ export function mediaPreviewUrl(
         : '';
 }
 
+export function ManagedMediaPreview({
+  alt = '',
+  sizes,
+  src,
+}: {
+  alt?: string;
+  sizes: string;
+  src: string;
+}) {
+  const [failed, setFailed] = useState(!src);
+
+  useEffect(() => setFailed(!src), [src]);
+
+  if (failed)
+    return (
+      <span className="absolute inset-0 grid place-items-center px-3 text-center text-xs font-medium text-muted-foreground">
+        Image preview unavailable
+      </span>
+    );
+
+  return (
+    <Image
+      alt={alt}
+      className="object-cover"
+      fill
+      onError={() => setFailed(true)}
+      sizes={sizes}
+      src={src}
+      unoptimized={src.startsWith('/api/')}
+    />
+  );
+}
+
 export function MediaAssignmentField({
   canEdit,
   canUpload,
@@ -91,10 +124,7 @@ export function MediaAssignmentField({
       {current ? (
         <div className="grid gap-3 sm:grid-cols-[8rem_1fr] sm:items-center">
           <div className="relative aspect-video overflow-hidden rounded-lg bg-muted">
-            <Image
-              alt=""
-              className="object-cover"
-              fill
+            <ManagedMediaPreview
               sizes="128px"
               src={mediaPreviewUrl(current, endpoint)}
             />
@@ -140,6 +170,7 @@ export function MediaAssignmentField({
 export function MediaPickerDialog({
   canUpload,
   endpoint = '/api/homepage/media',
+  homepageOnly = false,
   label,
   onClose,
   onNotice,
@@ -149,6 +180,7 @@ export function MediaPickerDialog({
 }: {
   canUpload: boolean;
   endpoint?: string;
+  homepageOnly?: boolean;
   label: string;
   onClose: () => void;
   onNotice: (message: string) => void;
@@ -156,12 +188,21 @@ export function MediaPickerDialog({
   open: boolean;
   returnFocusRef?: React.RefObject<HTMLElement | null>;
 }) {
-  const [source, setSource] = useState<'ALL' | 'HOMEPAGE' | 'PRODUCT'>('ALL');
+  const [source, setSource] = useState<'ALL' | 'HOMEPAGE' | 'PRODUCT'>(
+    homepageOnly ? 'HOMEPAGE' : 'ALL',
+  );
   const [search, setSearch] = useState('');
   const [items, setItems] = useState<MediaLibraryItem[]>([]);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const searchRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (open && homepageOnly) {
+      setItems([]);
+      setSource('HOMEPAGE');
+    }
+  }, [homepageOnly, open]);
 
   useEffect(() => {
     if (!open) return;
@@ -283,33 +324,35 @@ export function MediaPickerDialog({
             <X aria-hidden="true" className="h-4 w-4" />
           </button>
         </div>
-        <div
-          className="mt-4 flex flex-wrap gap-2"
-          role="tablist"
-          aria-label="Image sources"
-        >
-          {(['ALL', 'HOMEPAGE', 'PRODUCT'] as const).map((value) => (
-            <button
-              aria-selected={source === value}
-              className={`min-h-11 rounded-lg px-3 text-sm ${source === value ? 'bg-primary text-primary-foreground' : 'border border-border'}`}
-              key={value}
-              onClick={() => {
-                if (value !== source) {
-                  setItems([]);
-                  setSource(value);
-                }
-              }}
-              role="tab"
-              type="button"
-            >
-              {value === 'ALL'
-                ? 'Media library'
-                : value === 'HOMEPAGE'
-                  ? 'Homepage media'
-                  : 'Product images'}
-            </button>
-          ))}
-        </div>
+        {!homepageOnly ? (
+          <div
+            className="mt-4 flex flex-wrap gap-2"
+            role="tablist"
+            aria-label="Image sources"
+          >
+            {(['ALL', 'HOMEPAGE', 'PRODUCT'] as const).map((value) => (
+              <button
+                aria-selected={source === value}
+                className={`min-h-11 rounded-lg px-3 text-sm ${source === value ? 'bg-primary text-primary-foreground' : 'border border-border'}`}
+                key={value}
+                onClick={() => {
+                  if (value !== source) {
+                    setItems([]);
+                    setSource(value);
+                  }
+                }}
+                role="tab"
+                type="button"
+              >
+                {value === 'ALL'
+                  ? 'Media library'
+                  : value === 'HOMEPAGE'
+                    ? 'Homepage media'
+                    : 'Product images'}
+              </button>
+            ))}
+          </div>
+        ) : null}
         <label className="relative mt-3 block">
           <Search
             aria-hidden="true"
@@ -355,10 +398,7 @@ export function MediaPickerDialog({
               key={`${item.source}-${item.id}`}
             >
               <div className="relative aspect-video bg-muted">
-                <Image
-                  alt=""
-                  className="object-cover"
-                  fill
+                <ManagedMediaPreview
                   sizes="260px"
                   src={mediaPreviewUrl(item, endpoint)}
                 />

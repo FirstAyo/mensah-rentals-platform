@@ -1,5 +1,13 @@
 # Gallery and company-experience CMS
 
+## Phase 19.2.2 editor polish
+
+New-project titles generate an ASCII, lowercase, hyphen-separated Gallery slug. Accented Latin characters are folded, ampersands become `and`, punctuation/emoji are removed safely, repeated separators collapse, and output is bounded to 160 characters at a word boundary where practical. An empty result is rejected. Title edits continue to update the slug until the editor changes the slug manually; **Regenerate** restores automatic mode. Automatic creates resolve collisions as `slug-2`, `slug-3`, and so on inside the serialized Gallery transaction. Manual collisions are never silently changed and return a Slug-field error. There are currently no public static routes below `/gallery` that require reserved slugs; the Admin `/website/gallery/new` route does not collide with `/gallery/[slug]`.
+
+The create editor exposes **Save Draft** and **Publish**. Draft save remains private and in the editor. Publish validates the complete project, creates immutable Draft and Published revisions in one transaction, switches the public head only after success, and redirects after 600 ms to the public `/gallery/{slug}` page. Existing projects use the same atomic save-and-publish path so unsaved form changes cannot be omitted accidentally.
+
+A Gallery project contains at most **20 images** and at least one. The first image is the cover and counts toward 20. The shared Zod/API limit is authoritative; the editor shows `Images n / 20`, blocks selection at the limit, and identifies missing alt text inline. Managed files remain server-normalized WebP. Authenticated Admin previews bypass Next Image server optimization because that optimizer request cannot forward the browser's staff session to the private media BFF; direct browser image loading retains the secure cookie. JPEG, PNG, and WebP remain accepted upload inputs and are normalized by the existing server pipeline. A deliberate fallback appears when preview loading genuinely fails.
+
 Phase 19.2 adds a structured, revisioned portfolio of work completed or supported by Mensah Rentals. Gallery projects are company evidence, not Product categories and not arbitrary image uploads.
 
 ## Controlled service types
@@ -53,9 +61,9 @@ The base Gallery has unique metadata and canonical `/gallery`. Filtered query pa
 
 ## Public presentation
 
-The Homepage places the four photographic service cards near the top and links each to its filter. A managed, featured Gallery carousel follows catalogue categories; it pauses for hover, keyboard focus, hidden tabs, and reduced-motion preferences, and has manual controls. The full Gallery uses stable editorial cards and project details provide an accessible keyboard-operated lightbox when multiple images exist.
+The Homepage places the four photographic service cards near the top and links each to its filter. A managed, featured Gallery carousel follows Services; it pauses for hover, keyboard focus, hidden tabs, and reduced-motion preferences, and has manual controls. The full Gallery uses stable editorial cards and project details provide an accessible keyboard-operated lightbox when multiple images exist.
 
-The desktop Rentals navigation uses active categories and managed category/product fallback imagery in an accessible, intent-delayed mega menu. Its opaque elevated surface and category content align to the shared 1440 px public container instead of stretching across large monitors. Mobile uses a touch-friendly Rentals accordion rather than compressing or inheriting hover behavior from the desktop menu. No navigation or Gallery response exposes inventory quantities.
+The desktop Rentals navigation uses active categories and managed category/product fallback imagery in an accessible, intent-delayed mega menu. Its subtly translucent outer surface (95% semantic background with a light blur) lets the Hero influence the surrounding surface, while the inner cards remain readable and the content aligns to the shared 1440 px public container. Mobile uses a touch-friendly Rentals accordion rather than compressing or inheriting hover behavior from the desktop menu. No navigation or Gallery response exposes inventory quantities.
 
 ## Media, backup, and transfer
 

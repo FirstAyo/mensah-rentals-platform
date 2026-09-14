@@ -254,7 +254,7 @@ async function publishFromBottom(page: Page) {
 
 test('@homepage-public renders premium request-based content at 320px with dark-theme persistence and no serious accessibility violations', async ({
   page,
-}) => {
+}, testInfo) => {
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
   await expect(
@@ -267,8 +267,52 @@ test('@homepage-public renders premium request-based content at 320px with dark-
     page.getByRole('link', { name: 'View rental cart' }),
   ).toHaveAttribute('href', '/cart');
   await expect(page.getByText('Staff-reviewed quotes')).toBeVisible();
+  await expect(
+    page.locator('[data-homepage-section="featured-categories"]'),
+  ).toHaveCount(0);
+  const sectionTops = await page.evaluate(() =>
+    ['services', 'recent-work', 'featured-equipment', 'why-mensah-rentals'].map(
+      (name) =>
+        document
+          .querySelector<HTMLElement>(`[data-homepage-section="${name}"]`)
+          ?.getBoundingClientRect().top,
+    ),
+  );
+  expect(sectionTops.every((value) => typeof value === 'number')).toBe(true);
+  expect(sectionTops).toEqual([...sectionTops].sort((a, b) => a! - b!));
+  const serviceCarousel = page.getByLabel('Services carousel');
+  if (testInfo.project.name === 'mobile-320') {
+    await expect(serviceCarousel).toHaveCSS('display', 'flex');
+    expect(
+      await serviceCarousel.evaluate(
+        (element) => element.scrollWidth > element.clientWidth,
+      ),
+    ).toBe(true);
+  } else if (testInfo.project.name === 'wide-1440') {
+    await expect(serviceCarousel).toHaveCSS('display', 'grid');
+  }
+  const reassuranceSurfaces = await page.evaluate(() => {
+    const parent = document.querySelector<HTMLElement>(
+      '[data-homepage-section="reassurance"]',
+    );
+    const item = parent?.querySelector<HTMLElement>('li');
+    return {
+      item: item ? getComputedStyle(item).backgroundColor : null,
+      parent: parent ? getComputedStyle(parent).backgroundColor : null,
+    };
+  });
+  expect(reassuranceSurfaces.parent).toBe(reassuranceSurfaces.item);
   await expectNoDocumentOverflow(page);
   await expectNoSeriousAxeViolations(page);
+  if (
+    testInfo.project.name === 'mobile-390' ||
+    testInfo.project.name === 'wide-1440'
+  ) {
+    await page.screenshot({
+      path: testInfo.outputPath(`homepage-${testInfo.project.name}.png`),
+      fullPage: true,
+    });
+  }
   await page.evaluate(() => localStorage.setItem('theme', 'dark'));
   await page.reload();
   await expect(page.locator('html')).toHaveClass(/dark/);

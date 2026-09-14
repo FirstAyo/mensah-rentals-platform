@@ -112,4 +112,26 @@ describe('fixed Gallery BFF proxy', () => {
       ).status,
     ).toBe(404);
   });
+
+  it('allowlists only the explicit atomic publish routes', async () => {
+    const fetcher = vi.fn<typeof fetch>(async () =>
+      Response.json({ id: 'project-id', published: true }),
+    );
+    const request = new Request('http://localhost:3001/api/gallery/publish', {
+      method: 'POST',
+      headers: {
+        cookie: 'mensah_staff_session=safe',
+        origin: 'http://localhost:3001',
+        'content-type': 'application/json',
+      },
+      body: '{}',
+    });
+    expect(
+      (await proxyGallery(request, ['publish'], fetcher as typeof fetch))
+        .status,
+    ).toBe(200);
+    expect(fetcher.mock.calls[0]?.[0]).toBe(
+      'http://127.0.0.1:4000/admin/gallery/projects/publish',
+    );
+  });
 });

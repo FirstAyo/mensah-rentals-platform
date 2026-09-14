@@ -222,4 +222,71 @@ describe('Gallery immutable publication against PostgreSQL', () => {
       }),
     ).toBe(revisionCount + 2);
   });
+
+  it('suffixes automatic collisions, rejects manual collisions, and publishes atomically', async () => {
+    const content = {
+      slug: `automatic-gallery-${suffix}`,
+      title: `Automatic Gallery ${suffix}`,
+      serviceType: 'EVENTS_FESTIVALS' as const,
+      shortDescription: 'An automatically named Gallery project.',
+      description: null,
+      eventDate: null,
+      location: null,
+      featured: false,
+      sortOrder: 2,
+      seoTitle: null,
+      seoDescription: null,
+    };
+    const media = [
+      {
+        mediaId,
+        altText: 'Rental equipment at an event',
+        focalPoint: 'center' as const,
+      },
+    ];
+    const first = await service.createAndPublish(
+      {
+        operationId: randomUUID(),
+        slugMode: 'AUTO',
+        content,
+        media,
+      },
+      actorId,
+    );
+    expect(first.published).toBe(true);
+    expect(first.draft).toBeNull();
+    expect(first.history.map(({ kind }) => kind)).toEqual([
+      'PUBLISHED',
+      'DRAFT',
+    ]);
+    expect(await service.publicDetail(first.slug)).toMatchObject({
+      slug: first.slug,
+      title: content.title,
+    });
+
+    const second = await service.createAndPublish(
+      {
+        operationId: randomUUID(),
+        slugMode: 'AUTO',
+        content,
+        media,
+      },
+      actorId,
+    );
+    expect(second.slug).toBe(`${first.slug}-2`);
+
+    await expect(
+      service.create(
+        {
+          operationId: randomUUID(),
+          slugMode: 'MANUAL',
+          content: { ...content, title: 'Manual collision' },
+          media,
+        },
+        actorId,
+      ),
+    ).rejects.toThrow(
+      'This Gallery URL is already being used by another Gallery project.',
+    );
+  });
 });

@@ -12,8 +12,10 @@ import {
 const cuid = '[a-z][a-z0-9]{20,31}';
 const routes = [
   { pattern: /^$/, methods: ['GET', 'POST'] },
+  { pattern: /^publish$/, methods: ['POST'] },
   { pattern: new RegExp(`^${cuid}$`), methods: ['GET'] },
   { pattern: new RegExp(`^${cuid}/drafts$`), methods: ['POST'] },
+  { pattern: new RegExp(`^${cuid}/publish$`), methods: ['POST'] },
   {
     pattern: new RegExp(`^${cuid}/revisions/${cuid}/preview$`),
     methods: ['GET'],

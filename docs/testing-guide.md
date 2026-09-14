@@ -1,5 +1,29 @@
 # Testing Guide
 
+## Phase 19.2.2 Gallery/Homepage correction
+
+Run from the repository root with Docker Desktop open and ordinary development servers stopped:
+
+```powershell
+docker compose up -d postgres postgres-test
+pnpm format:check
+pnpm lint
+pnpm typecheck
+pnpm test
+pnpm build
+pnpm db:integrity
+pnpm rbac:verify
+pnpm seo:audit
+pnpm test:e2e:gallery-homepage-launch-flow
+pnpm test:e2e:homepage-all
+pnpm test:e2e:public-navigation
+pnpm test:e2e:feature-settings
+pnpm test:e2e:staging-workflow-corrections
+git diff --check
+```
+
+The Gallery browser flow verifies generated/manual/regenerated slugs, automatic collision suffixing, field errors and first-invalid focus, Draft save, atomic Publish, public redirect, authenticated WebP preview, the 20-image counter, and Axe serious/critical results. Homepage coverage verifies the hidden-but-preserved Featured Categories implementation, explicit section order, mobile Services/Recent Work overflow and controls, desktop Services grid, equal reassurance surfaces, unchanged mega-menu behavior, dark theme, and no document overflow. Manually inspect 320, 375, 390, 430, 768, 1024, 1440, 1920, and 2560 px. Temporary screenshots are test artifacts only and must not be committed.
+
 ## Phase 19.2 Gallery and launch-enquiry verification
 
 Start PostgreSQL and run the additive database/RBAC/static gates:

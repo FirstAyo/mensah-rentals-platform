@@ -1,4 +1,5 @@
 import AxeBuilder from '@axe-core/playwright';
+import { createGallerySlug } from '@mensah-rentals/validation';
 import { expect, test, type Page } from '@playwright/test';
 
 test.describe.configure({ mode: 'serial', timeout: 240_000 });
@@ -130,6 +131,85 @@ test('@gallery-homepage-launch-flow renders the premium company homepage, Galler
   );
   expect(detailResponse.ok()).toBe(true);
   expectSafeKeys(await detailResponse.json());
+});
+
+test('@gallery-homepage-launch-flow creates and publishes a Gallery project with generated slug and WebP preview', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'wide-1440');
+  await login(page);
+  await page.goto('http://localhost:3001/website/gallery/new');
+
+  await expect(page.getByRole('button', { name: 'Save Draft' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Publish' })).toBeVisible();
+  await page.getByRole('button', { name: 'Save Draft' }).click();
+  const titleField = page.locator('#title');
+  const slugField = page.locator('#slug');
+  await expect(titleField).toHaveAttribute('aria-invalid', 'true');
+  await expect(page.getByText('Enter a project title.')).toBeVisible();
+  await expect(titleField).toBeFocused();
+  await page.screenshot({
+    path: testInfo.outputPath('gallery-validation-error.png'),
+    fullPage: true,
+  });
+
+  const title = required('PHASE192_GALLERY_TITLE');
+  const generatedSlug = createGallerySlug(title);
+  await titleField.fill(title);
+  await expect(slugField).toHaveValue(generatedSlug);
+  await slugField.fill('manual-gallery-url');
+  await titleField.fill(`${title} changed`);
+  await expect(slugField).toHaveValue('manual-gallery-url');
+  await page.getByRole('button', { name: 'Regenerate' }).click();
+  await expect(slugField).toHaveValue(`${generatedSlug}-changed`);
+  await titleField.fill(title);
+  await expect(slugField).toHaveValue(generatedSlug);
+  await page
+    .getByLabel('Short description')
+    .fill('A polished Gallery CMS browser verification project.');
+
+  await page.getByRole('button', { name: 'Add image' }).click();
+  const picker = page.getByRole('dialog');
+  await expect(picker).toBeVisible();
+  const preview = picker.locator('img').first();
+  await expect(preview).toBeVisible();
+  const previewSource = await preview.getAttribute('src');
+  expect(previewSource).toBeTruthy();
+  expect(new URL(previewSource!, page.url()).pathname).toMatch(
+    /^\/api\/homepage\/media\/.+\.webp$/,
+  );
+  await expect
+    .poll(() =>
+      preview.evaluate((image) => (image as HTMLImageElement).naturalWidth),
+    )
+    .toBeGreaterThan(0);
+  await page.screenshot({
+    path: testInfo.outputPath('gallery-media-picker-webp.png'),
+    fullPage: true,
+  });
+  await picker.getByRole('button', { name: 'Use this image' }).first().click();
+  await expect(page.getByText('Images 1 / 20')).toBeVisible();
+
+  await page.getByRole('button', { name: 'Save Draft' }).click();
+  await expect(page.getByText('Saved', { exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/website\/gallery\/[a-z0-9]+$/);
+  await expect(slugField).toHaveValue(generatedSlug);
+  await page.screenshot({
+    path: testInfo.outputPath('gallery-editor-saved.png'),
+    fullPage: true,
+  });
+
+  await page.getByRole('button', { name: 'Publish' }).click();
+  await expect(
+    page.getByRole('button', { name: 'Publishing...' }),
+  ).toBeVisible();
+  await expect(page).toHaveURL(
+    `http://localhost:3000/gallery/${generatedSlug}`,
+  );
+  await expect(
+    page.getByRole('heading', { level: 1, name: title }),
+  ).toBeVisible();
+  await expectAccessible(page);
 });
 
 test('@gallery-homepage-launch-flow submits an Email Enquiry and exposes it only to authorized staff', async ({

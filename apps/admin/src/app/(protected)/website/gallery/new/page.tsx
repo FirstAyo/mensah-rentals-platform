@@ -9,6 +9,7 @@ export default async function NewGalleryProjectPage() {
       canManageMedia={user.permissionKeys.includes('homepage.media.manage')}
       canPreview={user.permissionKeys.includes('gallery.preview')}
       canPublish={user.permissionKeys.includes('gallery.publish')}
+      publicOrigin={process.env.WEB_ORIGIN ?? 'http://localhost:3000'}
     />
   );
 }

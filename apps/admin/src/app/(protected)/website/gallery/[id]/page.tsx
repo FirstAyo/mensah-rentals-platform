@@ -15,6 +15,7 @@ export default async function GalleryProjectPage({
       canPreview={user.permissionKeys.includes('gallery.preview')}
       canPublish={user.permissionKeys.includes('gallery.publish')}
       projectId={id}
+      publicOrigin={process.env.WEB_ORIGIN ?? 'http://localhost:3000'}
     />
   );
 }

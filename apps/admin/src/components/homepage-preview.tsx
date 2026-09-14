@@ -25,7 +25,6 @@ type CatalogueItem = { id: string; name: string };
 
 export function HomepagePreview({ revisionId }: { revisionId: string }) {
   const [revision, setRevision] = useState<Revision | null>(null);
-  const [categories, setCategories] = useState<CatalogueItem[]>([]);
   const [products, setProducts] = useState<CatalogueItem[]>([]);
   const [error, setError] = useState('');
   useEffect(() => {
@@ -34,18 +33,13 @@ export function HomepagePreview({ revisionId }: { revisionId: string }) {
         cache: 'no-store',
       }),
       fetch(
-        '/api/catalogue/categories?page=1&pageSize=100&sortBy=sortOrder&sortDirection=asc',
-        { cache: 'no-store' },
-      ),
-      fetch(
         '/api/catalogue/products?page=1&pageSize=100&sortBy=name&sortDirection=asc',
         { cache: 'no-store' },
       ),
     ])
-      .then(async ([home, cats, prods]) => {
+      .then(async ([home, prods]) => {
         if (!home.ok) throw new Error('Preview is unavailable.');
         setRevision(await home.json());
-        if (cats.ok) setCategories((await cats.json()).items ?? []);
         if (prods.ok) setProducts((await prods.json()).items ?? []);
       })
       .catch((reason) =>
@@ -77,14 +71,6 @@ export function HomepagePreview({ revisionId }: { revisionId: string }) {
       </ul>
 
       <div className="grid gap-12 p-5 sm:p-10 lg:p-16">
-        {content.featuredCategories.enabled ? (
-          <PreviewCards
-            eyebrow={content.featuredCategories.eyebrow}
-            heading={content.featuredCategories.heading}
-            description={content.featuredCategories.description}
-            items={names(revision.featuredCategoryIds, categories)}
-          />
-        ) : null}
         {content.benefits.enabled ? (
           <PreviewCards
             eyebrow={content.benefits.eyebrow}

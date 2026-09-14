@@ -6,6 +6,10 @@
   .control {
     @apply min-h-11 w-full rounded-lg border border-border bg-background px-3 py-2 text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring;
   }
+
+  .control[aria-invalid='true'] {
+    @apply border-destructive ring-1 ring-destructive/30 focus-visible:ring-destructive;
+  }
 }
 
 * {
@@ -21,6 +25,8 @@
   --border: 35 18% 82%;
   --primary: 31 88% 36%;
   --primary-foreground: 0 0% 100%;
+  --destructive: 0 72% 48%;
+  --destructive-foreground: 0 0% 100%;
   --ring: 31 88% 46%;
   color-scheme: light;
 }
@@ -33,6 +39,8 @@
   --border: 220 19% 24%;
   --primary: 38 92% 55%;
   --primary-foreground: 222 34% 7%;
+  --destructive: 0 73% 62%;
+  --destructive-foreground: 222 34% 7%;
   --ring: 38 92% 55%;
   color-scheme: dark;
 }
