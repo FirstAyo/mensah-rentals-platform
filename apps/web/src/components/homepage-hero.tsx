@@ -158,6 +158,7 @@ export function HomepageHero({
     <section
       aria-label="Mensah Rentals introduction"
       className="relative isolate min-h-[34rem] overflow-hidden border-b border-white/10 bg-slate-950 text-white min-[380px]:min-h-[36rem] sm:min-h-[40rem] lg:min-h-[42rem]"
+      data-homepage-hero="true"
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
       onFocusCapture={() => setFocusWithin(true)}
@@ -212,7 +213,7 @@ export function HomepageHero({
         className={`absolute inset-0 -z-10 ${overlayClasses.gradient}`}
         data-hero-overlay="gradient"
       />
-      <div className="mx-auto flex min-h-[34rem] max-w-[1760px] items-center px-4 pb-24 pt-12 min-[380px]:min-h-[36rem] sm:min-h-[40rem] sm:px-6 sm:pb-24 sm:pt-20 lg:min-h-[42rem] lg:px-8">
+      <div className="public-container flex min-h-[34rem] items-center pb-24 pt-12 min-[380px]:min-h-[36rem] sm:min-h-[40rem] sm:pb-24 sm:pt-20 lg:min-h-[42rem]">
         <div className="max-w-4xl">
           {hero.eyebrow ? (
             <p className="text-sm font-semibold uppercase tracking-[0.18em] text-amber-300">

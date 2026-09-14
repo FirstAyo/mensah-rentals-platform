@@ -17,6 +17,22 @@ describe('platform feature contracts', () => {
     }
   });
 
+  it('keeps Website + Email Enquiries as the safe launch preset without removing advanced operations', () => {
+    expect(
+      Object.values(FEATURE_PRESET_STATES.WEBSITE_AND_EMAIL_ENQUIRIES),
+    ).toEqual(expect.arrayContaining(['DISABLED']));
+    expect(
+      Object.values(FEATURE_PRESET_STATES.WEBSITE_AND_EMAIL_ENQUIRIES).every(
+        (state) => state === 'DISABLED',
+      ),
+    ).toBe(true);
+    expect(
+      Object.values(FEATURE_PRESET_STATES.FULL_OPERATIONS).every(
+        (state) => state === 'ENABLED',
+      ),
+    ).toBe(true);
+  });
+
   it('keeps the operational dependency graph explicit', () => {
     expect(FEATURE_DEPENDENCIES.RESERVATIONS).toEqual([
       'INVENTORY_TRACKING',

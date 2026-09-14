@@ -33,7 +33,7 @@ export function PublicShell({
         Skip to content
       </a>
       <header className="sticky top-0 z-40 border-b border-border/80 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/85">
-        <div className="mx-auto flex min-h-16 max-w-[1760px] items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+        <div className="public-container flex min-h-16 items-center justify-between gap-4">
           <Link
             className="inline-flex items-center gap-3 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             href="/"
@@ -72,7 +72,7 @@ export function PublicShell({
         {children}
       </main>
       <footer className="mt-20 border-t border-border bg-card">
-        <div className="mx-auto grid max-w-[1760px] gap-10 px-4 py-12 sm:px-6 md:grid-cols-[1.2fr_.8fr] lg:px-8">
+        <div className="public-container grid gap-10 py-12 md:grid-cols-[1.2fr_.8fr]">
           <div>
             <p className="font-semibold text-foreground">
               Mensah Rentals &amp; Services

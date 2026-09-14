@@ -1,5 +1,8 @@
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test, type Page, type Response } from '@playwright/test';
+import { mkdir } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 const privateKeys =
   /(?:available|reserved|shortfall|maintenance|rented|lost|damaged|inventory|serial|asset|staff|audit|subrent)/i;
@@ -50,6 +53,18 @@ async function expectNoOverflowOrSeriousAxe(page: Page) {
       ['critical', 'serious'].includes(violation.impact ?? ''),
     ),
   ).toEqual([]);
+}
+
+async function captureAuditScreenshot(page: Page, filename: string) {
+  const directory =
+    process.env.PHASE19_2_1_SCREENSHOT_DIR ??
+    join(tmpdir(), 'mensah-phase19-2-1');
+  await mkdir(directory, { recursive: true });
+  await page.screenshot({
+    animations: 'disabled',
+    fullPage: true,
+    path: join(directory, filename),
+  });
 }
 
 test.beforeEach(() => {
@@ -179,6 +194,181 @@ test('@public-navigation follows desktop links, catalogue, cart, request, and fo
   expect(network.failures).toEqual([]);
 });
 
+test('@public-navigation provides intent-aware premium desktop mega-menu interaction', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'wide-1440');
+  await page.goto('/');
+  await page.mouse.move(10, 850);
+  await page.waitForTimeout(400);
+
+  const navigation = page.getByRole('navigation', {
+    name: 'Primary navigation',
+  });
+  const trigger = navigation.getByRole('button', { name: 'Rentals' });
+  const panel = page.locator('#rentals-mega-menu');
+  await expect(panel).toHaveCount(0);
+
+  await trigger.hover();
+  await page.waitForTimeout(70);
+  await expect(panel).toHaveCount(0);
+  await navigation.getByRole('link', { name: 'Gallery' }).hover();
+  await page.waitForTimeout(110);
+  await expect(panel).toHaveCount(0);
+
+  await trigger.hover();
+  await expect(panel).toBeVisible();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true');
+  await expect(panel).toHaveAttribute('data-state', 'open');
+  const openStyle = await panel.evaluate((element) => {
+    const style = getComputedStyle(element);
+    const content = element.querySelector<HTMLElement>(
+      '[data-mega-menu-content="true"]',
+    );
+    const contentStyle = content ? getComputedStyle(content) : null;
+    return {
+      backgroundColor: style.backgroundColor,
+      duration: style.transitionDuration,
+      maxWidth: contentStyle?.maxWidth,
+      opacity: style.opacity,
+    };
+  });
+  expect(openStyle.backgroundColor).toMatch(/^rgb\(/);
+  expect(openStyle.backgroundColor).not.toContain('/ 0');
+  expect(openStyle.duration).toContain('0.2s');
+  expect(openStyle.maxWidth).toBe('1440px');
+  expect(Number(openStyle.opacity)).toBe(1);
+
+  await panel.hover();
+  await page.waitForTimeout(300);
+  await expect(panel).toHaveAttribute('data-state', 'open');
+
+  await page.mouse.move(10, 850);
+  await page.waitForTimeout(120);
+  await expect(panel).toHaveAttribute('data-state', 'open');
+  await trigger.hover();
+  await page.waitForTimeout(280);
+  await expect(panel).toHaveAttribute('data-state', 'open');
+
+  await page.mouse.move(10, 850);
+  await expect(panel).toHaveAttribute('data-state', 'closed', {
+    timeout: 500,
+  });
+  await expect(panel).toHaveClass(/duration-150/, { timeout: 100 });
+  await expect(panel).toHaveCount(0, { timeout: 500 });
+
+  await trigger.focus();
+  await trigger.press('Enter');
+  await expect(panel).toBeVisible();
+  await trigger.press('Tab');
+  await expect(
+    panel.getByRole('link', { name: 'View All Rentals' }),
+  ).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(trigger).toBeFocused();
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+
+  await trigger.click();
+  await expect(panel).toBeVisible();
+  await page.mouse.click(10, 850);
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false');
+
+  await page.emulateMedia({ reducedMotion: 'reduce' });
+  await trigger.click();
+  await expect(panel).toBeVisible();
+  expect(
+    await panel.evaluate(
+      (element) => getComputedStyle(element).transitionProperty,
+    ),
+  ).toBe('opacity');
+  await expectNoOverflowOrSeriousAxe(page);
+
+  for (const width of [1440, 1920]) {
+    await page.setViewportSize({ width, height: width === 1440 ? 900 : 1080 });
+    await page.reload();
+    await page.mouse.move(10, width === 1440 ? 850 : 1030);
+    await trigger.hover();
+    await expect(panel).toBeVisible();
+    await captureAuditScreenshot(page, `${width}-mega-menu-open.png`);
+  }
+});
+
+test('@public-navigation constrains public content while preserving full-bleed sections at every target width', async ({
+  page,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'wide-1440');
+  const widths = [320, 375, 390, 430, 768, 1024, 1280, 1440, 1920, 2560];
+
+  for (const width of widths) {
+    await page.setViewportSize({
+      width,
+      height: width <= 430 ? 844 : width <= 1024 ? 900 : 1080,
+    });
+    await page.goto('/');
+    const measurements = await page.evaluate(() => {
+      const hero = document.querySelector<HTMLElement>('[data-homepage-hero]');
+      const container = hero?.querySelector<HTMLElement>('.public-container');
+      const services = document.querySelector<HTMLElement>(
+        '[data-homepage-section="services"]',
+      );
+      const categories = document.querySelector<HTMLElement>(
+        '[data-homepage-section="featured-categories"]',
+      );
+      const heroBox = hero?.getBoundingClientRect();
+      const containerBox = container?.getBoundingClientRect();
+      const servicesBox = services?.getBoundingClientRect();
+      const categoriesBox = categories?.getBoundingClientRect();
+      const servicesStyle = services ? getComputedStyle(services) : null;
+      const categoriesStyle = categories ? getComputedStyle(categories) : null;
+      return {
+        categoriesTopPadding: Number.parseFloat(
+          categoriesStyle?.paddingTop ?? '0',
+        ),
+        container: containerBox
+          ? {
+              left: containerBox.left,
+              right: containerBox.right,
+              width: containerBox.width,
+            }
+          : null,
+        hero: heroBox
+          ? { left: heroBox.left, right: heroBox.right, width: heroBox.width }
+          : null,
+        sectionGap:
+          servicesBox && categoriesBox
+            ? categoriesBox.top - servicesBox.bottom
+            : null,
+        servicesBottomPadding: Number.parseFloat(
+          servicesStyle?.paddingBottom ?? '0',
+        ),
+        scrollWidth: document.documentElement.scrollWidth,
+        viewportWidth: window.innerWidth,
+      };
+    });
+
+    expect(measurements.scrollWidth).toBeLessThanOrEqual(
+      measurements.viewportWidth + 1,
+    );
+    expect(measurements.hero).not.toBeNull();
+    expect(measurements.hero!.left).toBeCloseTo(0, 0);
+    expect(measurements.hero!.right).toBeCloseTo(width, 0);
+    expect(measurements.container).not.toBeNull();
+    expect(measurements.container!.width).toBeLessThanOrEqual(1440.5);
+    expect(
+      Math.abs(
+        measurements.container!.left - (width - measurements.container!.right),
+      ),
+    ).toBeLessThanOrEqual(1);
+    expect(Math.abs(measurements.sectionGap ?? 99)).toBeLessThanOrEqual(1);
+    expect(
+      measurements.servicesBottomPadding + measurements.categoriesTopPadding,
+    ).toBe(width >= 1024 ? 96 : width >= 640 ? 104 : 80);
+
+    if ([390, 1440, 1920, 2560].includes(width))
+      await captureAuditScreenshot(page, `${width}-homepage.png`);
+  }
+});
+
 test('@public-navigation remains usable at 320px in dark mode and preserves genuine 404 handling', async ({
   page,
 }, testInfo) => {
@@ -193,7 +383,9 @@ test('@public-navigation remains usable at 320px in dark mode and preserves genu
     name: 'Mobile navigation',
   });
   await mobileNavigation.getByText('Rentals', { exact: true }).click();
-  await mobileNavigation.getByRole('link', { name: 'All equipment' }).click();
+  await mobileNavigation
+    .getByRole('link', { name: 'View All Rentals' })
+    .click();
   await expect(page).toHaveURL(/\/rentals$/);
   await expectNoOverflowOrSeriousAxe(page);
   await page.reload();

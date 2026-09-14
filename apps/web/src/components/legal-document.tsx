@@ -8,7 +8,7 @@ export function LegalDocument({
   sectionSupplement?: (id: string) => React.ReactNode;
 }) {
   return (
-    <div className="mx-auto grid max-w-[1460px] gap-10 px-4 py-12 sm:px-6 lg:grid-cols-[16rem_minmax(0,1fr)] lg:px-8 lg:py-20">
+    <div className="public-container grid gap-10 py-12 lg:grid-cols-[16rem_minmax(0,1fr)] lg:py-20">
       <aside className="lg:sticky lg:top-24 lg:self-start">
         <details className="rounded-2xl border border-border bg-card p-4 lg:hidden">
           <summary className="cursor-pointer font-semibold">

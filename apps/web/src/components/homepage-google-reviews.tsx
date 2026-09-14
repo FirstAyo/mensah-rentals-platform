@@ -30,7 +30,7 @@ export async function HomepageGoogleReviews({
       aria-labelledby="google-reviews-heading"
       className="overflow-x-hidden border-y border-border bg-muted/45"
     >
-      <div className="mx-auto max-w-[1760px] px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+      <div className="public-container py-16 lg:py-24">
         <div className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-8 lg:grid-cols-[minmax(16rem,.65fr)_minmax(0,1.7fr)] lg:items-end">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[0.16em] text-accent-foreground">
@@ -114,7 +114,7 @@ export function HomepageGoogleReviewsFallback({
       aria-labelledby="google-reviews-heading"
       className="border-y border-border bg-muted/45"
     >
-      <div className="mx-auto grid min-h-72 max-w-[1760px] gap-8 px-4 py-16 sm:px-6 lg:grid-cols-[1fr_auto] lg:items-center lg:px-8 lg:py-20">
+      <div className="public-container grid min-h-72 gap-8 py-16 lg:grid-cols-[1fr_auto] lg:items-center lg:py-20">
         <div>
           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-accent-foreground">
             {section.eyebrow}

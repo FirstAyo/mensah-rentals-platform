@@ -85,7 +85,7 @@ export default async function ContactPage() {
         rentalRequests={features.rentalRequests}
       />
       {c.intro.visible ? (
-        <section className="mx-auto max-w-[1500px] px-4 py-14 sm:px-6 lg:px-8 lg:py-20">
+        <section className="public-container py-14 lg:py-20">
           <div className="max-w-4xl">
             <p className="text-xs font-bold uppercase tracking-[.2em] text-foreground">
               {c.intro.eyebrow}
@@ -100,7 +100,7 @@ export default async function ContactPage() {
         </section>
       ) : null}
       {c.contactCards.visible ? (
-        <section className="mx-auto grid max-w-[1500px] gap-4 px-4 pb-16 sm:px-6 md:grid-cols-3 lg:px-8">
+        <section className="public-container grid gap-4 pb-16 md:grid-cols-3">
           <ContactCard
             icon={Phone}
             label={c.contactCards.phoneLabel}
@@ -124,7 +124,7 @@ export default async function ContactPage() {
         </section>
       ) : null}
       <section className="border-y border-border bg-muted/30" id="contact-form">
-        <div className="mx-auto grid max-w-[1600px] gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[.82fr_1.18fr] lg:px-8 lg:py-24">
+        <div className="public-container grid gap-10 py-16 lg:grid-cols-[.82fr_1.18fr] lg:py-24">
           <aside>
             {c.formSupport.visible ? (
               <>
@@ -171,7 +171,7 @@ export default async function ContactPage() {
         </div>
       </section>
       {c.rentalHelp.visible ? (
-        <section className="mx-auto flex max-w-[1500px] flex-col gap-6 px-4 py-16 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+        <section className="public-container flex flex-col gap-6 py-16 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <h2 className="text-3xl font-bold tracking-tight">
               {c.rentalHelp.title}

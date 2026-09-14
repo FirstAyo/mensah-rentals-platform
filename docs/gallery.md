@@ -55,7 +55,7 @@ The base Gallery has unique metadata and canonical `/gallery`. Filtered query pa
 
 The Homepage places the four photographic service cards near the top and links each to its filter. A managed, featured Gallery carousel follows catalogue categories; it pauses for hover, keyboard focus, hidden tabs, and reduced-motion preferences, and has manual controls. The full Gallery uses stable editorial cards and project details provide an accessible keyboard-operated lightbox when multiple images exist.
 
-The desktop Rentals navigation uses active categories and managed category/product fallback imagery in an accessible mega menu. Mobile uses a touch-friendly Rentals accordion rather than compressing the desktop menu. No navigation or Gallery response exposes inventory quantities.
+The desktop Rentals navigation uses active categories and managed category/product fallback imagery in an accessible, intent-delayed mega menu. Its opaque elevated surface and category content align to the shared 1440 px public container instead of stretching across large monitors. Mobile uses a touch-friendly Rentals accordion rather than compressing or inheriting hover behavior from the desktop menu. No navigation or Gallery response exposes inventory quantities.
 
 ## Media, backup, and transfer
 

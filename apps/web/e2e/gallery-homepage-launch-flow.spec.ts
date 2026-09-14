@@ -89,7 +89,7 @@ test('@gallery-homepage-launch-flow renders the premium company homepage, Galler
     const mobile = page.getByRole('navigation', { name: 'Mobile navigation' });
     await mobile.getByText('Rentals', { exact: true }).click();
     await expect(
-      mobile.getByRole('link', { name: 'All equipment' }),
+      mobile.getByRole('link', { name: 'View All Rentals' }),
     ).toBeVisible();
   }
 

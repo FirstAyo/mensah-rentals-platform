@@ -65,7 +65,7 @@ export function PublicPageHero({
         <div className="absolute inset-0 bg-[radial-gradient(circle_at_78%_35%,rgba(217,153,53,.28),transparent_35%),linear-gradient(135deg,#292724,#111)]" />
       )}
       <div className={`absolute inset-0 ${overlay}`} data-overlay />
-      <div className="relative mx-auto flex min-h-[inherit] max-w-[1760px] flex-col px-4 pb-12 pt-7 sm:px-6 sm:pb-16 lg:px-8 lg:pb-20 lg:pt-9">
+      <div className="public-container relative flex min-h-[inherit] flex-col pb-12 pt-7 sm:pb-16 lg:pb-20 lg:pt-9">
         <Breadcrumbs
           items={[{ href: '/', label: 'Home' }, { label: pageLabel(page) }]}
         />

@@ -76,6 +76,10 @@ describe('customer website home page', () => {
     expect(html).toContain('The right equipment for the work ahead');
     expect(html).toContain('tailored quote');
     expect(html).toContain('Folding Chair');
+    expect(html).toContain('public-container');
+    expect(html).not.toContain('max-w-[1760px]');
+    expect(html).toContain('lg:pb-14 lg:pt-24');
+    expect(html).toContain('lg:pb-24 lg:pt-10');
     expect(html).not.toMatch(
       /only \d+ left|\d+ (available|remaining)|total quantity:|\$\d/i,
     );

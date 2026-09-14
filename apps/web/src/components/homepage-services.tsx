@@ -49,8 +49,9 @@ export function HomepageServices({
   const enabled = block.items.filter((item) => item.enabled);
   return (
     <section
-      className="mx-auto max-w-[1760px] px-4 py-16 sm:px-6 lg:px-8 lg:py-24"
+      className="public-container pb-12 pt-16 sm:pb-16 lg:pb-14 lg:pt-24"
       aria-labelledby="services-title"
+      data-homepage-section="services"
     >
       <div className="max-w-3xl">
         <p className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">

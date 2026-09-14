@@ -63,7 +63,7 @@ export default async function RentalsPage({
     );
 
   return (
-    <div className="mx-auto max-w-[1760px] px-4 py-10 sm:px-6 lg:px-8 lg:py-14">
+    <div className="public-container py-10 lg:py-14">
       <div className="max-w-4xl">
         <p className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">
           Rental catalogue

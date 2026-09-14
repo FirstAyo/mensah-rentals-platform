@@ -115,33 +115,38 @@ export default async function HomePage() {
         type="application/ld+json"
       />
       <HomepageHero hero={content.hero} />
-      <ul
-        aria-label="Rental reassurance"
-        className="grid grid-cols-2 gap-px border-b border-border bg-border lg:grid-cols-4"
-      >
-        {content.trustItems
-          .filter((item) => item.enabled)
-          .map((item) => {
-            const Icon = icons[item.icon];
-            return (
-              <li
-                className="flex min-h-[4.5rem] items-center justify-center gap-2 bg-card px-3 py-3 text-center text-sm font-medium leading-5 sm:min-h-20 sm:px-4 sm:py-4"
-                key={item.label}
-              >
-                <Icon
-                  aria-hidden="true"
-                  className="h-4 w-4 shrink-0 text-primary"
-                />
-                {item.label}
-              </li>
-            );
-          })}
-      </ul>
+      <div className="border-b border-border bg-border">
+        <ul
+          aria-label="Rental reassurance"
+          className="public-container grid grid-cols-2 gap-px lg:grid-cols-4"
+        >
+          {content.trustItems
+            .filter((item) => item.enabled)
+            .map((item) => {
+              const Icon = icons[item.icon];
+              return (
+                <li
+                  className="flex min-h-[4.5rem] items-center justify-center gap-2 bg-card px-3 py-3 text-center text-sm font-medium leading-5 sm:min-h-20 sm:px-4 sm:py-4"
+                  key={item.label}
+                >
+                  <Icon
+                    aria-hidden="true"
+                    className="h-4 w-4 shrink-0 text-primary"
+                  />
+                  {item.label}
+                </li>
+              );
+            })}
+        </ul>
+      </div>
 
       <HomepageServices block={content.solutions} />
 
       {content.featuredCategories.enabled && categories.length ? (
-        <section className="mx-auto max-w-[1760px] px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+        <section
+          className="public-container pb-16 pt-8 sm:pt-10 lg:pb-24 lg:pt-10"
+          data-homepage-section="featured-categories"
+        >
           <Heading block={content.featuredCategories} />
           <div className="mt-9 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
             {categories.map((category, index) => (
@@ -197,7 +202,7 @@ export default async function HomePage() {
 
       {content.benefits.enabled ? (
         <section className="border-y border-border bg-muted/45">
-          <div className="mx-auto max-w-[1760px] px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+          <div className="public-container py-16 lg:py-24">
             <Heading block={content.benefits} />
             <ul className="mt-9 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
               {content.benefits.items
@@ -227,7 +232,7 @@ export default async function HomePage() {
       ) : null}
 
       {content.featuredProducts.enabled && products.length ? (
-        <section className="mx-auto max-w-[1760px] px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+        <section className="public-container py-16 lg:py-24">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
             <Heading block={content.featuredProducts} />
             <Link
@@ -253,7 +258,7 @@ export default async function HomePage() {
           className="border-y border-border bg-slate-950 text-white"
           id="how-it-works"
         >
-          <div className="mx-auto max-w-[1760px] px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+          <div className="public-container py-16 lg:py-24">
             <Heading block={content.process} inverted />
             <ol className="mt-10 grid gap-5 md:grid-cols-4">
               {content.process.steps.map((step, index) => (
@@ -292,7 +297,7 @@ export default async function HomePage() {
       ) : null}
 
       {content.pickupDelivery.enabled ? (
-        <section className="relative mx-auto grid max-w-[1760px] gap-8 overflow-hidden px-4 py-16 sm:px-6 lg:grid-cols-[.8fr_1.2fr] lg:px-8 lg:py-24">
+        <section className="public-container relative grid gap-8 overflow-hidden py-16 lg:grid-cols-[.8fr_1.2fr] lg:py-24">
           {content.pickupDelivery.imageUrl ? (
             <span
               aria-hidden="true"
@@ -320,7 +325,7 @@ export default async function HomePage() {
 
       {content.serviceAreas.enabled ? (
         <section className="border-y border-border">
-          <div className="mx-auto max-w-[1760px] px-4 py-16 sm:px-6 lg:px-8">
+          <div className="public-container py-16">
             <Heading block={content.serviceAreas} />
             <ul className="mt-7 flex flex-wrap gap-3">
               {content.serviceAreas.areas
@@ -339,7 +344,7 @@ export default async function HomePage() {
         </section>
       ) : null}
 
-      <section className="mx-auto max-w-[1760px] px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+      <section className="public-container py-16 lg:py-24">
         <div className="relative overflow-hidden rounded-[2rem] bg-primary px-6 py-14 text-primary-foreground sm:px-10 lg:px-16">
           {content.finalCta.imageUrl ? (
             <span

@@ -66,7 +66,7 @@ export function HomepageGalleryCarousel({
       ref={section}
       aria-labelledby="homepage-gallery-title"
     >
-      <div className="mx-auto max-w-[1760px] px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+      <div className="public-container py-16 lg:py-24">
         <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
           <div className="max-w-3xl">
             <p className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">

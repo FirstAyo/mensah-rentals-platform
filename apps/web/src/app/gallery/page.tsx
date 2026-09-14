@@ -85,7 +85,7 @@ export default async function GalleryPage({
           />
         ) : null}
         <span className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(8,12,20,.56),rgba(8,12,20,.86))] lg:bg-[linear-gradient(90deg,rgba(8,12,20,.90)_0%,rgba(8,12,20,.62)_58%,rgba(8,12,20,.38)_100%)]" />
-        <div className="mx-auto flex min-h-[27rem] max-w-[1760px] flex-col px-4 pb-14 pt-8 sm:min-h-[32rem] sm:px-6 sm:pb-20 lg:px-8">
+        <div className="public-container flex min-h-[27rem] flex-col pb-14 pt-8 sm:min-h-[32rem] sm:pb-20">
           <nav aria-label="Breadcrumb" className="text-sm text-white/75">
             <ol className="flex items-center gap-2">
               <li>
@@ -117,7 +117,7 @@ export default async function GalleryPage({
         </div>
       </section>
 
-      <main className="mx-auto max-w-[1760px] px-4 py-12 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
+      <main className="public-container py-12 sm:py-16 lg:py-20">
         <nav
           aria-label="Filter Gallery by service"
           className="-mx-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0"
@@ -262,7 +262,7 @@ function FilterLink({
 
 function GalleryPageUnavailable() {
   return (
-    <main className="mx-auto max-w-[1760px] px-4 py-16 sm:px-6 lg:px-8">
+    <main className="public-container py-16">
       <div className="max-w-3xl">
         <p className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">
           Our work

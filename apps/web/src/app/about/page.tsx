@@ -69,7 +69,7 @@ export default async function AboutPage() {
         rentalRequests={features.rentalRequests}
       />
       {c.introduction.visible ? (
-        <section className="mx-auto grid max-w-[1600px] gap-10 px-4 py-16 sm:px-6 lg:grid-cols-[1.02fr_.98fr] lg:items-center lg:px-8 lg:py-28">
+        <section className="public-container grid gap-10 py-16 lg:grid-cols-[1.02fr_.98fr] lg:items-center lg:py-28">
           <div className="max-w-2xl">
             <Eyebrow>{c.introduction.eyebrow}</Eyebrow>
             <h2 className="mt-4 text-3xl font-bold tracking-tight sm:text-5xl">
@@ -87,7 +87,7 @@ export default async function AboutPage() {
       ) : null}
       {c.audiences.visible ? (
         <section className="border-y border-border bg-muted/35 py-16 lg:py-24">
-          <div className="mx-auto max-w-[1760px] px-4 sm:px-6 lg:px-8">
+          <div className="public-container">
             <Eyebrow>{c.audiences.eyebrow}</Eyebrow>
             <h2 className="mt-4 max-w-3xl text-3xl font-bold tracking-tight sm:text-5xl">
               {c.audiences.title}
@@ -135,7 +135,7 @@ export default async function AboutPage() {
         </section>
       ) : null}
       {c.benefits.visible ? (
-        <section className="mx-auto max-w-[1500px] px-4 py-16 sm:px-6 lg:px-8 lg:py-24">
+        <section className="public-container py-16 lg:py-24">
           <div className="grid gap-10 lg:grid-cols-[.72fr_1.28fr]">
             <div>
               <Eyebrow>{c.benefits.eyebrow}</Eyebrow>
@@ -169,7 +169,7 @@ export default async function AboutPage() {
           className="bg-neutral-950 py-16 text-white lg:py-24"
           id="how-it-works"
         >
-          <div className="mx-auto max-w-[1600px] px-4 sm:px-6 lg:px-8">
+          <div className="public-container">
             <Eyebrow inverted>{c.process.eyebrow}</Eyebrow>
             <h2 className="mt-4 max-w-4xl text-3xl font-bold tracking-tight sm:text-5xl">
               {c.process.title}
@@ -194,7 +194,7 @@ export default async function AboutPage() {
         </section>
       ) : null}
       {c.statement.visible ? (
-        <section className="mx-auto grid max-w-[1600px] gap-8 px-4 py-16 sm:px-6 lg:grid-cols-2 lg:items-center lg:px-8 lg:py-28">
+        <section className="public-container grid gap-8 py-16 lg:grid-cols-2 lg:items-center lg:py-28">
           <EditorialImage
             image={c.statement.image}
             className="aspect-[16/11]"
@@ -212,7 +212,7 @@ export default async function AboutPage() {
       ) : null}
       {c.finalCta.visible ? (
         <section className="border-t border-border bg-primary text-primary-foreground">
-          <div className="mx-auto flex max-w-[1500px] flex-col gap-8 px-4 py-14 sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:px-8">
+          <div className="public-container flex flex-col gap-8 py-14 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h2 className="text-3xl font-bold tracking-tight">
                 {c.finalCta.title}

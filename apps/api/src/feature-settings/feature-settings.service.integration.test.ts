@@ -199,6 +199,21 @@ describe('feature settings against PostgreSQL', () => {
     ).toBe(true);
   });
 
+  it('recreates a missing customer workflow setting with the EMAIL_INQUIRY default and keeps Cart available', async () => {
+    await prisma.customerWorkflowSetting.deleteMany({
+      where: { id: 'customer-workflow' },
+    });
+
+    const capabilities = await service.publicCapabilities();
+    const persisted = await prisma.customerWorkflowSetting.findUniqueOrThrow({
+      where: { id: 'customer-workflow' },
+    });
+
+    expect(capabilities.cartSubmissionsAvailable).toBe(true);
+    expect(capabilities.customerSubmissionMode).toBe('EMAIL_INQUIRY');
+    expect(persisted.mode).toBe('EMAIL_INQUIRY');
+  });
+
   it('persists, audits, replays idempotently, and rejects stale writes', async () => {
     const before = await service.list();
     const reporting = before.features.find(

@@ -72,7 +72,7 @@ export default async function GalleryProjectPage({
   } catch (error) {
     if (!(error instanceof PublicGalleryUnavailable)) throw error;
     return (
-      <main className="mx-auto max-w-[1760px] px-4 py-16 sm:px-6 lg:px-8">
+      <main className="public-container py-16">
         <GalleryUnavailable />
       </main>
     );
@@ -116,7 +116,7 @@ export default async function GalleryProjectPage({
           }}
         />
         <span className="absolute inset-0 -z-10 bg-gradient-to-t from-slate-950 via-slate-950/60 to-slate-950/25 lg:bg-[linear-gradient(90deg,rgba(8,12,20,.94)_0%,rgba(8,12,20,.60)_58%,rgba(8,12,20,.25)_100%)]" />
-        <div className="mx-auto flex min-h-[28rem] max-w-[1760px] flex-col px-4 pb-12 pt-8 sm:min-h-[34rem] sm:px-6 sm:pb-16 lg:px-8">
+        <div className="public-container flex min-h-[28rem] flex-col pb-12 pt-8 sm:min-h-[34rem] sm:pb-16">
           <nav aria-label="Breadcrumb" className="text-sm text-white/80">
             <ol className="flex flex-wrap items-center gap-2">
               <li>
@@ -182,7 +182,7 @@ export default async function GalleryProjectPage({
         </div>
       </section>
 
-      <main className="mx-auto max-w-[1760px] px-4 py-12 sm:px-6 sm:py-16 lg:px-8 lg:py-20">
+      <main className="public-container py-12 sm:py-16 lg:py-20">
         {project.description ? (
           <p className="mb-10 max-w-4xl whitespace-pre-line text-lg leading-8 text-muted-foreground">
             {project.description}
