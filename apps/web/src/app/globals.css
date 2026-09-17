@@ -66,6 +66,55 @@ a {
   text-decoration: none;
 }
 
+@keyframes continuous-rail-left {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+@keyframes continuous-rail-right {
+  from {
+    transform: translateX(-50%);
+  }
+  to {
+    transform: translateX(0);
+  }
+}
+
+.continuous-rail-left {
+  animation: continuous-rail-left 52s linear infinite;
+}
+
+.continuous-rail-right {
+  animation: continuous-rail-right 48s linear infinite;
+}
+
+.continuous-rail-viewport {
+  overflow-x: auto;
+  overscroll-behavior-inline: contain;
+  scrollbar-width: none;
+  touch-action: pan-x;
+}
+
+.continuous-rail-viewport::-webkit-scrollbar {
+  display: none;
+}
+
+.continuous-rail:hover .continuous-rail-left,
+.continuous-rail:hover .continuous-rail-right,
+.continuous-rail:focus-within .continuous-rail-left,
+.continuous-rail:focus-within .continuous-rail-right {
+  animation-play-state: paused;
+}
+
+.continuous-rail[data-paused='true'] .continuous-rail-left,
+.continuous-rail[data-paused='true'] .continuous-rail-right {
+  animation-play-state: paused;
+}
+
 ::selection {
   background: hsl(var(--primary) / 0.24);
 }
@@ -78,5 +127,15 @@ a {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
+  }
+
+  .continuous-rail-left,
+  .continuous-rail-right {
+    animation: none !important;
+    transform: none !important;
+  }
+
+  .continuous-rail-clone {
+    display: none !important;
   }
 }

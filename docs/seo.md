@@ -83,3 +83,10 @@ The existing public site uses `/about/`, `/gear/`, `/contact/`, and `/product/{s
 ## Feature-control preservation
 
 Feature settings never remove the homepage, `/rentals`, active category/product pages, legal pages, sitemap, robots, canonical metadata, or structured-data architecture. Disabled transactional routes remain noindex/noarchive and are never added to the sitemap. Public capabilities and structured data contain no feature configuration or inventory availability. Production treats Testing rental/customer flows as unavailable and non-discoverable.
+
+# Gallery indexing policy
+
+Only `/gallery` is an indexable Gallery URL. Service, event, and pagination
+variants use a `/gallery` canonical and `noindex`. Published legacy event-detail
+URLs redirect to the appropriate event filter; invalid or non-public event URLs
+return 404. The sitemap includes `/gallery` but no `/gallery/{slug}` entries.

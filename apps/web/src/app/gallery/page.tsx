@@ -3,32 +3,39 @@ import { Camera, ChevronRight } from 'lucide-react';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { GalleryCard } from '@/components/gallery-card';
+import { GalleryLightbox } from '@/components/gallery-lightbox';
 import { GalleryUnavailable } from '@/components/gallery-unavailable';
 import { ProductCard } from '@/components/product-card';
+import { listProducts } from '@/lib/public-catalogue';
 import {
   getPublicGallery,
   PublicGalleryUnavailable,
 } from '@/lib/public-gallery';
-import { listProducts } from '@/lib/public-catalogue';
 import { publicPageRobots } from '@/lib/site-config';
-import { galleryServiceSlugSchema } from '@mensah-rentals/validation';
+import {
+  galleryServiceSlugSchema,
+  gallerySlugSchema,
+  type GalleryServiceSlug,
+} from '@mensah-rentals/validation';
 
 export const dynamic = 'force-dynamic';
-
-type Params = Record<string, string | string[] | undefined>;
+type Params = {
+  event?: string | string[];
+  page?: string | string[];
+  type?: string | string[];
+};
 
 export async function generateMetadata({
   searchParams,
 }: {
   searchParams: Promise<Params>;
 }): Promise<Metadata> {
-  const type = (await searchParams).type;
-  const filtered = typeof type === 'string' && type.length > 0;
+  const raw = await searchParams;
+  const filtered = Boolean(raw.type || raw.event || raw.page);
   const description =
-    'See Mensah Rentals equipment supporting film productions, events and festivals, corporate functions, and private functions.';
+    'Explore real productions, festivals, corporate functions, and private events supported by Mensah Rentals.';
   return {
-    title: 'Event and Production Gallery',
+    title: { absolute: 'Equipment in Action | Mensah Rentals Gallery' },
     description,
     alternates: { canonical: '/gallery' },
     openGraph: {
@@ -51,41 +58,74 @@ export default async function GalleryPage({
   searchParams: Promise<Params>;
 }) {
   const raw = await searchParams;
-  const keys = Object.keys(raw);
-  if (keys.some((key) => key !== 'type') || Array.isArray(raw.type)) notFound();
+  if (Object.keys(raw).some((key) => !['event', 'page', 'type'].includes(key)))
+    notFound();
+  if ([raw.event, raw.page, raw.type].some(Array.isArray)) notFound();
+
   const parsedType = raw.type
     ? galleryServiceSlugSchema.safeParse(raw.type)
     : null;
-  if (parsedType && !parsedType.success) notFound();
+  const parsedEvent = raw.event ? gallerySlugSchema.safeParse(raw.event) : null;
+  const page = raw.page ? Number(raw.page) : 1;
+  if (
+    (parsedType && !parsedType.success) ||
+    (parsedEvent && !parsedEvent.success) ||
+    !Number.isInteger(page) ||
+    page < 1 ||
+    page > 1000
+  )
+    notFound();
   const type = parsedType?.data;
+  const event = parsedEvent?.data;
 
   let gallery;
   try {
-    gallery = await getPublicGallery(type);
+    const first = await getPublicGallery(type, {
+      event,
+      page: 1,
+      pageSize: 24,
+    });
+    if (page > Math.max(first.meta.totalPages, 1)) notFound();
+    const later = await Promise.all(
+      Array.from({ length: Math.max(0, page - 1) }, (_, index) =>
+        getPublicGallery(type, { event, page: index + 2, pageSize: 24 }),
+      ),
+    );
+    gallery = {
+      ...first,
+      photos: [first, ...later].flatMap((result) => result.photos),
+      meta: later.at(-1)?.meta ?? first.meta,
+    };
   } catch (error) {
     if (!(error instanceof PublicGalleryUnavailable)) throw error;
     return <GalleryPageUnavailable />;
   }
 
+  const selectedProject = event
+    ? gallery.items.find((item) => item.slug === event)
+    : null;
   const featuredProducts = await listProducts(
     '?page=1&pageSize=4&isFeatured=true&sort=featured',
   ).catch(() => null);
+  const currentLabel = type
+    ? gallery.services.find((service) => service.slug === type)?.label
+    : null;
 
   return (
     <>
-      <section className="relative isolate min-h-[27rem] overflow-hidden border-b border-white/10 bg-slate-950 text-white sm:min-h-[32rem]">
-        {gallery.items[0]?.cover ? (
+      <section className="relative isolate min-h-[22rem] overflow-hidden border-b border-white/10 bg-slate-950 text-white sm:min-h-[26rem]">
+        {gallery.photos[0] ? (
           <span
             aria-hidden="true"
             className="absolute inset-0 -z-20 bg-cover bg-center opacity-65"
             style={{
-              backgroundImage: `url(${gallery.items[0].cover.url})`,
-              backgroundPosition: gallery.items[0].cover.focalPoint,
+              backgroundImage: `url(${gallery.photos[0].image.url})`,
+              backgroundPosition: gallery.photos[0].image.focalPoint,
             }}
           />
         ) : null}
-        <span className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(8,12,20,.56),rgba(8,12,20,.86))] lg:bg-[linear-gradient(90deg,rgba(8,12,20,.90)_0%,rgba(8,12,20,.62)_58%,rgba(8,12,20,.38)_100%)]" />
-        <div className="public-container flex min-h-[27rem] flex-col pb-14 pt-8 sm:min-h-[32rem] sm:pb-20">
+        <span className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(8,12,20,.58),rgba(8,12,20,.88))] lg:bg-[linear-gradient(90deg,rgba(8,12,20,.92)_0%,rgba(8,12,20,.66)_58%,rgba(8,12,20,.38)_100%)]" />
+        <div className="public-container flex min-h-[22rem] flex-col pb-12 pt-8 sm:min-h-[26rem] sm:pb-14">
           <nav aria-label="Breadcrumb" className="text-sm text-white/75">
             <ol className="flex items-center gap-2">
               <li>
@@ -102,34 +142,38 @@ export default async function GalleryPage({
               <li aria-current="page">Gallery</li>
             </ol>
           </nav>
-          <div className="mt-auto max-w-4xl pt-16">
+          <div className="mt-auto max-w-4xl pt-12">
             <p className="text-sm font-bold uppercase tracking-[0.2em] text-amber-300">
               Our work
             </p>
-            <h1 className="mt-4 text-4xl font-bold tracking-[-0.04em] sm:text-6xl lg:text-7xl">
-              Equipment in action.
+            <h1 className="mt-3 text-4xl font-bold tracking-[-0.04em] sm:text-6xl">
+              A closer look at the work.
             </h1>
-            <p className="mt-5 max-w-3xl text-base leading-7 text-slate-200 sm:text-xl sm:leading-8">
-              Explore productions, events, corporate functions, and private
-              functions supported by Mensah Rentals.
+            <p className="mt-4 max-w-3xl text-base leading-7 text-slate-200 sm:text-lg sm:leading-8">
+              Real equipment, real settings, and the events and productions our
+              team has helped support.
             </p>
           </div>
         </div>
       </section>
 
-      <main className="public-container py-12 sm:py-16 lg:py-20">
+      <main className="public-container py-10 sm:py-14 lg:py-16">
         <nav
           aria-label="Filter Gallery by service"
           className="-mx-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0"
         >
           <ul className="flex min-w-max gap-2">
             <li>
-              <FilterLink active={!type} href="/gallery" label="All" />
+              <FilterLink
+                active={!type && !event}
+                href="/gallery"
+                label="All"
+              />
             </li>
             {gallery.services.map((service) => (
               <li key={service.slug}>
                 <FilterLink
-                  active={type === service.slug}
+                  active={type === service.slug && !event}
                   href={`/gallery?type=${service.slug}`}
                   label={service.label}
                 />
@@ -138,29 +182,39 @@ export default async function GalleryPage({
           </ul>
         </nav>
 
-        <section className="mt-9" aria-labelledby="gallery-projects-title">
-          <div className="max-w-3xl">
-            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">
-              Recent work
-            </p>
-            <h2
-              className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl"
-              id="gallery-projects-title"
-            >
-              {type
-                ? `${gallery.services.find((service) => service.slug === type)?.label ?? 'Selected'} projects`
-                : 'Projects across the work we support'}
-            </h2>
+        <section className="mt-7" aria-labelledby="gallery-photos-title">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+            <div className="max-w-3xl">
+              <p className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">
+                Visual portfolio
+              </p>
+              <h2
+                className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl"
+                id="gallery-photos-title"
+              >
+                {selectedProject?.title ??
+                  (currentLabel
+                    ? `${currentLabel} photos`
+                    : 'Moments from recent work')}
+              </h2>
+              <p className="mt-3 leading-7 text-muted-foreground">
+                {selectedProject?.shortDescription ??
+                  'Select any image to explore the full-size photograph and its event context.'}
+              </p>
+            </div>
+            {event ? (
+              <Link
+                className="inline-flex min-h-11 items-center font-semibold text-primary"
+                href="/gallery"
+              >
+                View all Gallery photos
+              </Link>
+            ) : null}
           </div>
-          {gallery.items.length ? (
-            <div className="mt-8 grid gap-6 sm:grid-cols-2 xl:grid-cols-3">
-              {gallery.items.map((project, index) => (
-                <GalleryCard
-                  key={project.slug}
-                  priority={index < 2}
-                  project={project}
-                />
-              ))}
+
+          {gallery.photos.length ? (
+            <div className="mt-7">
+              <GalleryLightbox photos={gallery.photos} />
             </div>
           ) : (
             <div className="mt-8 rounded-3xl border border-dashed border-border bg-card p-10 text-center sm:p-14">
@@ -169,19 +223,21 @@ export default async function GalleryPage({
                 className="mx-auto h-10 w-10 text-primary"
               />
               <h2 className="mt-4 text-xl font-semibold">
-                No published projects in this view yet
+                {currentLabel
+                  ? `No ${currentLabel} photos have been published yet.`
+                  : 'No Gallery photos have been published yet.'}
               </h2>
               <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-                Explore all Gallery projects or browse equipment for your next
-                event or production.
+                View all Gallery photos or browse rental equipment for your next
+                project.
               </p>
               <div className="mt-6 flex flex-col justify-center gap-3 min-[380px]:flex-row">
-                {type ? (
+                {type || event ? (
                   <Link
                     className="inline-flex min-h-11 items-center justify-center rounded-xl border border-border px-5 font-semibold"
                     href="/gallery"
                   >
-                    View all projects
+                    View all Gallery photos
                   </Link>
                 ) : null}
                 <Link
@@ -193,6 +249,18 @@ export default async function GalleryPage({
               </div>
             </div>
           )}
+
+          {gallery.meta.hasMore ? (
+            <div className="mt-9 text-center">
+              <Link
+                className="inline-flex min-h-12 items-center justify-center rounded-xl border border-border bg-card px-6 font-semibold shadow-sm hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                href={galleryHref({ event, page: page + 1, type })}
+                scroll={false}
+              >
+                Load more photos
+              </Link>
+            </div>
+          ) : null}
         </section>
 
         {featuredProducts?.items.length ? (
@@ -234,9 +302,52 @@ export default async function GalleryPage({
             </div>
           </section>
         ) : null}
+
+        <section
+          className="mt-16 rounded-3xl bg-slate-950 px-6 py-12 text-white sm:px-10 lg:px-14"
+          aria-labelledby="gallery-contact-title"
+        >
+          <h2 className="text-3xl font-bold" id="gallery-contact-title">
+            Planning an event or production?
+          </h2>
+          <p className="mt-3 max-w-3xl leading-7 text-slate-300">
+            Tell our team what you need and when you need it. We will review the
+            details before confirming equipment and pricing.
+          </p>
+          <div className="mt-6 flex flex-col gap-3 min-[380px]:flex-row">
+            <Link
+              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-amber-400 px-5 font-semibold text-slate-950"
+              href="/rentals"
+            >
+              Browse rentals
+            </Link>
+            <Link
+              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/30 px-5 font-semibold"
+              href="/contact"
+            >
+              Contact our team
+            </Link>
+          </div>
+        </section>
       </main>
     </>
   );
+}
+
+function galleryHref({
+  event,
+  page,
+  type,
+}: {
+  event?: string;
+  page: number;
+  type?: GalleryServiceSlug;
+}) {
+  const query = new URLSearchParams();
+  if (type) query.set('type', type);
+  if (event) query.set('event', event);
+  query.set('page', String(page));
+  return `/gallery?${query.toString()}`;
 }
 
 function FilterLink({

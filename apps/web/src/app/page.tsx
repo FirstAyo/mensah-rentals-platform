@@ -17,6 +17,7 @@ import {
 } from 'lucide-react';
 import { HomepageHero } from '@/components/homepage-hero';
 import { HomepageGalleryCarousel } from '@/components/homepage-gallery-carousel';
+import { HomepageFeaturedCategories } from '@/components/homepage-featured-categories';
 import { HomepageServices } from '@/components/homepage-services';
 import {
   HomepageGoogleReviews,
@@ -100,6 +101,16 @@ export default async function HomePage() {
     getPublicGallery().catch(() => null),
   ]);
   const { content, products, googleReviews } = homepage;
+  const selectedGallerySlugs = new Set(
+    homepage.galleryProjects.map((project) => project.slug),
+  );
+  const galleryPhotos = gallery
+    ? gallery.photos.filter(
+        (photo) =>
+          !selectedGallerySlugs.size ||
+          selectedGallerySlugs.has(photo.event.slug),
+      )
+    : [];
   return (
     <>
       <script
@@ -145,15 +156,17 @@ export default async function HomePage() {
 
       <HomepageServices block={content.solutions} />
 
-      {content.gallery.enabled &&
-      (homepage.galleryProjects.length || gallery?.items.length) ? (
+      {content.featuredCategories.enabled && homepage.categories.length ? (
+        <HomepageFeaturedCategories
+          categories={homepage.categories}
+          content={content.featuredCategories}
+        />
+      ) : null}
+
+      {content.gallery.enabled && galleryPhotos.length ? (
         <HomepageGalleryCarousel
           content={content.gallery}
-          projects={
-            homepage.galleryProjects.length
-              ? homepage.galleryProjects
-              : (gallery?.items.slice(0, 8) ?? [])
-          }
+          photos={galleryPhotos.slice(0, 16)}
         />
       ) : null}
 
@@ -260,28 +273,37 @@ export default async function HomePage() {
       ) : null}
 
       {content.pickupDelivery.enabled ? (
-        <section className="public-container relative grid gap-8 overflow-hidden py-16 lg:grid-cols-[.8fr_1.2fr] lg:py-24">
+        <section className="relative isolate overflow-hidden bg-slate-950 text-white">
           {content.pickupDelivery.imageUrl ? (
             <span
               aria-hidden="true"
-              className="absolute inset-0 -z-10 bg-cover bg-center opacity-10"
+              className="absolute inset-0 -z-20 bg-cover bg-center"
               style={{
                 backgroundImage: `url(${content.pickupDelivery.imageUrl})`,
+                backgroundPosition: content.pickupDelivery.focalPoint,
               }}
             />
           ) : null}
-          <Heading block={content.pickupDelivery} />
-          <div className="grid gap-4 sm:grid-cols-2">
-            <InfoCard
-              icon={Warehouse}
-              title={content.pickupDelivery.pickupTitle}
-              text={content.pickupDelivery.pickupDescription}
-            />
-            <InfoCard
-              icon={Truck}
-              title={content.pickupDelivery.deliveryTitle}
-              text={content.pickupDelivery.deliveryDescription}
-            />
+          <span
+            aria-hidden="true"
+            className="absolute inset-0 -z-10 bg-[linear-gradient(180deg,rgba(8,12,20,.72),rgba(8,12,20,.88))] lg:bg-[linear-gradient(90deg,rgba(8,12,20,.94)_0%,rgba(8,12,20,.78)_55%,rgba(8,12,20,.58)_100%)]"
+          />
+          <div className="public-container grid gap-8 py-16 lg:grid-cols-[.8fr_1.2fr] lg:py-24">
+            <Heading block={content.pickupDelivery} inverted />
+            <div className="grid gap-4 sm:grid-cols-2">
+              <InfoCard
+                icon={Warehouse}
+                title={content.pickupDelivery.pickupTitle}
+                text={content.pickupDelivery.pickupDescription}
+                inverted
+              />
+              <InfoCard
+                icon={Truck}
+                title={content.pickupDelivery.deliveryTitle}
+                text={content.pickupDelivery.deliveryDescription}
+                inverted
+              />
+            </div>
           </div>
         </section>
       ) : null}
@@ -378,16 +400,35 @@ function InfoCard({
   icon: Icon,
   title,
   text,
+  inverted = false,
 }: {
   icon: typeof Truck;
   title: string;
   text: string;
+  inverted?: boolean;
 }) {
   return (
-    <article className="rounded-2xl border border-border bg-card p-6">
-      <Icon aria-hidden="true" className="h-7 w-7 text-primary" />
+    <article
+      className={
+        inverted
+          ? 'rounded-2xl border border-white/20 bg-slate-950/55 p-6 backdrop-blur-sm'
+          : 'rounded-2xl border border-border bg-card p-6'
+      }
+    >
+      <Icon
+        aria-hidden="true"
+        className={inverted ? 'h-7 w-7 text-amber-300' : 'h-7 w-7 text-primary'}
+      />
       <h3 className="mt-5 text-2xl font-semibold">{title}</h3>
-      <p className="mt-2 leading-7 text-muted-foreground">{text}</p>
+      <p
+        className={
+          inverted
+            ? 'mt-2 leading-7 text-slate-300'
+            : 'mt-2 leading-7 text-muted-foreground'
+        }
+      >
+        {text}
+      </p>
     </article>
   );
 }

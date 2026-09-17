@@ -90,3 +90,26 @@ pnpm test:e2e:gallery-homepage-launch-flow
 ```
 
 Use only the guarded `_test` database for destructive browser fixtures. Manually inspect 320, 375, 390, 430, 768, 1024, and 1440 px in light and dark themes. Verify keyboard opening/closing of the mega menu and lightbox, pause controls, no horizontal overflow, no unpublished content, and zero serious/critical Axe findings.
+
+# Phase 19.2.3 photo experience
+
+The public `/gallery` route is a photo-first portfolio rather than an article
+index. It flattens images from published, non-archived Gallery events into a
+deterministically interleaved feed so one event does not occupy the whole first
+screen. The response is paginated (24 photos by default, 48 maximum), contains
+only allowlisted customer-safe event and image fields, and includes stored
+width and height so the browser can preserve each photograph's natural ratio.
+
+The visual layout uses two masonry columns on mobile, three on tablet, and four
+on large desktop. Selecting a photo opens an accessible full-screen viewer with
+close, previous, next, keyboard-arrow, Escape, and touch-swipe behavior. Service
+filters and event filters remain on `/gallery`; filtered URLs are `noindex` and
+canonicalize to `/gallery`. A published legacy `/gallery/{slug}` URL redirects
+permanently to `/gallery?event={slug}`. Missing, draft, unpublished, and archived
+legacy slugs return a real 404. Detail URLs are excluded from the sitemap.
+
+The Admin editor keeps the immutable revision and publication model. Historical
+long-form description and per-event SEO values remain in stored revisions but
+are not part of the normal photo-led editing form. Publishing returns the staff
+member to `/website/gallery` and shows the global success notification. Existing
+records and publication history are never deleted by this presentation change.

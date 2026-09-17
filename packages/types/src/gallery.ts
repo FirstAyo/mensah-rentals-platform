@@ -7,7 +7,25 @@ import type {
 export interface PublicGalleryMediaResponse {
   altText: string;
   focalPoint: string;
+  height: number;
   url: string;
+  width: number;
+}
+
+export interface PublicGalleryPhotoResponse {
+  event: {
+    shortDescription: string;
+    slug: string;
+    title: string;
+  };
+  eventImageCount: number;
+  eventImageIndex: number;
+  image: PublicGalleryMediaResponse;
+  key: string;
+  service: {
+    label: string;
+    slug: GalleryServiceSlug;
+  };
 }
 
 export interface PublicGalleryProjectSummaryResponse {
@@ -33,6 +51,15 @@ export interface PublicGalleryProjectResponse
 
 export interface PublicGalleryResponse {
   items: PublicGalleryProjectSummaryResponse[];
+  meta: {
+    hasMore: boolean;
+    page: number;
+    pageSize: number;
+    total: number;
+    totalPages: number;
+  };
+  photos: PublicGalleryPhotoResponse[];
+  selectedEvent: string | null;
   selectedType: GalleryServiceSlug | null;
   services: Array<{ label: string; slug: GalleryServiceSlug }>;
 }
@@ -58,7 +85,9 @@ export interface AdminGalleryProjectSummaryResponse {
   archivedAt: string | null;
   coverUrl: string | null;
   id: string;
+  imageCount: number;
   lockVersion: number;
+  publishedAt: string | null;
   published: boolean;
   serviceType: GalleryServiceType;
   slug: string;

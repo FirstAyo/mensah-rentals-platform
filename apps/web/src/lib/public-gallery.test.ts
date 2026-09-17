@@ -7,6 +7,8 @@ const summary = {
     altText: 'Production equipment ready on site',
     focalPoint: 'center',
     url: `/media/homepage/project/${'a'.repeat(64)}.webp`,
+    width: 1600,
+    height: 1200,
   },
   eventDate: null,
   imageCount: 1,
@@ -26,6 +28,28 @@ describe('public Gallery server boundary', () => {
       vi.fn(async () =>
         Response.json({
           items: [summary],
+          meta: {
+            hasMore: false,
+            page: 1,
+            pageSize: 24,
+            total: 1,
+            totalPages: 1,
+          },
+          photos: [
+            {
+              event: {
+                shortDescription: summary.shortDescription,
+                slug: summary.slug,
+                title: summary.title,
+              },
+              eventImageCount: 1,
+              eventImageIndex: 1,
+              image: summary.cover,
+              key: 'sample-production:1',
+              service: summary.service,
+            },
+          ],
+          selectedEvent: null,
           selectedType: null,
           services: [summary.service],
         }),

@@ -1115,8 +1115,8 @@ export function HomepageEditor({
 
         <div className="space-y-3">
           <p className="rounded-xl border border-border bg-muted/35 p-3 text-sm text-muted-foreground">
-            Featured categories are currently hidden from the public Homepage.
-            Their selections and revision history are preserved for future use.
+            Published selections appear in the moving Browse by Category rail
+            after Services.
           </p>
           <Selection
             title="Featured categories"
@@ -1950,6 +1950,27 @@ function SectionDetails({
             }));
           }}
         />
+        <label className="grid gap-2 text-sm font-medium">
+          Background focal point
+          <select
+            className={inputClass}
+            disabled={!canEdit}
+            onChange={(event) =>
+              setContent((current) => ({
+                ...current,
+                pickupDelivery: {
+                  ...current.pickupDelivery,
+                  focalPoint: event.target.value as 'left' | 'center' | 'right',
+                },
+              }))
+            }
+            value={content.pickupDelivery.focalPoint}
+          >
+            <option value="left">Left</option>
+            <option value="center">Center</option>
+            <option value="right">Right</option>
+          </select>
+        </label>
       </>
     );
   }

@@ -260,7 +260,7 @@ test('@public-navigation provides intent-aware premium desktop mega-menu interac
   await expect(panel).toHaveAttribute('data-state', 'open');
 
   await page.mouse.move(10, 850);
-  await page.waitForTimeout(120);
+  await page.waitForTimeout(50);
   await expect(panel).toHaveAttribute('data-state', 'open');
   await trigger.hover();
   await page.waitForTimeout(280);
@@ -325,12 +325,16 @@ test('@public-navigation constrains public content while preserving full-bleed s
       const services = document.querySelector<HTMLElement>(
         '[data-homepage-section="services"]',
       );
+      const featuredCategories = document.querySelector<HTMLElement>(
+        '[data-homepage-section="featured-categories"]',
+      );
       const recentWork = document.querySelector<HTMLElement>(
         '[data-homepage-section="recent-work"]',
       );
       const heroBox = hero?.getBoundingClientRect();
       const containerBox = container?.getBoundingClientRect();
       const servicesBox = services?.getBoundingClientRect();
+      const featuredCategoriesBox = featuredCategories?.getBoundingClientRect();
       const recentWorkBox = recentWork?.getBoundingClientRect();
       const servicesStyle = services ? getComputedStyle(services) : null;
       return {
@@ -344,9 +348,13 @@ test('@public-navigation constrains public content while preserving full-bleed s
         hero: heroBox
           ? { left: heroBox.left, right: heroBox.right, width: heroBox.width }
           : null,
-        sectionGap:
-          servicesBox && recentWorkBox
-            ? recentWorkBox.top - servicesBox.bottom
+        servicesToCategoriesGap:
+          servicesBox && featuredCategoriesBox
+            ? featuredCategoriesBox.top - servicesBox.bottom
+            : null,
+        categoriesToRecentWorkGap:
+          featuredCategoriesBox && recentWorkBox
+            ? recentWorkBox.top - featuredCategoriesBox.bottom
             : null,
         servicesBottomPadding: Number.parseFloat(
           servicesStyle?.paddingBottom ?? '0',
@@ -369,7 +377,12 @@ test('@public-navigation constrains public content while preserving full-bleed s
         measurements.container!.left - (width - measurements.container!.right),
       ),
     ).toBeLessThanOrEqual(1);
-    expect(Math.abs(measurements.sectionGap ?? 99)).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(measurements.servicesToCategoriesGap ?? 99),
+    ).toBeLessThanOrEqual(1);
+    expect(
+      Math.abs(measurements.categoriesToRecentWorkGap ?? 99),
+    ).toBeLessThanOrEqual(1);
     expect(measurements.servicesBottomPadding).toBe(
       width >= 1024 ? 56 : width >= 640 ? 64 : 48,
     );

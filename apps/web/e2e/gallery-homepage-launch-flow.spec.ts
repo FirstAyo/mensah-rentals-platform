@@ -107,10 +107,14 @@ test('@gallery-homepage-launch-flow renders the premium company homepage, Galler
     /noindex/i,
   );
   await page.goto(`/gallery/${slug}`);
+  await expect(page).toHaveURL(`/gallery?event=${slug}`);
   await expect(
-    page.getByRole('heading', { level: 1, name: title }),
+    page.getByRole('heading', { level: 2, name: title }),
   ).toBeVisible();
-  await page.getByRole('button', { name: /Open image 1 of 1/ }).click();
+  await page
+    .getByRole('button', { name: new RegExp(`Open ${title}`) })
+    .first()
+    .click();
   await expect(page.getByRole('dialog')).toBeVisible();
   await page.getByRole('button', { name: 'Close image viewer' }).click();
   await expect(page.getByRole('dialog')).toBeHidden();
@@ -203,11 +207,11 @@ test('@gallery-homepage-launch-flow creates and publishes a Gallery project with
   await expect(
     page.getByRole('button', { name: 'Publishing...' }),
   ).toBeVisible();
-  await expect(page).toHaveURL(
-    `http://localhost:3000/gallery/${generatedSlug}`,
-  );
+  await expect(page).toHaveURL('http://localhost:3001/website/gallery');
+  await expect(page.getByText('Gallery project published.')).toBeVisible();
+  await page.goto(`http://localhost:3000/gallery?event=${generatedSlug}`);
   await expect(
-    page.getByRole('heading', { level: 1, name: title }),
+    page.getByRole('heading', { level: 2, name: title }),
   ).toBeVisible();
   await expectAccessible(page);
 });

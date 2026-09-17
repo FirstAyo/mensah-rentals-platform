@@ -159,7 +159,12 @@ export const galleryAdminListQuerySchema = z
   .strict();
 
 export const publicGalleryQuerySchema = z
-  .object({ type: galleryServiceSlugSchema.optional() })
+  .object({
+    type: galleryServiceSlugSchema.optional(),
+    event: gallerySlugSchema.optional(),
+    page: z.coerce.number().int().min(1).max(1000).default(1),
+    pageSize: z.coerce.number().int().min(1).max(48).default(24),
+  })
   .strict();
 
 export type GalleryServiceType = z.infer<typeof galleryServiceTypeSchema>;
@@ -173,7 +178,7 @@ export type CreateGalleryProjectInput = z.infer<
 export type SaveGalleryDraftInput = z.infer<typeof saveGalleryDraftSchema>;
 export type GalleryMutationInput = z.infer<typeof galleryMutationSchema>;
 export type GalleryAdminListQuery = z.infer<typeof galleryAdminListQuerySchema>;
-export type PublicGalleryQuery = z.infer<typeof publicGalleryQuerySchema>;
+export type PublicGalleryQuery = z.input<typeof publicGalleryQuerySchema>;
 
 export const GALLERY_SERVICE_PRESENTATION: Record<
   GalleryServiceType,

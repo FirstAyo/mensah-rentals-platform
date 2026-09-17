@@ -25,6 +25,7 @@ import {
   Trash2,
 } from 'lucide-react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   cloneElement,
   isValidElement,
@@ -103,6 +104,7 @@ export function GalleryProjectEditor({
   projectId?: string;
   publicOrigin: string;
 }) {
+  const router = useRouter();
   const [project, setProject] = useState<AdminGalleryProjectResponse | null>(
     null,
   );
@@ -368,11 +370,8 @@ export function GalleryProjectEditor({
       if (!projectId && action === 'save')
         window.history.replaceState(null, '', `/website/gallery/${result.id}`);
       if (action === 'publish') {
-        window.setTimeout(() => {
-          window.location.assign(
-            `${publicOrigin.replace(/\/$/, '')}/gallery/${result.slug}`,
-          );
-        }, 600);
+        router.push('/website/gallery');
+        router.refresh();
       }
     } catch (cause) {
       setError(
@@ -484,7 +483,7 @@ export function GalleryProjectEditor({
       >
         <legend className="sr-only">Gallery project details</legend>
         <section className="grid gap-4 rounded-xl border bg-card p-4 sm:p-6 md:grid-cols-2">
-          <h2 className="col-span-full text-xl font-semibold">Project story</h2>
+          <h2 className="col-span-full text-xl font-semibold">Gallery event</h2>
           <Field error={fieldErrors.title} label="Title" name="title">
             <input
               className="control"
@@ -606,19 +605,6 @@ export function GalleryProjectEditor({
               maxLength={400}
               onChange={(e) => update('shortDescription', e.target.value)}
               value={content.shortDescription}
-            />
-          </Field>
-          <Field
-            error={fieldErrors.description}
-            full
-            label="Full story (optional)"
-            name="description"
-          >
-            <textarea
-              className="control min-h-40"
-              maxLength={5000}
-              onChange={(e) => update('description', e.target.value || null)}
-              value={content.description ?? ''}
             />
           </Field>
           <label className="col-span-full flex min-h-11 items-center gap-3 text-sm font-medium">
@@ -773,36 +759,6 @@ export function GalleryProjectEditor({
               ))}
             </div>
           )}
-        </section>
-
-        <section className="grid gap-4 rounded-xl border bg-card p-4 sm:p-6 md:grid-cols-2">
-          <h2 className="col-span-full text-xl font-semibold">
-            Search preview
-          </h2>
-          <Field
-            error={fieldErrors.seoTitle}
-            label="SEO title (optional)"
-            name="seoTitle"
-          >
-            <input
-              className="control"
-              maxLength={70}
-              onChange={(e) => update('seoTitle', e.target.value || null)}
-              value={content.seoTitle ?? ''}
-            />
-          </Field>
-          <Field
-            error={fieldErrors.seoDescription}
-            label="SEO description (optional)"
-            name="seoDescription"
-          >
-            <textarea
-              className="control min-h-24"
-              maxLength={180}
-              onChange={(e) => update('seoDescription', e.target.value || null)}
-              value={content.seoDescription ?? ''}
-            />
-          </Field>
         </section>
       </fieldset>
 

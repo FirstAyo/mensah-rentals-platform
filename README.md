@@ -213,6 +213,12 @@ through a development API.
 
 ## Documentation
 
+The public Gallery is a photo-first masonry portfolio. Gallery event revisions
+remain immutable in Admin, while public visitors browse mixed published photos
+at `/gallery` rather than article-style project pages. See
+[`docs/gallery.md`](docs/gallery.md) and
+[`docs/homepage-content-management.md`](docs/homepage-content-management.md).
+
 - [Phase 19.1 staging workflow corrections](docs/staging-workflow-corrections.md)
 - [Phase 19.2 Gallery and company experience](docs/gallery.md)
 - [Phase 19.2 Cart email enquiries](docs/cart-email-enquiries.md)

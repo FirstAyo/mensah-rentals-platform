@@ -6,6 +6,7 @@ import {
   gallerySlugWithSuffix,
   GALLERY_PROJECT_MEDIA_LIMIT,
   GALLERY_SLUG_MAX_LENGTH,
+  publicGalleryQuerySchema,
 } from './gallery';
 
 describe('Gallery slug generation', () => {
@@ -70,5 +71,17 @@ describe('Gallery slug generation', () => {
       expect(result.error.issues.map(({ message }) => message)).toContain(
         'You can add up to 20 images to a Gallery project.',
       );
+  });
+
+  it('bounds public photo-feed pagination and validates event filters', () => {
+    expect(
+      publicGalleryQuerySchema.parse({ event: 'sample-event', page: '2' }),
+    ).toMatchObject({ event: 'sample-event', page: 2, pageSize: 24 });
+    expect(publicGalleryQuerySchema.safeParse({ pageSize: '49' }).success).toBe(
+      false,
+    );
+    expect(
+      publicGalleryQuerySchema.safeParse({ event: 'Unsafe Event' }).success,
+    ).toBe(false);
   });
 });

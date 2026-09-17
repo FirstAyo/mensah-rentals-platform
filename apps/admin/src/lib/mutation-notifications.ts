@@ -168,7 +168,7 @@ const EXACT_MESSAGES: Array<{
         /^\/api\/gallery\/[^/]+\/publish$/.test(path) ||
         /^\/api\/gallery\/[^/]+\/drafts\/[^/]+\/publish$/.test(path)),
     message: {
-      success: 'Gallery project published successfully',
+      success: 'Gallery project published.',
       error: 'Gallery project could not be published',
     },
   },

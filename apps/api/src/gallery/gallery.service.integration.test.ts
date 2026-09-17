@@ -117,6 +117,20 @@ describe('Gallery immutable publication against PostgreSQL', () => {
       actorId,
     );
     expect(published.published).toBe(true);
+    const publicList = await service.publicList({
+      event: createInput.content.slug,
+      page: 1,
+      pageSize: 24,
+    });
+    expect(publicList.photos).toHaveLength(1);
+    expect(publicList.photos[0]).toMatchObject({
+      event: { slug: createInput.content.slug },
+      image: { height: 1000, width: 1600 },
+    });
+    expect(publicList.meta).toMatchObject({ hasMore: false, total: 1 });
+    expect(JSON.stringify(publicList)).not.toMatch(
+      /mediaId|revision|actor|inventory|permission|operationId|payloadHash/i,
+    );
     const detail = await service.publicDetail(createInput.content.slug);
     expect(detail.title).toBe(createInput.content.title);
     expect(detail.media).toHaveLength(1);

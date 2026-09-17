@@ -269,9 +269,15 @@ test('@homepage-public renders premium request-based content at 320px with dark-
   await expect(page.getByText('Staff-reviewed quotes')).toBeVisible();
   await expect(
     page.locator('[data-homepage-section="featured-categories"]'),
-  ).toHaveCount(0);
+  ).toHaveCount(1);
   const sectionTops = await page.evaluate(() =>
-    ['services', 'recent-work', 'featured-equipment', 'why-mensah-rentals'].map(
+    [
+      'services',
+      'featured-categories',
+      'recent-work',
+      'featured-equipment',
+      'why-mensah-rentals',
+    ].map(
       (name) =>
         document
           .querySelector<HTMLElement>(`[data-homepage-section="${name}"]`)
@@ -323,10 +329,42 @@ test('@homepage-public renders premium request-based content at 320px with dark-
 
 test('@homepage-public renders safely when reduced motion is requested', async ({
   page,
-}) => {
+}, testInfo) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  const rails = page.locator('.continuous-rail-viewport');
+  await expect(rails.first()).toBeVisible();
+  const railState = await rails.evaluateAll((elements) =>
+    elements.map((element) => {
+      const track = element.querySelector<HTMLElement>(
+        '.continuous-rail-left, .continuous-rail-right',
+      );
+      return {
+        animation: track ? getComputedStyle(track).animationName : null,
+        overflowX: getComputedStyle(element).overflowX,
+        visibleClones: Array.from(
+          element.querySelectorAll<HTMLElement>('.continuous-rail-clone'),
+        ).filter((clone) => getComputedStyle(clone).display !== 'none').length,
+      };
+    }),
+  );
+  expect(railState.length).toBeGreaterThanOrEqual(2);
+  expect(railState).toEqual(
+    expect.arrayContaining([
+      expect.objectContaining({
+        animation: 'none',
+        overflowX: 'auto',
+        visibleClones: 0,
+      }),
+    ]),
+  );
+  if (testInfo.project.name.startsWith('mobile')) {
+    const manuallyScrollable = await rails.evaluateAll((elements) =>
+      elements.some((element) => element.scrollWidth > element.clientWidth),
+    );
+    expect(manuallyScrollable).toBe(true);
+  }
 });
 
 test('@homepage-admin provides responsive fixed navigation, consistent controls, and a three-slide publish flow', async ({

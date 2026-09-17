@@ -70,3 +70,18 @@ The bundled fallback makes no unsupported geographic promise. Its service-area c
 Migration `20260731140000_phase16_4_homepage_content` creates only new homepage objects and foreign keys. It contains no catalogue update/delete, inventory mutation, media rewrite, or destructive statement.
 
 Migration `20260801100000_phase16_4a_media_selection` is additive. It adds dual-source placement references, immutable per-revision featured-category overrides, and the one-to-one `CategoryCover` assignment. Restrictive media foreign keys prevent physical deletion while referenced; the migration does not update or delete existing catalogue, media, homepage revision, inventory, or rental records.
+
+# Phase 19.2.3 section behavior
+
+The published Homepage order is Hero, reassurance, Services, Browse by
+Category, Recent Work, Featured Equipment, Why Mensah Rentals, How it Works,
+Google Reviews, Flexible Fulfilment, Service Areas, and the final call to
+action. Browse by Category uses selected published categories and continuously
+moves left-to-right. Recent Work is the single Homepage Gallery surface and
+uses a two-row, mixed-event photo wall moving right-to-left. Both rails pause
+for hover or keyboard focus and stop under `prefers-reduced-motion`.
+
+Flexible Fulfilment accepts one managed Homepage media asset and a left,
+center, or right focal point. The public section renders the asset as a
+decorative responsive background with a contrast overlay. When no image is
+assigned, the dark branded fallback remains usable.

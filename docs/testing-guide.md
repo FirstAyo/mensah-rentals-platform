@@ -1601,3 +1601,19 @@ Each browser command resets only the guarded `_test` database. Stop local app se
 ## Phase 18.6.1 checks
 
 Run `pnpm format:check`, `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`, and `git diff --check`. Then run `pnpm db:validate`, `pnpm db:generate`, `pnpm db:migrate`, `pnpm db:status`, `pnpm rbac:seed`, and `pnpm rbac:verify`. Manually verify draft isolation, preview, publish, restore, media reuse/upload, contact submission, the exact official Terms clauses, light/dark themes, keyboard focus, and 320/375/390/430/768/1024/1440 layouts. Public JSON must contain no `mediaRef`, draft, actor, operation, inventory, reservation, availability, credential, or storage-path field.
+
+# Phase 19.2.3 Gallery and Homepage checks
+
+Run `pnpm test:e2e:gallery-homepage-launch-flow` against the guarded local test
+database. Verify two Gallery columns at 320/375/390/430px, three at tablet
+width, and four at 1440px; natural image ratios; event labels; service and event
+filters; Load more; keyboard, Escape, buttons, and touch behavior in the image
+viewer; dark mode; and no horizontal overflow. On the Homepage verify the exact
+section order, opposite rail directions, reduced-motion fallback, and the
+Flexible Fulfilment background/focal point. In Admin, publish an event and
+confirm the success notification appears before the app returns to
+`/website/gallery`; saving a draft must remain in the editor.
+
+Also run `pnpm test:e2e:homepage-all`, `pnpm test:e2e:public-navigation`,
+`pnpm test:e2e:public-pages-cms`, `pnpm test:e2e:feature-settings`, and
+`pnpm test:e2e:staging-workflow-corrections` for cross-phase regression.

@@ -223,6 +223,7 @@ export const homepageContentSchema = z
       deliveryTitle: text(100),
       deliveryDescription: text(300),
       mediaId: homepageMediaReferenceSchema.nullable().default(null),
+      focalPoint: z.enum(['left', 'center', 'right']).default('center'),
     }),
     serviceAreas: headingBlock.extend({
       areas: z
@@ -661,6 +662,7 @@ export const DEFAULT_HOMEPAGE_CONTENT: HomepageContent = {
     deliveryDescription:
       'Share the destination so our team can review delivery requirements.',
     mediaId: null,
+    focalPoint: 'center',
   },
   serviceAreas: {
     enabled: true,

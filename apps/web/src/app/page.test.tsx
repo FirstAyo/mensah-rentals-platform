@@ -79,7 +79,8 @@ describe('customer website home page', () => {
     expect(html).toContain('public-container');
     expect(html).not.toContain('max-w-[1760px]');
     expect(html).toContain('lg:pb-14 lg:pt-24');
-    expect(html).not.toContain('data-homepage-section="featured-categories"');
+    expect(html).toContain('data-homepage-section="featured-categories"');
+    expect(html).toContain('/rentals/seating');
     expect(html).not.toMatch(
       /only \d+ left|\d+ (available|remaining)|total quantity:|\$\d/i,
     );

@@ -59,7 +59,7 @@ export function GalleryProjectList({ canEdit }: { canEdit: boolean }) {
           <p className="text-sm font-medium text-primary">Website content</p>
           <h1 className="text-3xl font-bold tracking-tight">Gallery</h1>
           <p className="mt-2 max-w-3xl text-muted-foreground">
-            Curate project stories and publish only reviewed drafts to the
+            Curate photo-led events and publish only reviewed drafts to the
             public Gallery.
           </p>
         </div>
@@ -221,6 +221,35 @@ export function GalleryProjectList({ canEdit }: { canEdit: boolean }) {
                   <p className="mt-1 truncate text-sm text-muted-foreground">
                     /{project.slug}
                   </p>
+                  <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-border pt-3 text-xs">
+                    <div>
+                      <dt className="text-muted-foreground">Photos</dt>
+                      <dd className="mt-1 font-semibold">
+                        {project.imageCount}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt className="text-muted-foreground">Last updated</dt>
+                      <dd className="mt-1 font-semibold">
+                        {new Intl.DateTimeFormat('en-CA', {
+                          dateStyle: 'medium',
+                        }).format(new Date(project.updatedAt))}
+                      </dd>
+                    </div>
+                    {project.publishedAt ? (
+                      <div className="col-span-2">
+                        <dt className="text-muted-foreground">Published</dt>
+                        <dd className="mt-1 font-semibold">
+                          {new Intl.DateTimeFormat('en-CA', {
+                            dateStyle: 'medium',
+                          }).format(new Date(project.publishedAt))}
+                        </dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                  <span className="mt-4 inline-flex min-h-10 items-center font-semibold text-primary">
+                    {canEdit ? 'Edit event' : 'View event'}
+                  </span>
                 </div>
               </Link>
             ))}

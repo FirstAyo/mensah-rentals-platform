@@ -15,6 +15,7 @@ import type {
   AdminGalleryRevisionResponse,
   PublicGalleryProjectResponse,
   PublicGalleryProjectSummaryResponse,
+  PublicGalleryPhotoResponse,
   PublicGalleryResponse,
 } from '@mensah-rentals/types';
 import {
@@ -50,13 +51,20 @@ function payloadHash(value: unknown) {
 @Injectable()
 export class GalleryService {
   async publicList(query: PublicGalleryQuery): Promise<PublicGalleryResponse> {
+    const page = query.page ?? 1;
+    const pageSize = query.pageSize ?? 24;
     const serviceType = query.type
       ? galleryServiceTypeFromSlug(query.type)
       : undefined;
     const revisions = await prisma.galleryProjectRevision.findMany({
       where: {
         ...(serviceType ? { serviceType } : {}),
-        publishedHeadOf: { is: { archivedAt: null } },
+        publishedHeadOf: {
+          is: {
+            archivedAt: null,
+            ...(query.event ? { slug: query.event } : {}),
+          },
+        },
       },
       include: revisionInclude,
       orderBy: [
@@ -66,8 +74,23 @@ export class GalleryService {
         { id: 'asc' },
       ],
     });
+    const photos = this.interleavedPhotos(
+      revisions,
+      `gallery-v1:${query.type ?? 'all'}:${query.event ?? 'all'}`,
+    );
+    const start = (page - 1) * pageSize;
+    const totalPages = photos.length ? Math.ceil(photos.length / pageSize) : 0;
     return {
       items: revisions.map((revision) => this.publicSummary(revision)),
+      meta: {
+        hasMore: page < totalPages,
+        page,
+        pageSize,
+        total: photos.length,
+        totalPages,
+      },
+      photos: photos.slice(start, start + pageSize),
+      selectedEvent: query.event ?? null,
       selectedType: query.type ?? null,
       services: Object.values(GALLERY_SERVICE_PRESENTATION),
     };
@@ -738,8 +761,49 @@ export class GalleryService {
     return {
       altText: item.altText,
       focalPoint: item.focalPoint,
+      height: item.media.height,
       url: item.media.url,
+      width: item.media.width,
     };
+  }
+
+  private interleavedPhotos(
+    revisions: IncludedRevision[],
+    seed: string,
+  ): PublicGalleryPhotoResponse[] {
+    const projects = [...revisions].sort((left, right) =>
+      this.stableRank(seed, left.slugSnapshot).localeCompare(
+        this.stableRank(seed, right.slugSnapshot),
+      ),
+    );
+    const seenMedia = new Set<string>();
+    const photos: PublicGalleryPhotoResponse[] = [];
+    const longest = Math.max(0, ...projects.map((item) => item.media.length));
+
+    for (let mediaIndex = 0; mediaIndex < longest; mediaIndex += 1) {
+      for (const revision of projects) {
+        const item = revision.media[mediaIndex];
+        if (!item || seenMedia.has(item.mediaId)) continue;
+        seenMedia.add(item.mediaId);
+        photos.push({
+          event: {
+            shortDescription: revision.shortDescription,
+            slug: revision.slugSnapshot,
+            title: revision.title,
+          },
+          eventImageCount: revision.media.length,
+          eventImageIndex: mediaIndex + 1,
+          image: this.publicMedia(item),
+          key: `${revision.slugSnapshot}-${item.sortOrder + 1}`,
+          service: GALLERY_SERVICE_PRESENTATION[revision.serviceType],
+        });
+      }
+    }
+    return photos;
+  }
+
+  private stableRank(seed: string, value: string) {
+    return createHash('sha256').update(`${seed}:${value}`).digest('hex');
   }
 
   private adminSummary(project: {
@@ -756,7 +820,10 @@ export class GalleryService {
       archivedAt: project.archivedAt?.toISOString() ?? null,
       coverUrl: current?.media[0]?.media.url ?? null,
       id: project.id,
+      imageCount: current?.media.length ?? 0,
       lockVersion: project.lockVersion,
+      publishedAt:
+        project.publishedRevision?.publishedAt?.toISOString() ?? null,
       published: Boolean(project.publishedRevision && !project.archivedAt),
       serviceType: current?.serviceType ?? 'FILM_PRODUCTION',
       slug: current?.slugSnapshot ?? project.slug,

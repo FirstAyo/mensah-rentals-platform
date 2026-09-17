@@ -62,6 +62,9 @@ describe('Gallery authorization and public visibility', () => {
     })),
     publicList: vi.fn(async () => ({
       items: [],
+      meta: { hasMore: false, page: 1, pageSize: 24, total: 0, totalPages: 0 },
+      photos: [],
+      selectedEvent: null,
       selectedType: null,
       services: [],
     })),

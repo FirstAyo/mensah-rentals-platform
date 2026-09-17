@@ -2,6 +2,7 @@ import 'server-only';
 
 import type {
   PublicGalleryMediaResponse,
+  PublicGalleryPhotoResponse,
   PublicGalleryProjectResponse,
   PublicGalleryProjectSummaryResponse,
   PublicGalleryResponse,
@@ -52,7 +53,11 @@ function nullableText(
 }
 
 function media(value: unknown): asserts value is PublicGalleryMediaResponse {
-  record(value, ['altText', 'focalPoint', 'url'], 'Gallery media');
+  record(
+    value,
+    ['altText', 'focalPoint', 'height', 'url', 'width'],
+    'Gallery media',
+  );
   text(value.altText, 'Gallery media alt text');
   text(value.url, 'Gallery media URL');
   if (
@@ -64,6 +69,43 @@ function media(value: unknown): asserts value is PublicGalleryMediaResponse {
     throw new PublicGalleryUnavailable(
       'Invalid public Gallery media response.',
     );
+  if (
+    !Number.isInteger(value.width) ||
+    Number(value.width) < 1 ||
+    !Number.isInteger(value.height) ||
+    Number(value.height) < 1
+  )
+    throw new PublicGalleryUnavailable(
+      'Invalid public Gallery image dimensions.',
+    );
+}
+
+function photo(value: unknown): asserts value is PublicGalleryPhotoResponse {
+  record(
+    value,
+    ['event', 'eventImageCount', 'eventImageIndex', 'image', 'key', 'service'],
+    'Gallery photo',
+  );
+  text(value.key, 'Gallery photo key');
+  media(value.image);
+  record(
+    value.event,
+    ['shortDescription', 'slug', 'title'],
+    'Gallery photo event',
+  );
+  text(value.event.slug, 'Gallery event slug');
+  text(value.event.title, 'Gallery event title');
+  text(value.event.shortDescription, 'Gallery event description');
+  record(value.service, ['label', 'slug'], 'Gallery photo service');
+  text(value.service.label, 'Gallery photo service label');
+  galleryServiceSlugSchema.parse(value.service.slug);
+  if (
+    !Number.isInteger(value.eventImageIndex) ||
+    Number(value.eventImageIndex) < 1 ||
+    !Number.isInteger(value.eventImageCount) ||
+    Number(value.eventImageCount) < Number(value.eventImageIndex)
+  )
+    throw new PublicGalleryUnavailable('Invalid public Gallery photo index.');
 }
 
 function summary(
@@ -97,10 +139,20 @@ function summary(
 }
 
 function gallery(value: unknown): asserts value is PublicGalleryResponse {
-  record(value, ['items', 'selectedType', 'services'], 'Gallery');
-  if (!Array.isArray(value.items) || !Array.isArray(value.services))
+  record(
+    value,
+    ['items', 'meta', 'photos', 'selectedEvent', 'selectedType', 'services'],
+    'Gallery',
+  );
+  if (
+    !Array.isArray(value.items) ||
+    !Array.isArray(value.photos) ||
+    !Array.isArray(value.services)
+  )
     throw new PublicGalleryUnavailable('Invalid public Gallery response.');
   value.items.forEach(summary);
+  value.photos.forEach(photo);
+  nullableText(value.selectedEvent, 'Gallery event filter');
   if (value.selectedType !== null)
     galleryServiceSlugSchema.parse(value.selectedType);
   value.services.forEach((service) => {
@@ -108,6 +160,19 @@ function gallery(value: unknown): asserts value is PublicGalleryResponse {
     text(service.label, 'Gallery service label');
     galleryServiceSlugSchema.parse(service.slug);
   });
+  const meta = value.meta;
+  record(
+    meta,
+    ['hasMore', 'page', 'pageSize', 'total', 'totalPages'],
+    'Gallery pagination',
+  );
+  if (
+    typeof meta.hasMore !== 'boolean' ||
+    !['page', 'pageSize', 'total', 'totalPages'].every((key) =>
+      Number.isInteger(meta[key]),
+    )
+  )
+    throw new PublicGalleryUnavailable('Invalid Gallery pagination response.');
 }
 
 function detail(value: unknown): asserts value is PublicGalleryProjectResponse {
@@ -167,9 +232,17 @@ async function request(path: string): Promise<unknown> {
   return body;
 }
 
-export async function getPublicGallery(type?: GalleryServiceSlug) {
+export async function getPublicGallery(
+  type?: GalleryServiceSlug,
+  options: { event?: string; page?: number; pageSize?: number } = {},
+) {
+  const query = new URLSearchParams();
+  if (type) query.set('type', type);
+  if (options.event) query.set('event', options.event);
+  if (options.page) query.set('page', String(options.page));
+  if (options.pageSize) query.set('pageSize', String(options.pageSize));
   const body = await request(
-    `/public/gallery${type ? `?type=${encodeURIComponent(type)}` : ''}`,
+    `/public/gallery${query.size ? `?${query.toString()}` : ''}`,
   );
   gallery(body);
   return body;
