@@ -51,7 +51,7 @@ export function HomepageGalleryCarousel({
           <ArrowRight aria-hidden="true" className="h-4 w-4" />
         </Link>
       </div>
-      <div className="mt-8 space-y-3 sm:space-y-4" data-direction="left">
+      <div className="mt-8 space-y-[6px]" data-direction="left">
         {rows
           .filter((row) => row.length)
           .map((row, rowIndex) => (
@@ -63,7 +63,7 @@ export function HomepageGalleryCarousel({
                 {enough ? (
                   <div
                     aria-hidden="true"
-                    className="continuous-rail-clone flex gap-3 pr-3 sm:gap-4 sm:pr-4"
+                    className="continuous-rail-clone flex gap-[6px] pr-[6px]"
                   >
                     {row.map((photo, index) => (
                       <PhotoCard
@@ -84,7 +84,7 @@ export function HomepageGalleryCarousel({
 
 function PhotoGroup({ photos }: { photos: PublicGalleryPhotoResponse[] }) {
   return (
-    <div className="flex gap-3 pr-3 sm:gap-4 sm:pr-4">
+    <div className="flex gap-[6px] pr-[6px]">
       {photos.map((photo, index) => (
         <PhotoCard key={`${photo.key}-${index}`} photo={photo} />
       ))}
@@ -101,13 +101,14 @@ function PhotoCard({
 }) {
   return (
     <Link
-      className="group relative h-44 w-64 shrink-0 overflow-hidden rounded-2xl bg-slate-900 outline-none focus-visible:ring-2 focus-visible:ring-ring sm:h-52 sm:w-80 lg:h-56 lg:w-[22rem]"
+      className="group relative h-44 w-64 shrink-0 overflow-hidden rounded-none bg-transparent outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring sm:h-52 sm:w-80 lg:h-56 lg:w-[22rem]"
+      data-homepage-gallery-photo
       href={`/gallery?event=${encodeURIComponent(photo.event.slug)}`}
       tabIndex={tabIndex}
     >
       <Image
         alt={photo.image.altText}
-        className="object-cover transition duration-500 group-hover:scale-[1.03] motion-reduce:transition-none"
+        className="object-cover transition duration-500 group-hover:scale-[1.015] motion-reduce:transition-none"
         fill
         sizes="(min-width:1024px) 352px, (min-width:640px) 320px, 256px"
         src={photo.image.url}

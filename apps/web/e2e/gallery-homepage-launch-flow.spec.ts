@@ -96,6 +96,54 @@ test('@gallery-homepage-launch-flow renders the premium company homepage, Galler
 
   await page.goto(`/gallery?type=events-festivals`);
   await expect(page.getByText(title).first()).toBeVisible();
+  const masonry = page.locator('[data-gallery-masonry]');
+  const tiles = masonry.locator('[data-gallery-photo-tile]');
+  const firstTile = tiles.first();
+  await expect(firstTile).toBeVisible();
+  const galleryVisuals = await masonry.evaluate((element) => {
+    const style = window.getComputedStyle(element);
+    return {
+      columnCount: Number(style.columnCount),
+      columnGap: Number.parseFloat(style.columnGap),
+      overflows: document.documentElement.scrollWidth > window.innerWidth + 1,
+    };
+  });
+  expect(galleryVisuals.columnGap).toBeGreaterThanOrEqual(5);
+  expect(galleryVisuals.columnGap).toBeLessThanOrEqual(8);
+  expect(galleryVisuals.overflows).toBe(false);
+  if (testInfo.project.name.startsWith('mobile-')) {
+    expect(galleryVisuals.columnCount).toBe(2);
+  }
+  if (testInfo.project.name === 'wide-1440') {
+    expect(galleryVisuals.columnCount).toBe(4);
+  }
+  await expect(firstTile).toHaveCSS('border-radius', '0px');
+  await expect(firstTile).toHaveCSS('box-shadow', 'none');
+  await expect(firstTile.locator('[data-gallery-photo-label]')).toBeVisible();
+  if (process.env.PHASE192_CAPTURE_VISUALS === 'true') {
+    await page.screenshot({
+      path: testInfo.outputPath(`gallery-${testInfo.project.name}.png`),
+      fullPage: true,
+    });
+  }
+  const imageRatios = await tiles.locator('img').evaluateAll((images) =>
+    images.slice(0, 8).map((image) => {
+      const element = image as HTMLImageElement;
+      const declaredWidth = Number(element.getAttribute('width'));
+      const declaredHeight = Number(element.getAttribute('height'));
+      return {
+        declared: declaredWidth / declaredHeight,
+        rendered:
+          element.getBoundingClientRect().width /
+          element.getBoundingClientRect().height,
+      };
+    }),
+  );
+  expect(imageRatios.length).toBeGreaterThan(0);
+  for (const ratio of imageRatios) {
+    expect(Number.isFinite(ratio.declared)).toBe(true);
+    expect(Math.abs(ratio.declared - ratio.rendered)).toBeLessThan(0.02);
+  }
   await expect(
     page.getByRole('heading', { name: 'Popular rental gear' }),
   ).toBeVisible();

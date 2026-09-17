@@ -1710,9 +1710,15 @@ try {
       featureSettingsMode ||
       seoMode ||
       publicCompanyMode ||
-      phase192Mode ||
       mode === 'public-navigation'
         ? ['--project=mobile-320', '--project=wide-1440']
+        : []),
+      ...(phase192Mode
+        ? [
+            '--project=mobile-320',
+            '--project=mobile-390',
+            '--project=wide-1440',
+          ]
         : []),
       ...(mode === 'homepage-all'
         ? [

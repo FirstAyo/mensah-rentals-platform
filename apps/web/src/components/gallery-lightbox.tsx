@@ -57,17 +57,18 @@ export function GalleryLightbox({
     <>
       <ul
         aria-label="Gallery photographs"
-        className="columns-2 gap-2 sm:gap-3 md:columns-3 xl:columns-4"
+        className="columns-2 gap-[6px] md:columns-3 xl:columns-4"
         data-gallery-masonry
       >
         {photos.map((photo, index) => (
           <li
-            className="mb-2 inline-block w-full break-inside-avoid sm:mb-3"
+            className="mb-[6px] inline-block w-full break-inside-avoid"
             key={photo.key}
           >
             <button
               aria-label={`Open ${photo.event.title}, image ${photo.eventImageIndex} of ${photo.eventImageCount}: ${photo.image.altText}`}
-              className="group relative block w-full overflow-hidden rounded-lg bg-muted text-left outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background sm:rounded-xl"
+              className="group relative block w-full overflow-hidden rounded-none bg-transparent text-left outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+              data-gallery-photo-tile
               onClick={(event) => {
                 returnFocus.current = event.currentTarget;
                 setSelected(index);
@@ -85,7 +86,10 @@ export function GalleryLightbox({
               />
               <span className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-slate-950/90 via-slate-950/45 to-transparent" />
               <span className="absolute inset-x-2 bottom-2 flex items-end justify-between gap-2 sm:inset-x-3 sm:bottom-3">
-                <span className="line-clamp-2 rounded-full border border-white/20 bg-slate-950/60 px-2.5 py-1 text-[11px] font-semibold leading-4 text-white backdrop-blur sm:text-xs">
+                <span
+                  className="line-clamp-2 text-[11px] font-semibold leading-4 text-white sm:text-xs"
+                  data-gallery-photo-label
+                >
                   {photo.event.title}
                 </span>
                 <Expand
