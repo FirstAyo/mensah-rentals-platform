@@ -5,17 +5,20 @@ import { notFound } from 'next/navigation';
 
 import { GalleryLightbox } from '@/components/gallery-lightbox';
 import { GalleryUnavailable } from '@/components/gallery-unavailable';
+import { HomepageFeaturedCategories } from '@/components/homepage-featured-categories';
 import { ProductCard } from '@/components/product-card';
+import { selectGalleryProducts } from '@/lib/gallery-merchandising';
+import { GALLERY_PAGE_SIZE } from '@/lib/gallery-photo-layout';
 import { listProducts } from '@/lib/public-catalogue';
 import {
   getPublicGallery,
   PublicGalleryUnavailable,
 } from '@/lib/public-gallery';
+import { getPublicHomepage } from '@/lib/public-homepage';
 import { publicPageRobots } from '@/lib/site-config';
 import {
   galleryServiceSlugSchema,
   gallerySlugSchema,
-  type GalleryServiceSlug,
 } from '@mensah-rentals/validation';
 
 export const dynamic = 'force-dynamic';
@@ -83,12 +86,16 @@ export default async function GalleryPage({
     const first = await getPublicGallery(type, {
       event,
       page: 1,
-      pageSize: 24,
+      pageSize: GALLERY_PAGE_SIZE,
     });
     if (page > Math.max(first.meta.totalPages, 1)) notFound();
     const later = await Promise.all(
       Array.from({ length: Math.max(0, page - 1) }, (_, index) =>
-        getPublicGallery(type, { event, page: index + 2, pageSize: 24 }),
+        getPublicGallery(type, {
+          event,
+          page: index + 2,
+          pageSize: GALLERY_PAGE_SIZE,
+        }),
       ),
     );
     gallery = {
@@ -104,9 +111,11 @@ export default async function GalleryPage({
   const selectedProject = event
     ? gallery.items.find((item) => item.slug === event)
     : null;
-  const featuredProducts = await listProducts(
-    '?page=1&pageSize=4&isFeatured=true&sort=featured',
-  ).catch(() => null);
+  const [catalogue, homepage] = await Promise.all([
+    listProducts('?page=1&pageSize=24&sort=featured').catch(() => null),
+    getPublicHomepage().catch(() => null),
+  ]);
+  const galleryProducts = selectGalleryProducts(catalogue?.items ?? []);
   const currentLabel = type
     ? gallery.services.find((service) => service.slug === type)?.label
     : null;
@@ -157,197 +166,191 @@ export default async function GalleryPage({
         </div>
       </section>
 
-      <main className="public-container py-10 sm:py-14 lg:py-16">
-        <nav
-          aria-label="Filter Gallery by service"
-          className="-mx-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0"
-        >
-          <ul className="flex min-w-max gap-2">
-            <li>
-              <FilterLink
-                active={!type && !event}
-                href="/gallery"
-                label="All"
-              />
-            </li>
-            {gallery.services.map((service) => (
-              <li key={service.slug}>
+      <main>
+        <div className="public-container py-10 sm:py-14 lg:py-16">
+          <nav
+            aria-label="Filter Gallery by service"
+            className="-mx-4 overflow-x-auto px-4 pb-2 sm:mx-0 sm:px-0"
+          >
+            <ul className="flex min-w-max gap-2">
+              <li>
                 <FilterLink
-                  active={type === service.slug && !event}
-                  href={`/gallery?type=${service.slug}`}
-                  label={service.label}
+                  active={!type && !event}
+                  href="/gallery"
+                  label="All"
                 />
               </li>
-            ))}
-          </ul>
-        </nav>
+              {gallery.services.map((service) => (
+                <li key={service.slug}>
+                  <FilterLink
+                    active={type === service.slug && !event}
+                    href={`/gallery?type=${service.slug}`}
+                    label={service.label}
+                  />
+                </li>
+              ))}
+            </ul>
+          </nav>
 
-        <section className="mt-7" aria-labelledby="gallery-photos-title">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div className="max-w-3xl">
-              <p className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">
-                Visual portfolio
-              </p>
-              <h2
-                className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl"
-                id="gallery-photos-title"
-              >
-                {selectedProject?.title ??
-                  (currentLabel
-                    ? `${currentLabel} photos`
-                    : 'Moments from recent work')}
-              </h2>
-              <p className="mt-3 leading-7 text-muted-foreground">
-                {selectedProject?.shortDescription ??
-                  'Select any image to explore the full-size photograph and its event context.'}
-              </p>
-            </div>
-            {event ? (
-              <Link
-                className="inline-flex min-h-11 items-center font-semibold text-primary"
-                href="/gallery"
-              >
-                View all Gallery photos
-              </Link>
-            ) : null}
-          </div>
-
-          {gallery.photos.length ? (
-            <div className="mt-7">
-              <GalleryLightbox photos={gallery.photos} />
-            </div>
-          ) : (
-            <div className="mt-8 rounded-3xl border border-dashed border-border bg-card p-10 text-center sm:p-14">
-              <Camera
-                aria-hidden="true"
-                className="mx-auto h-10 w-10 text-primary"
-              />
-              <h2 className="mt-4 text-xl font-semibold">
-                {currentLabel
-                  ? `No ${currentLabel} photos have been published yet.`
-                  : 'No Gallery photos have been published yet.'}
-              </h2>
-              <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-                View all Gallery photos or browse rental equipment for your next
-                project.
-              </p>
-              <div className="mt-6 flex flex-col justify-center gap-3 min-[380px]:flex-row">
-                {type || event ? (
-                  <Link
-                    className="inline-flex min-h-11 items-center justify-center rounded-xl border border-border px-5 font-semibold"
-                    href="/gallery"
-                  >
-                    View all Gallery photos
-                  </Link>
-                ) : null}
-                <Link
-                  className="inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-5 font-semibold text-primary-foreground"
-                  href="/rentals"
-                >
-                  Browse rentals
-                </Link>
-              </div>
-            </div>
-          )}
-
-          {gallery.meta.hasMore ? (
-            <div className="mt-9 text-center">
-              <Link
-                className="inline-flex min-h-12 items-center justify-center rounded-xl border border-border bg-card px-6 font-semibold shadow-sm hover:border-primary/60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                href={galleryHref({ event, page: page + 1, type })}
-                scroll={false}
-              >
-                Load more photos
-              </Link>
-            </div>
-          ) : null}
-        </section>
-
-        {featuredProducts?.items.length ? (
-          <section
-            className="mt-20 border-t border-border pt-16"
-            aria-labelledby="gallery-gear-title"
-          >
+          <section className="mt-7" aria-labelledby="gallery-photos-title">
             <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
               <div className="max-w-3xl">
                 <p className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">
-                  Rental catalogue
+                  Visual portfolio
                 </p>
                 <h2
                   className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl"
-                  id="gallery-gear-title"
+                  id="gallery-photos-title"
                 >
-                  Popular rental gear
+                  {selectedProject?.title ??
+                    (currentLabel
+                      ? `${currentLabel} photos`
+                      : 'Moments from recent work')}
                 </h2>
                 <p className="mt-3 leading-7 text-muted-foreground">
-                  Explore customer-safe equipment details and build a list for
-                  our team.
+                  {selectedProject?.shortDescription ??
+                    'Select any image to explore the full-size photograph and its event context.'}
                 </p>
               </div>
-              <Link
-                className="inline-flex min-h-11 items-center gap-2 font-semibold text-primary"
-                href="/rentals"
-              >
-                View all rentals{' '}
-                <ChevronRight aria-hidden="true" className="h-4 w-4" />
-              </Link>
+              {event ? (
+                <Link
+                  className="inline-flex min-h-11 items-center font-semibold text-primary"
+                  href="/gallery"
+                >
+                  View all Gallery photos
+                </Link>
+              ) : null}
             </div>
-            <div className="mt-8 grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
-              {featuredProducts.items.map((product) => (
-                <ProductCard
-                  key={`${product.category.slug}/${product.slug}`}
-                  product={product}
+
+            {gallery.photos.length ? (
+              <div className="mt-7">
+                <GalleryLightbox
+                  event={event}
+                  initialPage={gallery.meta.page}
+                  photos={gallery.photos}
+                  total={gallery.meta.total}
+                  type={type}
                 />
-              ))}
-            </div>
+              </div>
+            ) : (
+              <div className="mt-8 rounded-3xl border border-dashed border-border bg-card p-10 text-center sm:p-14">
+                <Camera
+                  aria-hidden="true"
+                  className="mx-auto h-10 w-10 text-primary"
+                />
+                <h2 className="mt-4 text-xl font-semibold">
+                  {currentLabel
+                    ? `No ${currentLabel} photos have been published yet.`
+                    : 'No Gallery photos have been published yet.'}
+                </h2>
+                <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
+                  View all Gallery photos or browse rental equipment for your
+                  next project.
+                </p>
+                <div className="mt-6 flex flex-col justify-center gap-3 min-[380px]:flex-row">
+                  {type || event ? (
+                    <Link
+                      className="inline-flex min-h-11 items-center justify-center rounded-xl border border-border px-5 font-semibold"
+                      href="/gallery"
+                    >
+                      View all Gallery photos
+                    </Link>
+                  ) : null}
+                  <Link
+                    className="inline-flex min-h-11 items-center justify-center rounded-xl bg-primary px-5 font-semibold text-primary-foreground"
+                    href="/rentals"
+                  >
+                    Browse rentals
+                  </Link>
+                </div>
+              </div>
+            )}
           </section>
+
+          {galleryProducts.length ? (
+            <section
+              className="mt-20 border-t border-border pt-16"
+              aria-labelledby="gallery-gear-title"
+            >
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+                <div className="max-w-3xl">
+                  <p className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">
+                    Rental catalogue
+                  </p>
+                  <h2
+                    className="mt-2 text-3xl font-bold tracking-tight sm:text-4xl"
+                    id="gallery-gear-title"
+                  >
+                    Explore rental equipment
+                  </h2>
+                  <p className="mt-3 leading-7 text-muted-foreground">
+                    Explore customer-safe equipment details and build a list for
+                    our team.
+                  </p>
+                </div>
+                <Link
+                  className="inline-flex min-h-11 items-center gap-2 font-semibold text-primary"
+                  href="/rentals"
+                >
+                  View all rentals{' '}
+                  <ChevronRight aria-hidden="true" className="h-4 w-4" />
+                </Link>
+              </div>
+              <div className="mt-8 grid gap-6 sm:grid-cols-2 xl:grid-cols-4">
+                {galleryProducts.map((product) => (
+                  <ProductCard
+                    key={`${product.category.slug}/${product.slug}`}
+                    product={product}
+                  />
+                ))}
+              </div>
+            </section>
+          ) : null}
+        </div>
+
+        {homepage?.categories.length ? (
+          <HomepageFeaturedCategories
+            categories={homepage.categories}
+            content={{
+              description:
+                'Explore equipment by category for events, productions, and projects.',
+              eyebrow: 'Rental categories',
+              heading: 'Browse by category',
+            }}
+          />
         ) : null}
 
-        <section
-          className="mt-16 rounded-3xl bg-slate-950 px-6 py-12 text-white sm:px-10 lg:px-14"
-          aria-labelledby="gallery-contact-title"
-        >
-          <h2 className="text-3xl font-bold" id="gallery-contact-title">
-            Planning an event or production?
-          </h2>
-          <p className="mt-3 max-w-3xl leading-7 text-slate-300">
-            Tell our team what you need and when you need it. We will review the
-            details before confirming equipment and pricing.
-          </p>
-          <div className="mt-6 flex flex-col gap-3 min-[380px]:flex-row">
-            <Link
-              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-amber-400 px-5 font-semibold text-slate-950"
-              href="/rentals"
-            >
-              Browse rentals
-            </Link>
-            <Link
-              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/30 px-5 font-semibold"
-              href="/contact"
-            >
-              Contact our team
-            </Link>
-          </div>
-        </section>
+        <div className="public-container pb-10 pt-16 sm:pb-14 lg:pb-16">
+          <section
+            className="rounded-3xl bg-slate-950 px-6 py-12 text-white sm:px-10 lg:px-14"
+            aria-labelledby="gallery-contact-title"
+          >
+            <h2 className="text-3xl font-bold" id="gallery-contact-title">
+              Planning an event or production?
+            </h2>
+            <p className="mt-3 max-w-3xl leading-7 text-slate-300">
+              Tell our team what you need and when you need it. We will review
+              the details before confirming equipment and pricing.
+            </p>
+            <div className="mt-6 flex flex-col gap-3 min-[380px]:flex-row">
+              <Link
+                className="inline-flex min-h-11 items-center justify-center rounded-xl bg-amber-400 px-5 font-semibold text-slate-950"
+                href="/rentals"
+              >
+                Browse rentals
+              </Link>
+              <Link
+                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/30 px-5 font-semibold"
+                href="/contact"
+              >
+                Contact our team
+              </Link>
+            </div>
+          </section>
+        </div>
       </main>
     </>
   );
-}
-
-function galleryHref({
-  event,
-  page,
-  type,
-}: {
-  event?: string;
-  page: number;
-  type?: GalleryServiceSlug;
-}) {
-  const query = new URLSearchParams();
-  if (type) query.set('type', type);
-  if (event) query.set('event', event);
-  query.set('page', String(page));
-  return `/gallery?${query.toString()}`;
 }
 
 function FilterLink({

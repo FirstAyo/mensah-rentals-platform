@@ -92,6 +92,18 @@ a {
   animation: continuous-rail-right 48s linear infinite;
 }
 
+.gallery-photo-rail-left-slow {
+  animation: continuous-rail-left 46s linear infinite;
+}
+
+.gallery-photo-rail-right-gentle {
+  animation: continuous-rail-right 50s linear infinite;
+}
+
+.gallery-photo-rail-left-steady {
+  animation: continuous-rail-left 48s linear infinite;
+}
+
 .continuous-rail-viewport {
   overflow-x: auto;
   overscroll-behavior-inline: contain;
@@ -106,12 +118,21 @@ a {
 .continuous-rail:hover .continuous-rail-left,
 .continuous-rail:hover .continuous-rail-right,
 .continuous-rail:focus-within .continuous-rail-left,
-.continuous-rail:focus-within .continuous-rail-right {
+.continuous-rail:focus-within .continuous-rail-right,
+.continuous-rail:hover .gallery-photo-rail-left-slow,
+.continuous-rail:hover .gallery-photo-rail-right-gentle,
+.continuous-rail:hover .gallery-photo-rail-left-steady,
+.continuous-rail:focus-within .gallery-photo-rail-left-slow,
+.continuous-rail:focus-within .gallery-photo-rail-right-gentle,
+.continuous-rail:focus-within .gallery-photo-rail-left-steady {
   animation-play-state: paused;
 }
 
 .continuous-rail[data-paused='true'] .continuous-rail-left,
-.continuous-rail[data-paused='true'] .continuous-rail-right {
+.continuous-rail[data-paused='true'] .continuous-rail-right,
+.continuous-rail[data-paused='true'] .gallery-photo-rail-left-slow,
+.continuous-rail[data-paused='true'] .gallery-photo-rail-right-gentle,
+.continuous-rail[data-paused='true'] .gallery-photo-rail-left-steady {
   animation-play-state: paused;
 }
 
@@ -130,7 +151,10 @@ a {
   }
 
   .continuous-rail-left,
-  .continuous-rail-right {
+  .continuous-rail-right,
+  .gallery-photo-rail-left-slow,
+  .gallery-photo-rail-right-gentle,
+  .gallery-photo-rail-left-steady {
     animation: none !important;
     transform: none !important;
   }

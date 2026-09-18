@@ -2,7 +2,9 @@ import { defineConfig } from '@playwright/test';
 
 const viewports = [
   ['mobile-320', 320, 720],
+  ['mobile-375', 375, 812],
   ['mobile-390', 390, 844],
+  ['mobile-430', 430, 932],
   ['tablet-768', 768, 1024],
   ['desktop-1024', 1024, 768],
   ['wide-1440', 1440, 900],

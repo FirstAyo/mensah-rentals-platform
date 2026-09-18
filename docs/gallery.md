@@ -65,6 +65,14 @@ The Homepage places the four photographic service cards near the top and links e
 
 The desktop Rentals navigation uses active categories and managed category/product fallback imagery in an accessible, intent-delayed mega menu. Its subtly translucent outer surface (95% semantic background with a light blur) lets the Hero influence the surrounding surface, while the inner cards remain readable and the content aligns to the shared 1440 px public container. Mobile uses a touch-friendly Rentals accordion rather than compressing or inheriting hover behavior from the desktop menu. No navigation or Gallery response exposes inventory quantities.
 
+### Bounded Gallery wall and mobile motion
+
+The public photo wall uses the existing 768 px breakpoint. At 768 px and above it remains square-edged masonry with 6 px gaps. The first tablet/laptop view contains 9 photos across 3 columns; wide screens contain 12 photos across 4 columns. Both produce an intentionally bounded, approximately three-row opening view. **Load More** appends 9 photos on tablet/laptop or 12 on wide screens without reordering existing photos. The same control appends 12 photos on mobile, disappears at the end, and prevents concurrent requests. Changing the service or event filter creates a new Gallery view and resets the visible count.
+
+Below 768 px, the static masonry is replaced by exactly three compact horizontal photo rails. Ordered photos are assigned round-robin by their stable public order, so newly appended photos join the end of a row without changing earlier row order. Rows move right-to-left, left-to-right, and right-to-left at restrained 46, 50, and 48 second durations. Each affected row pauses for pointer interaction, keyboard focus, and a hidden browser tab. Reduced-motion users receive the same three manually scrollable rows with no autoplay or visual clones.
+
+Nine loaded photos is the autoplay threshold: this gives every row at least three unique photos. Smaller filtered collections remain as three static, manually scrollable rows rather than aggressively repeating a few images. Seamless visual clones are `aria-hidden`, removed from keyboard order, reuse the same optimized URLs, and are omitted entirely below the threshold. Every real photo remains an accessible lightbox trigger, and lightbox navigation is scoped to the currently filtered and visibly loaded collection.
+
 ## Media, backup, and transfer
 
 Gallery files use the existing normalized managed-media volume and public content-hash URLs. Database dumps alone do not contain the image bytes: database and media-volume backups must travel together and both manifests must be verified. The allowlisted public-content transfer includes Gallery projects/revisions/media references and their media files, while stripping local staff and idempotency attribution and remapping it to the selected staging operator.
@@ -113,3 +121,33 @@ long-form description and per-event SEO values remain in stored revisions but
 are not part of the normal photo-led editing form. Publishing returns the staff
 member to `/website/gallery` and shows the global success notification. Existing
 records and publication history are never deleted by this presentation change.
+
+## Phase 19.2.3.2 lightbox and merchandising correction
+
+The photo viewer keeps one dialog lifecycle for the whole open session. Moving
+between photographs changes only the selected photo; it does not close and
+reopen the dialog. Previous and next buttons, Left/Right arrow keys, and a
+deliberate horizontal touch swipe all use the same wrapping index calculation.
+Escape and the close button return focus to the tile that opened the viewer.
+The immediately adjacent photographs are preloaded after every selection.
+
+Navigation is deliberately limited to the currently loaded, currently filtered
+photo collection. A service filter moves only through that service's loaded
+photos, and an event filter moves only through that event's loaded photos. The
+viewer never fetches an unseen page implicitly; the visitor chooses **Load more
+photos** before those photographs join the navigable collection.
+
+The Gallery merchandising block now selects at most eight active public
+products from an ordered public response. Featured products remain first.
+Remaining positions prefer categories not yet represented before filling from
+the remaining ordered products, and duplicate category/product URLs are
+removed. Cards use the existing public `ProductCard`, canonical catalogue URLs,
+and customer-safe fields; price, availability, and inventory quantities remain
+absent.
+
+Below the products, Gallery reuses the Homepage moving category rail and the
+same published/default public category result. This preserves the existing
+category image hierarchy (explicit managed category image, primary product
+image fallback, then semantic visual fallback), links to canonical category
+URLs, moves left-to-right, pauses on hover or keyboard focus, supports manual
+dragging, and becomes static when reduced motion is requested.

@@ -138,7 +138,11 @@ const browserEnvironment = {
   STAFF_BOOTSTRAP_PASSWORD: `${randomBytes(24).toString('base64url')}Aa1!`,
   PLATFORM_ENVIRONMENT: 'LOCAL',
 };
-if (mode === 'seo' || mode === 'public-company-pages') {
+if (
+  mode === 'seo' ||
+  mode === 'public-company-pages' ||
+  mode === 'gallery-homepage-launch-flow'
+) {
   browserEnvironment.SITE_URL = 'https://mensahrentals.com';
   browserEnvironment.SITE_INDEXING_ENABLED = 'true';
 }
@@ -241,76 +245,196 @@ if (mode === 'feature-settings') {
   browserEnvironment.PHASE185_PRODUCT_ID = product.id;
 }
 if (mode === 'gallery-homepage-launch-flow') {
-  const mediaId = `cm${randomUUID().replaceAll('-', '').slice(0, 23)}`;
-  const contentHash = createHash('sha256')
-    .update(`phase-19-2-${mediaId}`)
-    .digest('hex');
-  const filename = `${contentHash}.webp`;
-  const relativeMediaRoot = browserEnvironment.MEDIA_STORAGE_ROOT;
-  const mediaDirectory = resolve(
-    repositoryRoot,
-    relativeMediaRoot,
-    'homepage',
-    mediaId,
+  const { default: sharp } = await import(
+    '../apps/api/node_modules/sharp/dist/index.mjs'
   );
-  await mkdir(mediaDirectory, { recursive: true });
-  const image = Buffer.from(
-    'UklGRiIAAABXRUJQVlA4IBYAAAAwAQCdASoBAAEAAUAmJaQAA3AA/v89WAAAAA==',
-    'base64',
-  );
-  await writeFile(resolve(mediaDirectory, filename), image);
-  await prisma.homepageMedia.create({
-    data: {
-      id: mediaId,
-      byteSize: image.byteLength,
-      contentHash,
-      createdByUserId: fixture.id,
-      description: 'Phase 19.2 premium event project',
-      format: 'webp',
-      height: 1,
-      originalFilename: 'phase-19-2-gallery.webp',
-      url: `/media/homepage/${mediaId}/${filename}`,
-      width: 1,
-    },
-  });
-  const slug = `phase-19-2-premium-event-${randomUUID().slice(0, 8)}`;
-  const title = 'Phase 19.2 Premium Event';
-  const project = await prisma.galleryProject.create({
-    data: { createdByUserId: fixture.id, slug },
-  });
-  const revision = await prisma.galleryProjectRevision.create({
-    data: {
-      galleryProjectId: project.id,
-      version: 1,
-      kind: 'PUBLISHED',
-      slugSnapshot: slug,
-      title,
-      serviceType: 'EVENTS_FESTIVALS',
-      shortDescription: 'A test-owned premium event Gallery project.',
-      description:
-        'A complete project story used only by isolated browser tests.',
-      location: 'Vancouver, British Columbia',
-      featured: true,
-      sortOrder: 1,
-      createdByUserId: fixture.id,
-      publishedByUserId: fixture.id,
-      publishedAt: new Date(),
-      media: {
-        create: {
-          mediaId,
-          altText: 'Premium event rental equipment installation',
-          focalPoint: 'center',
-          sortOrder: 0,
+  const createGalleryMedia = async (name, color, dimensions) => {
+    const { height, width } = dimensions;
+    const mediaId = `cm${randomUUID().replaceAll('-', '').slice(0, 23)}`;
+    const image = await sharp({
+      create: {
+        width,
+        height,
+        channels: 3,
+        background: color,
+      },
+    })
+      .webp({ quality: 82 })
+      .toBuffer();
+    const contentHash = createHash('sha256').update(image).digest('hex');
+    const filename = `${contentHash}.webp`;
+    const mediaDirectory = resolve(
+      repositoryRoot,
+      browserEnvironment.MEDIA_STORAGE_ROOT,
+      'homepage',
+      mediaId,
+    );
+    await mkdir(mediaDirectory, { recursive: true });
+    await writeFile(resolve(mediaDirectory, filename), image);
+    await prisma.homepageMedia.create({
+      data: {
+        id: mediaId,
+        byteSize: image.byteLength,
+        contentHash,
+        createdByUserId: fixture.id,
+        description: `${name} test-owned Gallery photograph`,
+        format: 'webp',
+        height,
+        originalFilename: `${name}.webp`,
+        url: `/media/homepage/${mediaId}/${filename}`,
+        width,
+      },
+    });
+    return mediaId;
+  };
+  const createGalleryProject = async ({
+    featured,
+    mediaIds,
+    serviceType,
+    sortOrder,
+    title,
+  }) => {
+    const slug = `${title.toLowerCase().replaceAll(/[^a-z0-9]+/g, '-')}-${randomUUID().slice(0, 8)}`;
+    const project = await prisma.galleryProject.create({
+      data: { createdByUserId: fixture.id, slug },
+    });
+    const revision = await prisma.galleryProjectRevision.create({
+      data: {
+        galleryProjectId: project.id,
+        version: 1,
+        kind: 'PUBLISHED',
+        slugSnapshot: slug,
+        title,
+        serviceType,
+        shortDescription: `A test-owned ${title} Gallery project.`,
+        description:
+          'A complete project story used only by isolated browser tests.',
+        location: 'Vancouver, British Columbia',
+        featured,
+        sortOrder,
+        createdByUserId: fixture.id,
+        publishedByUserId: fixture.id,
+        publishedAt: new Date(),
+        media: {
+          create: mediaIds.map((mediaId, index) => ({
+            mediaId,
+            altText: `${title} photograph ${index + 1}`,
+            focalPoint: 'center',
+            sortOrder: index,
+          })),
         },
       },
+    });
+    await prisma.galleryProject.update({
+      where: { id: project.id },
+      data: { publishedRevisionId: revision.id, lockVersion: 1 },
+    });
+    return slug;
+  };
+
+  const galleryMedia = await Promise.all(
+    Array.from({ length: 30 }, (_, index) =>
+      createGalleryMedia(
+        `phase-19-2-gallery-${String(index + 1).padStart(2, '0')}`,
+        {
+          r: 32 + ((index * 37) % 160),
+          g: 45 + ((index * 53) % 150),
+          b: 52 + ((index * 29) % 145),
+        },
+        [
+          { width: 960, height: 640 },
+          { width: 720, height: 960 },
+          { width: 800, height: 800 },
+        ][index % 3],
+      ),
+    ),
+  );
+  const eventMedia = galleryMedia.slice(0, 3);
+  const filmMedia = galleryMedia.slice(3, 12);
+  const corporateMedia = galleryMedia.slice(12, 21);
+  const privateMedia = galleryMedia.slice(21, 30);
+  const title = 'Phase 19.2 Premium Event';
+  const slug = await createGalleryProject({
+    featured: true,
+    mediaIds: eventMedia.slice(0, 2),
+    serviceType: 'EVENTS_FESTIVALS',
+    sortOrder: 1,
+    title,
+  });
+  const secondTitle = 'Phase 19.2 Community Festival';
+  await createGalleryProject({
+    featured: false,
+    mediaIds: eventMedia.slice(2),
+    serviceType: 'EVENTS_FESTIVALS',
+    sortOrder: 2,
+    title: secondTitle,
+  });
+  await createGalleryProject({
+    featured: false,
+    mediaIds: filmMedia,
+    serviceType: 'FILM_PRODUCTION',
+    sortOrder: 3,
+    title: 'Phase 19.2 Film Production',
+  });
+  await createGalleryProject({
+    featured: false,
+    mediaIds: corporateMedia,
+    serviceType: 'CORPORATE_FUNCTIONS',
+    sortOrder: 4,
+    title: 'Phase 19.2 Corporate Function',
+  });
+  await createGalleryProject({
+    featured: false,
+    mediaIds: privateMedia,
+    serviceType: 'PRIVATE_FUNCTIONS',
+    sortOrder: 5,
+    title: 'Phase 19.2 Private Function',
+  });
+
+  const merchandisingCategories = [];
+  for (const [index, categoryName] of [
+    'Phase Seating',
+    'Phase Shelter',
+    'Phase Lighting',
+    'Phase Audio',
+  ].entries()) {
+    merchandisingCategories.push(
+      await prisma.category.create({
+        data: {
+          name: categoryName,
+          slug: `${categoryName.toLowerCase().replaceAll(' ', '-')}-${randomUUID().slice(0, 8)}`,
+          sortOrder: index,
+        },
+      }),
+    );
+  }
+  for (let index = 0; index < 8; index += 1) {
+    await prisma.product.create({
+      data: {
+        categoryId:
+          merchandisingCategories[index % merchandisingCategories.length].id,
+        isFeatured: index < 3,
+        name: `Phase Gallery Product ${String(index + 1).padStart(2, '0')}`,
+        shortDescription:
+          'Customer-safe rental equipment for the Gallery merchandising test.',
+        slug: `phase-gallery-product-${index + 1}-${randomUUID().slice(0, 8)}`,
+      },
+    });
+  }
+  await prisma.product.create({
+    data: {
+      categoryId: merchandisingCategories[0].id,
+      isActive: false,
+      name: 'Phase Gallery Inactive Product',
+      shortDescription: 'This inactive product must stay out of the Gallery.',
+      slug: `phase-gallery-inactive-${randomUUID().slice(0, 8)}`,
     },
   });
-  await prisma.galleryProject.update({
-    where: { id: project.id },
-    data: { publishedRevisionId: revision.id, lockVersion: 1 },
-  });
+
   browserEnvironment.PHASE192_GALLERY_SLUG = slug;
   browserEnvironment.PHASE192_GALLERY_TITLE = title;
+  browserEnvironment.PHASE192_SECOND_GALLERY_TITLE = secondTitle;
+  browserEnvironment.PHASE192_EVENT_PHOTO_COUNT = '2';
 }
 if (
   mode.startsWith('reservations-') ||
@@ -1716,8 +1840,13 @@ try {
       ...(phase192Mode
         ? [
             '--project=mobile-320',
+            '--project=mobile-375',
             '--project=mobile-390',
+            '--project=mobile-430',
+            '--project=tablet-768',
+            '--project=desktop-1024',
             '--project=wide-1440',
+            '--project=xl-1920',
           ]
         : []),
       ...(mode === 'homepage-all'
