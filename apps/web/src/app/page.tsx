@@ -168,22 +168,13 @@ export default async function HomePage() {
       />
       <HomepageHero hero={content.hero} />
 
-      {content.featuredCategories.enabled && orderedCategoryShowcase.length ? (
-        <CategoryShowcase
-          categories={orderedCategoryShowcase}
-          description={content.featuredCategories.description}
-          eyebrow={content.featuredCategories.eyebrow}
-          heading={content.featuredCategories.heading}
-        />
-      ) : null}
-
       <div
-        className="border-b border-border bg-card dark:bg-card"
+        className="border-b border-border bg-card"
         data-homepage-section="reassurance"
       >
         <ul
           aria-label="Rental reassurance"
-          className="public-container grid grid-cols-2 gap-px lg:grid-cols-4"
+          className="public-container grid grid-cols-2 gap-px bg-border lg:grid-cols-4"
         >
           {content.trustItems
             .filter((item) => item.enabled)
@@ -204,6 +195,15 @@ export default async function HomePage() {
             })}
         </ul>
       </div>
+
+      {content.featuredCategories.enabled && orderedCategoryShowcase.length ? (
+        <CategoryShowcase
+          categories={orderedCategoryShowcase}
+          description={content.featuredCategories.description}
+          eyebrow={content.featuredCategories.eyebrow}
+          heading={content.featuredCategories.heading}
+        />
+      ) : null}
 
       <HomepageServices block={content.solutions} />
 

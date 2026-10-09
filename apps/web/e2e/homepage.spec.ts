@@ -303,6 +303,7 @@ test('@homepage-public renders premium request-based content at 320px with dark-
   ).toBeVisible();
   const sectionTops = await page.evaluate(() =>
     [
+      'reassurance',
       'featured-categories',
       'services',
       'recent-work',

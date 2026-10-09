@@ -426,3 +426,39 @@ test('@public-navigation remains usable at 320px in dark mode and preserves genu
   expect(response?.status()).toBe(404);
   await expect(page.getByText('We could not find that page.')).toBeVisible();
 });
+
+test('@public-navigation serves the light and dark logos plus favicon assets', async ({
+  page,
+  request,
+}, testInfo) => {
+  test.skip(testInfo.project.name !== 'wide-1440');
+  await page.goto('/');
+
+  const logoState = await page.locator('header img').evaluateAll((images) =>
+    images.map((image) => ({
+      complete: (image as HTMLImageElement).complete,
+      naturalWidth: (image as HTMLImageElement).naturalWidth,
+      src: (image as HTMLImageElement).getAttribute('src'),
+    })),
+  );
+  expect(logoState).toHaveLength(2);
+  expect(logoState.every(({ complete }) => complete)).toBe(true);
+  expect(logoState.every(({ naturalWidth }) => naturalWidth > 0)).toBe(true);
+
+  for (const path of [
+    '/brand/logo-light.png',
+    '/brand/logo-dark.png',
+    '/brand/favicon-32.png',
+    '/manifest.webmanifest',
+  ]) {
+    const response = await request.get(`http://localhost:3000${path}`);
+    expect(response.status(), path).toBe(200);
+  }
+
+  await expect(page.locator('link[rel="icon"]').first()).toHaveAttribute(
+    'href',
+    '/brand/favicon-32.png',
+  );
+  await page.getByRole('button', { name: /switch to dark theme/i }).click();
+  await expect(page.locator('header img').nth(1)).toBeVisible();
+});

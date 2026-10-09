@@ -11,6 +11,34 @@ test('@catalogue catalogue reflows and passes light accessibility checks', async
   await expect(
     page.getByRole('heading', { name: /equipment for events/i }),
   ).toBeVisible();
+  const hero = page.locator('[data-rentals-hero="true"]');
+  await expect(hero).toBeVisible();
+  const heroLayout = await hero.evaluate((element) => {
+    const box = element.getBoundingClientRect();
+    const heading = element.querySelector<HTMLElement>('h1');
+    const headingBox = heading?.getBoundingClientRect();
+    return {
+      contentLeft: headingBox?.left,
+      left: box.left,
+      right: box.right,
+      viewportWidth: window.innerWidth,
+    };
+  });
+  expect(heroLayout.left).toBeCloseTo(0, 0);
+  expect(heroLayout.right).toBeCloseTo(heroLayout.viewportWidth, 0);
+  expect(heroLayout.contentLeft).toBeGreaterThanOrEqual(16);
+  await expect(
+    hero.getByRole('link', { name: 'Browse categories' }),
+  ).toHaveAttribute('href', '#catalogue-categories');
+  const heroControls = hero.getByRole('group', {
+    name: 'Catalogue hero controls',
+  });
+  if ((await heroControls.count()) > 0) {
+    await expect(heroControls).toBeVisible();
+    await expect(
+      hero.getByRole('button', { name: 'Pause catalogue slideshow' }),
+    ).toBeVisible();
+  }
   expect(
     await page.evaluate(
       () => document.documentElement.scrollWidth <= window.innerWidth + 1,

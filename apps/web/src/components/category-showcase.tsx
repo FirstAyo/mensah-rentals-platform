@@ -11,11 +11,13 @@ export function CategoryShowcase({
   description,
   eyebrow,
   heading,
+  id,
 }: {
   categories: PublicCategoryShowcaseItem[];
   description: string;
   eyebrow: string;
   heading: string;
+  id?: string;
 }) {
   const rail = useRef<HTMLUListElement>(null);
 
@@ -45,6 +47,7 @@ export function CategoryShowcase({
     <section
       className="border-b border-border py-14 lg:py-20"
       data-homepage-section="featured-categories"
+      id={id}
     >
       <div className="public-container">
         <div className="flex items-end justify-between gap-6">
