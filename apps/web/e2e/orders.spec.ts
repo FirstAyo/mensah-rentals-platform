@@ -836,7 +836,15 @@ test('@reservations @reservation-concurrency duplicate reservation submission is
 });
 
 async function createPartiallyReservedOrder(page: Page, productIndex = 0) {
-  const created = await createOrder(page, productIndex);
+  const productName = process.env.PHASE15_DELIVERY_PRODUCT_NAME;
+  expect(productName).toBeTruthy();
+  const created = await createOrder(
+    page,
+    productIndex,
+    3,
+    'PICKUP',
+    productName,
+  );
   await reserveCurrentOrderPartially(
     page,
     'Phase 15 isolated reservation shortfall',

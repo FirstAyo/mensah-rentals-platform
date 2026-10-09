@@ -1,5 +1,7 @@
 # API Data Visibility
 
+Category showcase and presentation responses are explicit public DTOs containing only public names, slugs, descriptions, managed image URLs/alt/focal metadata, and narrow active-Product previews. Product rich-description JSON is validated against the public semantic allowlist. None of these endpoints exposes price, inventory, availability, reservation, staff, media hashes, or storage paths.
+
 ## Phase 19.2 Gallery and Cart-enquiry visibility
 
 Public Gallery DTOs contain only published customer copy, friendly service label/slug, factual date/location, ordered public media URL/alt/focal data, and image count. They omit revisions, staff, managed-media storage keys/hashes, operation data, audit, price, inventory, availability, and RBAC. Draft/archived projects return no public record.

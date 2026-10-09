@@ -30,7 +30,7 @@ const require = createRequire(
 );
 const { PrismaClient } = require('@prisma/client');
 
-export const TRANSFER_FORMAT = 2;
+export const TRANSFER_FORMAT = 3;
 export const CONTENT_MODELS = Object.freeze([
   'category',
   'product',
@@ -50,6 +50,7 @@ export const CONTENT_MODELS = Object.freeze([
   'publicPageRevision',
   'publicPageMediaPlacement',
   'categoryCover',
+  'categorySupportingVisual',
   'platformFeatureSetting',
 ]);
 
@@ -177,6 +178,20 @@ export function filterTransferContent(rawContent) {
   );
   content.categoryCover = content.categoryCover
     .filter((row) => categoryIds.has(row.categoryId))
+    .map((row) => ({
+      ...row,
+      productImageId:
+        row.productImageId && productImageIds.has(row.productImageId)
+          ? row.productImageId
+          : null,
+    }));
+  content.categorySupportingVisual = content.categorySupportingVisual
+    .filter(
+      (row) =>
+        categoryIds.has(row.categoryId) &&
+        (row.homepageMediaId ||
+          (row.productImageId && productImageIds.has(row.productImageId))),
+    )
     .map((row) => ({
       ...row,
       productImageId:
@@ -549,6 +564,13 @@ async function importContent(environment, bundlePath) {
         if (content.categoryCover.length)
           await tx.categoryCover.createMany({
             data: content.categoryCover.map((row) => ({
+              ...reviveRow(row),
+              updatedByUserId: actor.id,
+            })),
+          });
+        if (content.categorySupportingVisual.length)
+          await tx.categorySupportingVisual.createMany({
+            data: content.categorySupportingVisual.map((row) => ({
               ...reviveRow(row),
               updatedByUserId: actor.id,
             })),

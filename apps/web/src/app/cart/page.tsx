@@ -6,7 +6,7 @@ import { getPublicFeatures } from '@/lib/public-features';
 export const metadata: Metadata = {
   title: 'Rental Cart',
   description:
-    'Review desired equipment quantities before preparing a rental request.',
+    'Review desired equipment quantities before sending a rental enquiry.',
   alternates: { canonical: '/cart' },
   robots: { index: false, follow: false, nocache: true },
 };

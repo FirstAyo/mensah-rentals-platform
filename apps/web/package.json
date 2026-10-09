@@ -67,6 +67,12 @@
     "test:e2e:public-pages-cms": "node ../../scripts/run-admin-decisions-e2e.mjs public-company-pages",
     "test:e2e:staging-workflow-corrections": "node ../../scripts/run-admin-decisions-e2e.mjs staging-workflow-corrections",
     "test:e2e:gallery-homepage-launch-flow": "node ../../scripts/run-admin-decisions-e2e.mjs gallery-homepage-launch-flow",
+    "test:e2e:category-showcase": "node ../../scripts/run-admin-decisions-e2e.mjs homepage",
+    "test:e2e:category-presentation": "node ../../scripts/run-admin-decisions-e2e.mjs categories",
+    "test:e2e:rich-product-editor": "node ../../scripts/run-admin-decisions-e2e.mjs products",
+    "test:e2e:product-detail-responsive": "node ../../scripts/run-admin-decisions-e2e.mjs catalogue",
+    "test:e2e:branding-assets": "node ../../scripts/run-admin-decisions-e2e.mjs public-navigation",
+    "test:e2e:phase19-2-4": "pnpm run test:e2e:category-showcase && pnpm run test:e2e:category-presentation && pnpm run test:e2e:rich-product-editor && pnpm run test:e2e:product-detail-responsive && pnpm run test:e2e:branding-assets",
     "seo:audit": "vitest run src/lib/seo.test.ts src/lib/seo-audit.test.ts"
   },
   "dependencies": {

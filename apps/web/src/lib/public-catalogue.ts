@@ -2,6 +2,8 @@ import 'server-only';
 import type {
   PaginatedResponse,
   PublicCategoryResponse,
+  PublicCategoryDetailResponse,
+  PublicCategoryShowcaseItem,
   PublicProductDetailResponse,
   PublicProductSummaryResponse,
 } from '@mensah-rentals/types';
@@ -31,6 +33,47 @@ function assertKeys(
 
 function assertCategory(value: unknown): void {
   assertKeys(value, ['description', 'name', 'slug'], 'category');
+}
+
+function assertPresentationImage(value: unknown): void {
+  assertKeys(
+    value,
+    ['altText', 'focalPoint', 'isDecorative', 'url'],
+    'presentation image',
+  );
+  if (
+    typeof value.url !== 'string' ||
+    (!value.url.startsWith('/media/homepage/') &&
+      !value.url.startsWith('/media/products/'))
+  )
+    throw new Error('Unsafe public presentation image response.');
+}
+
+function assertCategoryDetail(value: unknown): void {
+  assertKeys(
+    value,
+    ['banner', 'description', 'name', 'slug', 'supportingVisuals'],
+    'category detail',
+  );
+  if (value.banner !== null) assertPresentationImage(value.banner);
+  if (!Array.isArray(value.supportingVisuals))
+    throw new Error('Invalid public category detail response.');
+  value.supportingVisuals.forEach(assertPresentationImage);
+}
+
+function assertShowcaseItem(value: unknown): void {
+  assertKeys(
+    value,
+    ['description', 'image', 'name', 'products', 'slug'],
+    'category showcase',
+  );
+  if (value.image !== null) assertPresentationImage(value.image);
+  if (!Array.isArray(value.products))
+    throw new Error('Invalid public category showcase response.');
+  value.products.forEach((product) => {
+    assertKeys(product, ['image', 'name', 'slug'], 'showcase product');
+    assertImage(product.image);
+  });
 }
 
 function assertImage(value: unknown): void {
@@ -75,6 +118,7 @@ function assertDetail(value: unknown): void {
     [
       'category',
       'description',
+      'descriptionDocument',
       'images',
       'isFeatured',
       'name',
@@ -88,6 +132,7 @@ function assertDetail(value: unknown): void {
   );
   const summary = { ...value };
   delete summary.description;
+  delete summary.descriptionDocument;
   delete summary.relatedProducts;
   delete summary.specifications;
   assertSummary(summary);
@@ -123,10 +168,16 @@ export const listCategories = (query = '') =>
     (value) => assertPage(value, assertCategory),
   );
 export const getCategory = (slug: string) =>
-  get<PublicCategoryResponse>(
+  get<PublicCategoryDetailResponse>(
     `/public/categories/${encodeURIComponent(slug)}`,
-    assertCategory,
+    assertCategoryDetail,
   );
+export const listCategoryShowcase = () =>
+  get<PublicCategoryShowcaseItem[]>('/public/categories/showcase', (value) => {
+    if (!Array.isArray(value))
+      throw new Error('Invalid public category showcase response.');
+    value.forEach(assertShowcaseItem);
+  });
 export const listProducts = (query = '') =>
   get<PaginatedResponse<PublicProductSummaryResponse>>(
     `/public/products${query}`,

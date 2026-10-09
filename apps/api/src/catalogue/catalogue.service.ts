@@ -12,6 +12,8 @@ import type {
   DeleteProductResponse,
   PaginatedResponse,
   PublicCategoryResponse,
+  PublicCategoryDetailResponse,
+  PublicCategoryShowcaseItem,
   PublicProductDetailResponse,
   PublicProductSummaryResponse,
 } from '@mensah-rentals/types';
@@ -22,6 +24,7 @@ import type {
   DeleteCategoryInput,
   DeleteProductInput,
   ProductListQuery,
+  ProductDescriptionDocument,
   PublicCategoryListQuery,
   PublicProductListQuery,
   UpdateCategoryInput,
@@ -32,6 +35,23 @@ import { CatalogueRepository } from './catalogue.repository';
 import { ProductMediaService } from '../media/product-media.service';
 
 const CATALOGUE_MUTATION_LOCK = 2_026_071_814;
+
+function descriptionPlainText(document: ProductDescriptionDocument): string {
+  const parts: string[] = [];
+  const visit = (node: ProductDescriptionDocument) => {
+    if (node.type === 'text' && node.text) parts.push(node.text);
+    if (node.type === 'hardBreak') parts.push('\n');
+    node.content?.forEach(visit);
+    if (['paragraph', 'heading', 'blockquote'].includes(node.type))
+      parts.push('\n\n');
+    if (node.type === 'listItem') parts.push('\n');
+  };
+  visit(document);
+  return parts
+    .join('')
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+}
 
 const categorySelect = {
   _count: { select: { products: { where: { deletedAt: null } } } },
@@ -51,6 +71,7 @@ const productSelect = {
   createdAt: true,
   defaultUnitPriceCents: true,
   description: true,
+  descriptionDocument: true,
   id: true,
   images: { orderBy: [{ sortOrder: 'asc' as const }, { id: 'asc' as const }] },
   isActive: true,
@@ -86,6 +107,7 @@ const publicProductSummarySelect = {
 const publicProductDetailSelect = {
   ...publicProductSummarySelect,
   description: true,
+  descriptionDocument: true,
   images: {
     select: { altText: true, isPrimary: true, url: true },
     orderBy: [
@@ -138,6 +160,9 @@ function mapAdminProduct(product: SelectedProduct): AdminProductResponse {
         ? null
         : safeMoneyNumber(product.defaultUnitPriceCents),
     description: product.description,
+    descriptionDocument:
+      (product.descriptionDocument as AdminProductResponse['descriptionDocument']) ??
+      null,
     id: product.id,
     images: product.images.map((image) => ({
       altText: image.altText,
@@ -336,6 +361,7 @@ export class CatalogueService {
                   homepagePlacements: true,
                   homepageCategoryOverrides: true,
                   categoryCovers: true,
+                  categorySupportingVisuals: true,
                 },
               },
             },
@@ -386,7 +412,8 @@ export class CatalogueService {
             (image) =>
               image._count.homepagePlacements > 0 ||
               image._count.homepageCategoryOverrides > 0 ||
-              image._count.categoryCovers > 0,
+              image._count.categoryCovers > 0 ||
+              image._count.categorySupportingVisuals > 0,
           );
         const inventoryHasHistory = Boolean(
           product.inventory &&
@@ -599,6 +626,7 @@ export class CatalogueService {
                   homepagePlacements: true,
                   homepageCategoryOverrides: true,
                   categoryCovers: true,
+                  categorySupportingVisuals: true,
                 },
               },
             },
@@ -638,7 +666,8 @@ export class CatalogueService {
           (image) =>
             image._count.homepagePlacements > 0 ||
             image._count.homepageCategoryOverrides > 0 ||
-            image._count.categoryCovers > 0,
+            image._count.categoryCovers > 0 ||
+            image._count.categorySupportingVisuals > 0,
         );
       const inventoryHasHistory = Boolean(
         product.inventory &&
@@ -740,10 +769,211 @@ export class CatalogueService {
   async getPublicCategory(slug: string) {
     const category = await this.repository.prisma.category.findFirst({
       where: { slug, isActive: true, deletedAt: null },
-      select: { description: true, name: true, slug: true },
+      select: {
+        description: true,
+        id: true,
+        name: true,
+        slug: true,
+        cover: {
+          include: {
+            homepageMedia: true,
+            productImage: {
+              include: {
+                product: {
+                  select: { categoryId: true, isActive: true, deletedAt: true },
+                },
+              },
+            },
+          },
+        },
+        supportingVisuals: {
+          include: {
+            homepageMedia: true,
+            productImage: {
+              include: {
+                product: {
+                  select: { categoryId: true, isActive: true, deletedAt: true },
+                },
+              },
+            },
+          },
+          orderBy: [{ sortOrder: 'asc' }, { id: 'asc' }],
+          take: 4,
+        },
+        products: {
+          where: { isActive: true, deletedAt: null, images: { some: {} } },
+          orderBy: [
+            { isFeatured: 'desc' },
+            { createdAt: 'desc' },
+            { id: 'desc' },
+          ],
+          take: 1,
+          select: {
+            images: {
+              orderBy: [
+                { isPrimary: 'desc' },
+                { sortOrder: 'asc' },
+                { id: 'asc' },
+              ],
+              take: 1,
+            },
+          },
+        },
+      },
     });
     if (!category) throw new NotFoundException('Category not found');
-    return mapPublicCategory(category);
+    const fallback = category.products[0]?.images[0] ?? null;
+    const cover = category.cover;
+    const validCoverProduct =
+      cover?.productImage?.product.categoryId === category.id &&
+      cover.productImage.product.isActive &&
+      cover.productImage.product.deletedAt === null
+        ? cover.productImage
+        : null;
+    const bannerSource = cover?.homepageMedia ?? validCoverProduct ?? fallback;
+    const usesConfiguredCover = Boolean(
+      cover?.homepageMedia || validCoverProduct,
+    );
+    return {
+      ...mapPublicCategory(category),
+      banner: bannerSource
+        ? {
+            url: bannerSource.url,
+            altText: usesConfiguredCover
+              ? (cover?.altText ?? '')
+              : (fallback?.altText ?? ''),
+            focalPoint: (usesConfiguredCover
+              ? (cover?.focalPoint ?? 'center')
+              : 'center') as 'center' | 'top' | 'bottom' | 'left' | 'right',
+            isDecorative: usesConfiguredCover
+              ? (cover?.isDecorative ?? false)
+              : false,
+          }
+        : null,
+      supportingVisuals: category.supportingVisuals
+        .map((visual) => {
+          const validProductImage =
+            visual.productImage?.product.categoryId === category.id &&
+            visual.productImage.product.isActive &&
+            visual.productImage.product.deletedAt === null
+              ? visual.productImage
+              : null;
+          const source = visual.homepageMedia ?? validProductImage;
+          return source
+            ? {
+                url: source.url,
+                altText: visual.altText,
+                focalPoint: visual.focalPoint as
+                  | 'center'
+                  | 'top'
+                  | 'bottom'
+                  | 'left'
+                  | 'right',
+                isDecorative: visual.isDecorative,
+              }
+            : null;
+        })
+        .filter((visual): visual is NonNullable<typeof visual> =>
+          Boolean(visual),
+        ),
+    } satisfies PublicCategoryDetailResponse;
+  }
+
+  async listPublicCategoryShowcase(): Promise<PublicCategoryShowcaseItem[]> {
+    const categories = await this.repository.prisma.category.findMany({
+      where: {
+        isActive: true,
+        deletedAt: null,
+      },
+      orderBy: [{ sortOrder: 'asc' }, { name: 'asc' }, { id: 'asc' }],
+      select: {
+        description: true,
+        id: true,
+        name: true,
+        slug: true,
+        cover: {
+          include: {
+            homepageMedia: true,
+            productImage: {
+              include: {
+                product: {
+                  select: { categoryId: true, isActive: true, deletedAt: true },
+                },
+              },
+            },
+          },
+        },
+        products: {
+          where: { isActive: true, deletedAt: null },
+          orderBy: [
+            { isFeatured: 'desc' },
+            { createdAt: 'desc' },
+            { id: 'desc' },
+          ],
+          take: 4,
+          select: {
+            name: true,
+            slug: true,
+            images: {
+              orderBy: [
+                { isPrimary: 'desc' },
+                { sortOrder: 'asc' },
+                { id: 'asc' },
+              ],
+              take: 1,
+              select: { altText: true, isPrimary: true, url: true },
+            },
+          },
+        },
+      },
+    });
+    return categories.map((category) => {
+      const cover = category.cover;
+      const validCoverProduct =
+        cover?.productImage?.product.categoryId === category.id &&
+        cover.productImage.product.isActive &&
+        cover.productImage.product.deletedAt === null
+          ? cover.productImage
+          : null;
+      const source =
+        cover?.homepageMedia ??
+        validCoverProduct ??
+        category.products[0]?.images[0] ??
+        null;
+      const usesConfiguredCover = Boolean(
+        cover?.homepageMedia || validCoverProduct,
+      );
+      return {
+        description: category.description,
+        image: source
+          ? {
+              url: source.url,
+              altText: usesConfiguredCover
+                ? (cover?.altText ?? '')
+                : (category.products[0]?.images[0]?.altText ?? ''),
+              focalPoint: (usesConfiguredCover
+                ? (cover?.focalPoint ?? 'center')
+                : 'center') as 'center' | 'top' | 'bottom' | 'left' | 'right',
+              isDecorative: usesConfiguredCover
+                ? (cover?.isDecorative ?? false)
+                : false,
+            }
+          : null,
+        name: category.name,
+        slug: category.slug,
+        products: category.products.flatMap((product) =>
+          product.images[0]
+            ? [
+                {
+                  name: product.name,
+                  slug: product.slug,
+                  image: product.images[0],
+                },
+              ]
+            : [],
+        ),
+      };
+    });
   }
 
   async listPublicProducts(
@@ -800,6 +1030,9 @@ export class CatalogueService {
     return {
       ...mapPublicSummary(product),
       description: product.description,
+      descriptionDocument:
+        (product.descriptionDocument as PublicProductDetailResponse['descriptionDocument']) ??
+        null,
       relatedProducts: related.map(mapPublicSummary),
       specifications: product.specifications.map(({ label, value }) => ({
         label,
@@ -877,8 +1110,7 @@ export class CatalogueService {
   ): Prisma.ProductOrderByWithRelationInput[] {
     if (sort === 'name-asc') return [{ name: 'asc' }, { id: 'asc' }];
     if (sort === 'name-desc') return [{ name: 'desc' }, { id: 'asc' }];
-    if (sort === 'newest')
-      return [{ createdAt: 'desc' }, { name: 'asc' }, { id: 'asc' }];
+    if (sort === 'newest') return [{ createdAt: 'desc' }, { id: 'desc' }];
     return [{ isFeatured: 'desc' }, { name: 'asc' }, { id: 'asc' }];
   }
 
@@ -902,7 +1134,15 @@ export class CatalogueService {
         input.defaultUnitPriceCents == null
           ? null
           : BigInt(input.defaultUnitPriceCents),
-      description: input.description ?? null,
+      description: input.descriptionDocument
+        ? descriptionPlainText(input.descriptionDocument)
+        : (input.description ?? null),
+      descriptionDocument:
+        input.descriptionDocument === undefined
+          ? undefined
+          : input.descriptionDocument === null
+            ? Prisma.DbNull
+            : (input.descriptionDocument as Prisma.InputJsonValue),
       isActive: input.isActive,
       isFeatured: input.isFeatured,
       name: input.name,
@@ -926,7 +1166,15 @@ export class CatalogueService {
                 ? null
                 : BigInt(input.defaultUnitPriceCents),
           }),
-      description: input.description ?? null,
+      description: input.descriptionDocument
+        ? descriptionPlainText(input.descriptionDocument)
+        : (input.description ?? null),
+      descriptionDocument:
+        input.descriptionDocument === undefined
+          ? undefined
+          : input.descriptionDocument === null
+            ? Prisma.DbNull
+            : (input.descriptionDocument as Prisma.InputJsonValue),
       isFeatured: input.isFeatured,
       name: input.name,
       rentalUnit: input.rentalUnit,

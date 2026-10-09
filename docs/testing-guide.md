@@ -1,5 +1,25 @@
 # Testing Guide
 
+## Phase 19.2.4 category discovery and rich Product content
+
+Run the focused browser suites from Windows PowerShell with Docker Desktop open and normal development servers stopped:
+
+```powershell
+pnpm test:e2e:category-showcase
+pnpm test:e2e:category-presentation
+pnpm test:e2e:rich-product-editor
+pnpm test:e2e:product-detail-responsive
+pnpm test:e2e:branding-assets
+```
+
+Or run the combined guarded sequence:
+
+```powershell
+pnpm test:e2e:phase19-2-4
+```
+
+These commands reset only the test-owned PostgreSQL database. They do not target staging or production.
+
 ## Phase 19.2.2 Gallery/Homepage correction
 
 Run from the repository root with Docker Desktop open and ordinary development servers stopped:

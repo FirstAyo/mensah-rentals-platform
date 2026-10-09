@@ -4,6 +4,7 @@ import type {
   AdminCategoryResponse,
   AdminProductResponse,
   PaginatedResponse,
+  ProductDescriptionDocument,
 } from '@mensah-rentals/types';
 import {
   createCategorySchema,
@@ -12,12 +13,14 @@ import {
   updateProductSchema,
   parseCadToCents,
 } from '@mensah-rentals/validation';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { ProductImageManager } from './product-image-manager';
 import { CategoryCoverManager } from './category-cover-manager';
+import { ProductDescriptionEditor } from './product-description-editor';
+import { CategoryPresentationManager } from './category-presentation-manager';
 
 interface Values {
   categoryId: string;
@@ -56,7 +59,12 @@ function FormBody({
   canManageMedia?: boolean;
 }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [error, setError] = useState<string | null>(null);
+  const [descriptionDocument, setDescriptionDocument] =
+    useState<ProductDescriptionDocument | null>(null);
+  const [descriptionText, setDescriptionText] = useState('');
+  const hydratedRecordRef = useRef<string | null>(null);
   const {
     register,
     handleSubmit,
@@ -89,7 +97,14 @@ function FormBody({
   });
   useEffect(() => {
     if (!detail.data) return;
+    const recordKey = `${resource}:${id ?? 'new'}`;
+    if (hydratedRecordRef.current === recordKey) return;
+    hydratedRecordRef.current = recordKey;
     const record = detail.data;
+    if ('categoryId' in record) {
+      setDescriptionDocument(record.descriptionDocument);
+      setDescriptionText(record.description ?? '');
+    }
     reset({
       ...defaults,
       description: record.description ?? '',
@@ -113,7 +128,7 @@ function FormBody({
           }
         : {}),
     });
-  }, [detail.data, reset]);
+  }, [detail.data, id, reset, resource]);
   const submit = handleSubmit(async (values) => {
     setError(null);
     let payload: unknown;
@@ -158,7 +173,8 @@ function FormBody({
         name: values.name,
         slug: values.slug,
         shortDescription: values.shortDescription,
-        description: values.description || null,
+        description: descriptionText || null,
+        descriptionDocument,
         rentalUnit: values.rentalUnit,
         isFeatured: values.isFeatured,
         specifications,
@@ -188,6 +204,7 @@ function FormBody({
       setError(body?.message ?? 'Unable to save this record.');
       return;
     }
+    await queryClient.invalidateQueries({ queryKey: [resource] });
     router.push(`/${resource}`);
     router.refresh();
   });
@@ -197,6 +214,8 @@ function FormBody({
     );
   if (detail.isError)
     return <div role="alert">Unable to load this record.</div>;
+  const descriptionEditorReady =
+    !id || hydratedRecordRef.current === `${resource}:${id}`;
   const field =
     'w-full rounded-lg border border-border bg-background px-3 py-2 focus:ring-2 focus:ring-ring';
   return (
@@ -291,10 +310,33 @@ function FormBody({
             </label>
           </>
         )}
-        <label className="block space-y-2">
-          <span>Description</span>
-          <textarea className={field} rows={7} {...register('description')} />
-        </label>
+        {resource === 'products' ? (
+          <div className="space-y-2">
+            <span className="block">Description</span>
+            {descriptionEditorReady ? (
+              <ProductDescriptionEditor
+                initialDocument={descriptionDocument}
+                initialText={descriptionText}
+                key={`${id ?? 'new'}-${detail.data && 'categoryId' in detail.data ? detail.data.updatedAt : 'draft'}`}
+                onChange={(document, plainText) => {
+                  setDescriptionDocument(document);
+                  setDescriptionText(plainText);
+                }}
+              />
+            ) : (
+              <div className="min-h-56 rounded-xl border border-border bg-muted/30" />
+            )}
+            <p className="text-xs text-muted-foreground">
+              Use H2/H3 headings only. Unsafe HTML, styling, and link protocols
+              are rejected by the server.
+            </p>
+          </div>
+        ) : (
+          <label className="block space-y-2">
+            <span>Introduction</span>
+            <textarea className={field} rows={7} {...register('description')} />
+          </label>
+        )}
         {!id ? (
           <label className="flex items-center gap-2">
             <input type="checkbox" {...register('isActive')} /> Active and
@@ -303,7 +345,7 @@ function FormBody({
         ) : null}
         <div className="flex gap-3">
           <button
-            className="rounded-lg bg-primary px-5 py-2.5 font-semibold text-white disabled:opacity-50"
+            className="rounded-lg bg-primary px-5 py-2.5 font-semibold text-primary-foreground disabled:opacity-50"
             disabled={isSubmitting}
             type="submit"
           >
@@ -329,7 +371,16 @@ function FormBody({
         />
       ) : null}
       {resource === 'categories' && id ? (
-        <CategoryCoverManager canManageMedia={canManageMedia} categoryId={id} />
+        <>
+          <CategoryCoverManager
+            canManageMedia={canManageMedia}
+            categoryId={id}
+          />
+          <CategoryPresentationManager
+            canManageMedia={canManageMedia}
+            categoryId={id}
+          />
+        </>
       ) : resource === 'categories' ? (
         <p className="rounded-xl border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
           Save the category first, then choose or upload its cover image from

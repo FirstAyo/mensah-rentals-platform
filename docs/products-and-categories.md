@@ -1,5 +1,7 @@
 # Products and Categories
 
+See [Category discovery and rich product content](category-discovery-and-rich-products.md) for Phase 19.2.4 showcase, category-presentation, newest-sort, rich-description, and brand behavior.
+
 ## Internal default pricing
 
 Products may have a nullable `defaultUnitPriceCents` in CAD minor units. It is Admin-only, audited, and used solely to prefill new quote lines. Quote and order snapshots remain immutable. Public catalogue DTOs, pages, sitemap metadata, and structured data omit this field.

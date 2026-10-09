@@ -185,6 +185,10 @@ checks AS (
     +
     (SELECT count(*) FROM "CategoryCover"
       WHERE ("homepageMediaId" IS NOT NULL)=("productImageId" IS NOT NULL))
+    +
+    (SELECT count(*) FROM "CategorySupportingVisual"
+      WHERE ("homepageMediaId" IS NOT NULL)=("productImageId" IS NOT NULL)
+         OR "sortOrder" NOT BETWEEN 0 AND 3)
 
   UNION ALL
   SELECT 'gallery_head_integrity', count(*)::bigint

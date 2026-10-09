@@ -108,6 +108,7 @@ export class HomepageMediaService {
               placements: true,
               homepageCategoryOverrides: true,
               categoryCovers: true,
+              categorySupportingVisuals: true,
               publicPagePlacements: true,
               galleryRevisionMedia: true,
             },
@@ -119,6 +120,7 @@ export class HomepageMediaService {
         media._count.placements > 0 ||
         media._count.homepageCategoryOverrides > 0 ||
         media._count.categoryCovers > 0 ||
+        media._count.categorySupportingVisuals > 0 ||
         media._count.publicPagePlacements > 0 ||
         media._count.galleryRevisionMedia > 0
       )
@@ -183,6 +185,7 @@ export class HomepageMediaService {
               placements: true,
               homepageCategoryOverrides: true,
               categoryCovers: true,
+              categorySupportingVisuals: true,
               publicPagePlacements: true,
               galleryRevisionMedia: true,
             },
@@ -200,6 +203,7 @@ export class HomepageMediaService {
               homepagePlacements: true,
               homepageCategoryOverrides: true,
               categoryCovers: true,
+              categorySupportingVisuals: true,
               publicPagePlacements: true,
             },
           },
@@ -223,6 +227,7 @@ export class HomepageMediaService {
           item._count.placements +
           item._count.homepageCategoryOverrides +
           item._count.categoryCovers +
+          item._count.categorySupportingVisuals +
           item._count.publicPagePlacements +
           item._count.galleryRevisionMedia,
         productName: null,
@@ -241,6 +246,7 @@ export class HomepageMediaService {
           item._count.homepagePlacements +
           item._count.homepageCategoryOverrides +
           item._count.categoryCovers +
+          item._count.categorySupportingVisuals +
           item._count.publicPagePlacements,
         productName: item.product.name,
       })),
@@ -286,6 +292,13 @@ export class HomepageMediaService {
                 },
                 {
                   categoryCovers: {
+                    some: {
+                      category: { isActive: true, deletedAt: null },
+                    },
+                  },
+                },
+                {
+                  categorySupportingVisuals: {
                     some: {
                       category: { isActive: true, deletedAt: null },
                     },

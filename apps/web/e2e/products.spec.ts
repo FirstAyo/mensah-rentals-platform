@@ -29,6 +29,68 @@ async function findProductRow(page: Page, name: string) {
   return row;
 }
 
+test('@products Phase 19.2.4 rich editor exposes the supported semantic toolbar accessibly', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'desktop-1024');
+  await login(page);
+  await page.goto('http://localhost:3001/products');
+  const row = await findProductRow(
+    page,
+    required('PHASE16_3_REFERENCED_PRODUCT_NAME'),
+  );
+  await row.getByRole('link', { name: 'Edit' }).click();
+  const toolbar = page.getByRole('toolbar', {
+    name: 'Description formatting',
+  });
+  await expect(toolbar).toBeVisible();
+  for (const name of [
+    'Paragraph',
+    'Heading 2',
+    'Heading 3',
+    'Bold',
+    'Italic',
+    'Bulleted list',
+    'Numbered list',
+    'Blockquote',
+    'Edit link',
+    'Undo',
+    'Redo',
+  ])
+    await expect(toolbar.getByRole('button', { name })).toBeVisible();
+  await expect(toolbar.getByRole('button', { name: 'Heading 1' })).toHaveCount(
+    0,
+  );
+  const editor = page.getByLabel('Product description');
+  const persistedDescription = `A first paragraph for the rich editor ${Date.now()}.`;
+  await editor.fill(persistedDescription);
+  await expect(editor).toContainText('A first paragraph');
+  await page.getByRole('button', { name: /switch to dark theme/i }).click();
+  await expect(page.locator('html')).toHaveClass(/dark/);
+  const accessibility = await new AxeBuilder({ page })
+    .include('main')
+    .analyze();
+  expect(
+    accessibility.violations.filter(({ impact }) =>
+      ['serious', 'critical'].includes(impact ?? ''),
+    ),
+  ).toEqual([]);
+  await page.screenshot({
+    path: info.outputPath('phase-19-2-4-rich-editor.png'),
+    fullPage: true,
+  });
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page).toHaveURL('http://localhost:3001/products');
+  const reopenedRow = await findProductRow(
+    page,
+    required('PHASE16_3_REFERENCED_PRODUCT_NAME'),
+  );
+  await reopenedRow.getByRole('link', { name: 'Edit' }).click();
+  await expect(page.getByLabel('Product description')).toContainText(
+    persistedDescription,
+  );
+});
+
 test('@products permanently deletes an unreferenced product accessibly at 320px', async ({
   page,
 }, info) => {
@@ -88,7 +150,10 @@ test('@products edits product identity and category, then preserves history thro
   await page.getByLabel('Slug').fill(duplicateSlug);
   await page.getByRole('button', { name: 'Save' }).click();
   await expect(
-    page.getByText('That product slug is already in use.'),
+    page
+      .locator('#main-content')
+      .getByRole('alert')
+      .getByText('That product slug is already in use.', { exact: true }),
   ).toBeVisible();
   await page.getByLabel('Slug').fill(`  ${updatedSlug.toUpperCase()}  `);
   await page.getByLabel('Category').selectOption({ label: targetCategory });

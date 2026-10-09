@@ -93,3 +93,89 @@ test('@catalogue manual theme persists and product details expose no stock claim
     /only \d+ left|\d+ (available|remaining)|total quantity|asset number|serial number|reserved quantity/i,
   );
 });
+
+test('@catalogue Phase 19.2.4 category discovery and product flow remain responsive', async ({
+  page,
+}, testInfo) => {
+  test.skip(!['mobile-320', 'wide-1440'].includes(testInfo.project.name));
+  await page.goto('/rentals');
+  await expect(page.getByLabel('Sort by')).toHaveValue('newest');
+  const showcase = page.locator(
+    '[data-homepage-section="featured-categories"]',
+  );
+  await expect(showcase).toBeVisible();
+  await expect(showcase.locator('ul')).toHaveCSS('display', 'flex');
+  expect(await showcase.locator('li').count()).toBeGreaterThan(1);
+  expect(await showcase.innerText()).not.toMatch(
+    /\$\d|% off|available quantity|remaining stock|in stock/i,
+  );
+
+  const categoryHref = await showcase
+    .locator('li a[href^="/rentals/"]')
+    .first()
+    .getAttribute('href');
+  expect(categoryHref).toMatch(/^\/rentals\/[^/]+$/);
+  await page.goto(categoryHref!);
+  await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth + 1,
+    ),
+  ).toBe(true);
+
+  await page.goto('/rentals');
+  const productHref = await page
+    .locator('article a[href^="/rentals/"]')
+    .first()
+    .getAttribute('href');
+  expect(productHref).toBeTruthy();
+  await page.goto(productHref!);
+  const layout = await page.evaluate(() => {
+    const gallery = document.querySelector<HTMLElement>(
+      '[aria-label*="image gallery"]',
+    );
+    const heading = document.querySelector<HTMLElement>('main h1');
+    const rentalUnit = Array.from(document.querySelectorAll('dt')).find(
+      (element) => element.textContent?.trim() === 'Rental unit',
+    ) as HTMLElement | undefined;
+    const quoteMethod = Array.from(document.querySelectorAll('dt')).find(
+      (element) => element.textContent?.trim() === 'Quote method',
+    ) as HTMLElement | undefined;
+    const action = Array.from(document.querySelectorAll('h2')).find((element) =>
+      element.textContent?.includes('How this rental is confirmed'),
+    ) as HTMLElement | undefined;
+    return {
+      galleryBottom: gallery?.getBoundingClientRect().bottom,
+      headingLeft: heading?.getBoundingClientRect().left,
+      headingTop: heading?.getBoundingClientRect().top,
+      rentalTop: rentalUnit?.getBoundingClientRect().top,
+      quoteTop: quoteMethod?.getBoundingClientRect().top,
+      actionLeft: action?.getBoundingClientRect().left,
+      actionTop: action?.getBoundingClientRect().top,
+      scrollWidth: document.documentElement.scrollWidth,
+      viewportWidth: window.innerWidth,
+    };
+  });
+  expect(layout.headingTop).toBeGreaterThan(layout.galleryBottom!);
+  expect(layout.rentalTop).toBeGreaterThan(layout.headingTop!);
+  expect(layout.quoteTop).toBeGreaterThanOrEqual(layout.rentalTop!);
+  if (testInfo.project.name === 'wide-1440')
+    expect(layout.actionLeft).toBeGreaterThan(layout.headingLeft!);
+  else expect(layout.actionTop).toBeGreaterThan(layout.quoteTop!);
+  expect(layout.scrollWidth).toBeLessThanOrEqual(layout.viewportWidth + 1);
+
+  const accessibility = await new AxeBuilder({ page })
+    .withTags(['wcag2a', 'wcag2aa', 'wcag21aa'])
+    .analyze();
+  expect(
+    accessibility.violations.filter(({ impact }) =>
+      ['serious', 'critical'].includes(impact ?? ''),
+    ),
+  ).toEqual([]);
+  await page.screenshot({
+    path: testInfo.outputPath(
+      `phase-19-2-4-product-${testInfo.project.name}.png`,
+    ),
+    fullPage: true,
+  });
+});

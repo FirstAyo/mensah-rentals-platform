@@ -23,7 +23,7 @@ describe('public catalogue query state', () => {
         search: '  chair  ',
         sort: 'updatedAt',
       }),
-    ).toEqual({ featured: false, page: 1, search: 'chair', sort: 'featured' });
+    ).toEqual({ featured: false, page: 1, search: 'chair', sort: 'newest' });
   });
 
   it('builds an allowlisted API query and preserves filters in page links', () => {

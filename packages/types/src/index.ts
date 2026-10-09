@@ -177,6 +177,7 @@ export interface AdminProductResponse {
   createdAt: string;
   defaultUnitPriceCents: number | null;
   description: string | null;
+  descriptionDocument: ProductDescriptionDocument | null;
   id: string;
   images: AdminProductImageResponse[];
   isActive: boolean;
@@ -187,6 +188,52 @@ export interface AdminProductResponse {
   slug: string;
   specifications: AdminProductSpecificationResponse[];
   updatedAt: string;
+}
+
+export type ProductDescriptionMark =
+  | { type: 'bold' }
+  | { type: 'italic' }
+  | {
+      type: 'link';
+      attrs: {
+        href: string;
+        rel?: string | null;
+        target?: '_blank' | '_self' | null;
+      };
+    };
+
+export interface ProductDescriptionDocument {
+  type: string;
+  attrs?: { level?: 2 | 3 };
+  content?: ProductDescriptionDocument[];
+  marks?: ProductDescriptionMark[];
+  text?: string;
+}
+
+export interface PublicPresentationImage {
+  altText: string;
+  focalPoint: 'center' | 'top' | 'bottom' | 'left' | 'right';
+  isDecorative: boolean;
+  url: string;
+}
+
+export interface PublicCategoryDetailResponse extends PublicCategoryResponse {
+  banner: PublicPresentationImage | null;
+  supportingVisuals: PublicPresentationImage[];
+}
+
+export interface PublicCategoryShowcaseProduct {
+  image: PublicProductImageResponse;
+  name: string;
+  slug: string;
+}
+
+export interface PublicCategoryShowcaseItem {
+  description: string | null;
+  image: PublicPresentationImage | null;
+  name: string;
+  products: PublicCategoryShowcaseProduct[];
+  slug: string;
 }
 
 export interface PublicCategoryResponse {
@@ -214,6 +261,7 @@ export interface PublicProductSummaryResponse {
 export interface PublicProductDetailResponse
   extends PublicProductSummaryResponse {
   description: string | null;
+  descriptionDocument?: ProductDescriptionDocument | null;
   relatedProducts: PublicProductSummaryResponse[];
   specifications: Array<{ label: string; value: string }>;
 }

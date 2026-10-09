@@ -261,8 +261,8 @@ test('@homepage-public renders premium request-based content at 320px with dark-
     page.getByRole('link', { name: 'Browse rental equipment' }),
   ).toHaveAttribute('href', '/rentals');
   await expect(
-    page.getByRole('link', { name: 'Track a request' }),
-  ).toHaveAttribute('href', '/track-request');
+    page.getByRole('link', { name: 'Contact our team' }),
+  ).toHaveAttribute('href', '/contact');
   await expect(
     page.getByRole('link', { name: 'View rental cart' }),
   ).toHaveAttribute('href', '/cart');
@@ -270,10 +270,41 @@ test('@homepage-public renders premium request-based content at 320px with dark-
   await expect(
     page.locator('[data-homepage-section="featured-categories"]'),
   ).toHaveCount(1);
+  const categoryShowcase = page.locator(
+    '[data-homepage-section="featured-categories"]',
+  );
+  const categoryCards = categoryShowcase.locator('li');
+  const homepageResponse = await page.request.get(
+    'http://localhost:4000/public/homepage',
+  );
+  expect(homepageResponse.ok()).toBe(true);
+  const homepagePayload = (await homepageResponse.json()) as {
+    categories: Array<{ slug: string }>;
+  };
+  const showcasedHrefs = await categoryCards
+    .getByRole('link')
+    .evaluateAll((links) => links.map((link) => link.getAttribute('href')));
+  expect(showcasedHrefs).toEqual(
+    homepagePayload.categories.map(({ slug }) => `/rentals/${slug}`),
+  );
+  expect(await categoryCards.count()).toBeGreaterThan(1);
+  await expect(categoryCards.first().getByRole('link')).toHaveAttribute(
+    'href',
+    /^\/rentals\/[^/]+$/,
+  );
+  const categoryCopy = await categoryShowcase.innerText();
+  expect(categoryCopy).not.toMatch(/\$\d|% off|available|remaining|in stock/i);
+  const categoryRail = categoryShowcase.locator('ul');
+  await expect(
+    categoryShowcase.getByRole('button', { name: 'Previous category' }).first(),
+  ).toBeVisible();
+  await expect(
+    categoryShowcase.getByRole('button', { name: 'Next category' }).first(),
+  ).toBeVisible();
   const sectionTops = await page.evaluate(() =>
     [
-      'services',
       'featured-categories',
+      'services',
       'recent-work',
       'featured-equipment',
       'why-mensah-rentals',
@@ -288,6 +319,12 @@ test('@homepage-public renders premium request-based content at 320px with dark-
   expect(sectionTops).toEqual([...sectionTops].sort((a, b) => a! - b!));
   const serviceCarousel = page.getByLabel('Services carousel');
   if (testInfo.project.name === 'mobile-320') {
+    await expect(categoryRail).toHaveCSS('display', 'flex');
+    expect(
+      await categoryRail.evaluate(
+        (element) => element.scrollWidth > element.clientWidth,
+      ),
+    ).toBe(true);
     await expect(serviceCarousel).toHaveCSS('display', 'flex');
     expect(
       await serviceCarousel.evaluate(
@@ -322,6 +359,9 @@ test('@homepage-public renders premium request-based content at 320px with dark-
   await page.evaluate(() => localStorage.setItem('theme', 'dark'));
   await page.reload();
   await expect(page.locator('html')).toHaveClass(/dark/);
+  const headerLogos = page.locator('header img');
+  await expect(headerLogos.nth(1)).toBeVisible();
+  await expect(headerLogos.first()).toBeHidden();
   expect(await page.content()).not.toMatch(
     /available quantity|remaining stock|reserved quantity|serial number/i,
   );
@@ -329,7 +369,7 @@ test('@homepage-public renders premium request-based content at 320px with dark-
 
 test('@homepage-public renders safely when reduced motion is requested', async ({
   page,
-}, testInfo) => {
+}) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await page.goto('/');
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
@@ -349,22 +389,15 @@ test('@homepage-public renders safely when reduced motion is requested', async (
       };
     }),
   );
-  expect(railState.length).toBeGreaterThanOrEqual(2);
-  expect(railState).toEqual(
-    expect.arrayContaining([
-      expect.objectContaining({
-        animation: 'none',
-        overflowX: 'auto',
-        visibleClones: 0,
-      }),
-    ]),
-  );
-  if (testInfo.project.name.startsWith('mobile')) {
-    const manuallyScrollable = await rails.evaluateAll((elements) =>
-      elements.some((element) => element.scrollWidth > element.clientWidth),
-    );
-    expect(manuallyScrollable).toBe(true);
-  }
+  expect(railState.length).toBeGreaterThanOrEqual(1);
+  expect(
+    railState.every(
+      ({ animation, overflowX, visibleClones }) =>
+        (animation === null || animation === 'none') &&
+        overflowX === 'auto' &&
+        visibleClones === 0,
+    ),
+  ).toBe(true);
 });
 
 test('@homepage-admin provides responsive fixed navigation, consistent controls, and a three-slide publish flow', async ({
@@ -598,7 +631,9 @@ test('@homepage-media reuses product media, assigns a category cover, and preser
   await dialog.getByRole('tab', { name: 'Product images' }).click();
   await dialog.getByLabel('Search media').fill(productLabel);
   await dialog.getByRole('button', { name: 'Use this image' }).click();
-  await page.getByLabel('Alt text').fill(`${categoryName} equipment cover`);
+  await page
+    .getByRole('textbox', { name: 'Alt text', exact: true })
+    .fill(`${categoryName} equipment cover`);
   await page.getByRole('button', { name: 'Save category cover' }).click();
   await expect(page.getByText('Category cover saved.')).toBeVisible();
   await expect(

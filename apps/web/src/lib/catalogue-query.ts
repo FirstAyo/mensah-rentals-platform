@@ -41,7 +41,7 @@ export function parseCatalogueQuery(params: SearchParams): CatalogueQueryState {
     search: (first(params.search) ?? '').trim().slice(0, 100),
     sort: catalogueSorts.includes(rawSort as CatalogueSort)
       ? (rawSort as CatalogueSort)
-      : 'featured',
+      : 'newest',
   };
 }
 
@@ -68,7 +68,7 @@ export function catalogueHref(
   const params = new URLSearchParams();
   if (state.search) params.set('search', state.search);
   if (state.featured) params.set('featured', 'true');
-  if (state.sort !== 'featured') params.set('sort', state.sort);
+  if (state.sort !== 'newest') params.set('sort', state.sort);
   if (page > 1) params.set('page', String(page));
   const query = params.toString();
   return query ? `${basePath}?${query}` : basePath;

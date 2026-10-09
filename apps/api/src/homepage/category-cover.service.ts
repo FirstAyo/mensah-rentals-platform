@@ -72,6 +72,7 @@ export class CategoryCoverService {
               url: assigned?.url ?? null,
               altText: coverRecord.altText,
               focalPoint: coverRecord.focalPoint,
+              isDecorative: coverRecord.isDecorative,
               source: coverRecord.productImageId ? 'PRODUCT' : 'HOMEPAGE',
             }
           : null,
@@ -80,6 +81,7 @@ export class CategoryCoverService {
             url: assigned.url,
             altText: coverRecord!.altText,
             focalPoint: coverRecord!.focalPoint,
+            isDecorative: coverRecord!.isDecorative,
             source: 'CATEGORY_COVER',
           }
         : fallback
@@ -87,12 +89,14 @@ export class CategoryCoverService {
               url: fallback.url,
               altText: fallback.altText,
               focalPoint: 'center',
+              isDecorative: false,
               source: 'PRODUCT_FALLBACK',
             }
           : {
               url: null,
               altText: `${category.name} rental equipment`,
               focalPoint: 'center',
+              isDecorative: false,
               source: 'DEFAULT_FALLBACK',
             },
     };
@@ -143,6 +147,7 @@ export class CategoryCoverService {
             productImageId: source.productImageId ?? null,
             altText: input.altText,
             focalPoint: input.focalPoint,
+            isDecorative: input.isDecorative,
             updatedByUserId: actorUserId,
           },
           create: {
@@ -151,6 +156,7 @@ export class CategoryCoverService {
             productImageId: source.productImageId ?? null,
             altText: input.altText,
             focalPoint: input.focalPoint,
+            isDecorative: input.isDecorative,
             updatedByUserId: actorUserId,
           },
         });

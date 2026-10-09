@@ -26,6 +26,11 @@ export class PublicCategoriesController {
     return this.catalogue.listPublicCategories(query);
   }
 
+  @Get('showcase')
+  showcase() {
+    return this.catalogue.listPublicCategoryShowcase();
+  }
+
   @Get(':slug')
   get(@Param('slug', new ZodBodyPipe(catalogueSlugSchema)) slug: string) {
     return this.catalogue.getPublicCategory(slug);

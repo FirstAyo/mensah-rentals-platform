@@ -26,6 +26,55 @@ async function findCategoryRow(page: Page, name: string) {
   return row;
 }
 
+test('@categories Phase 19.2.4 category presentation controls are structured and accessible', async ({
+  page,
+}, info) => {
+  test.skip(info.project.name !== 'desktop-1024');
+  await login(page);
+  await page.goto('http://localhost:3001/categories');
+  const row = await findCategoryRow(
+    page,
+    required('PHASE16_2_HISTORY_CATEGORY_NAME'),
+  );
+  await row.getByRole('link', { name: 'Edit' }).click();
+  await expect(
+    page.getByRole('heading', { name: 'Category cover image' }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole('heading', { name: 'Category supporting visuals' }),
+  ).toBeVisible();
+  await expect(
+    page.getByText('Choose up to four ordered managed images'),
+  ).toBeVisible();
+  await page.getByRole('button', { name: 'Choose image' }).first().click();
+  const mediaPicker = page.getByRole('dialog');
+  await expect(
+    mediaPicker.getByRole('heading', { name: 'Choose image' }),
+  ).toBeVisible();
+  const mediaChoices = mediaPicker.getByRole('button', {
+    name: 'Use this image',
+  });
+  if ((await mediaChoices.count()) > 0) {
+    await mediaChoices.first().click();
+    await expect(page.getByText('Focal position')).toBeVisible();
+  } else {
+    await expect(
+      mediaPicker.getByText('No eligible images match this search.'),
+    ).toBeVisible();
+    await mediaPicker
+      .getByRole('button', { name: 'Close image picker' })
+      .click();
+  }
+  const accessibility = await new AxeBuilder({ page })
+    .include('main')
+    .analyze();
+  expect(
+    accessibility.violations.filter(({ impact }) =>
+      ['serious', 'critical'].includes(impact ?? ''),
+    ),
+  ).toEqual([]);
+});
+
 test('@categories permanently deletes an empty category accessibly at 320px', async ({
   page,
 }, info) => {
@@ -76,7 +125,7 @@ test('@categories edits a slug, confirms referenced deletion, and preserves requ
   let row = await findCategoryRow(page, categoryName);
   await row.getByRole('link', { name: 'Edit' }).click();
   await page.getByLabel('Slug').fill(`  ${updatedSlug.toUpperCase()}  `);
-  await page.getByRole('button', { name: 'Save' }).click();
+  await page.getByRole('button', { name: 'Save', exact: true }).click();
   await expect(page).toHaveURL('http://localhost:3001/categories');
   row = await findCategoryRow(page, categoryName);
   await expect(row).toContainText(`/${updatedSlug}`);

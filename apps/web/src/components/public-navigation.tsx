@@ -23,8 +23,10 @@ function clearPendingTimer(
 
 export function DesktopNavigation({
   categories,
+  submissionMode,
 }: {
   categories: PublicNavigationCategory[];
+  submissionMode: 'EMAIL_INQUIRY' | 'PLATFORM_REQUEST';
 }) {
   const [open, setOpen] = useState(false);
   const [rendered, setRendered] = useState(false);
@@ -166,8 +168,9 @@ export function DesktopNavigation({
                     Rental catalogue
                   </p>
                   <p className="mt-3 text-sm leading-6 text-muted-foreground">
-                    Browse equipment by category. Submit a request and our team
-                    will prepare a custom quote.
+                    {submissionMode === 'EMAIL_INQUIRY'
+                      ? 'Browse equipment by category, build your list, and send an enquiry to our team.'
+                      : 'Browse equipment by category and submit your list for staff review.'}
                   </p>
                   <Link
                     className="mt-5 inline-flex min-h-11 items-center font-semibold text-primary"

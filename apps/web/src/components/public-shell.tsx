@@ -1,5 +1,6 @@
 import { ThemeToggle } from '@mensah-rentals/ui';
-import { ArrowRight, PackageOpen } from 'lucide-react';
+import { ArrowRight } from 'lucide-react';
+import Image from 'next/image';
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import type { PublicPlatformCapabilitiesResponse } from '@mensah-rentals/types';
@@ -38,20 +39,31 @@ export function PublicShell({
             className="inline-flex items-center gap-3 rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
             href="/"
           >
-            <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-sm">
-              <PackageOpen aria-hidden="true" className="h-5 w-5" />
-            </span>
-            <span>
-              <span className="block text-base font-bold leading-tight sm:text-lg">
-                Mensah Rentals
-              </span>
-              <span className="hidden text-xs text-muted-foreground sm:block">
-                Equipment for projects that matter
-              </span>
-            </span>
+            <span className="sr-only">Mensah Rentals home</span>
+            <Image
+              alt=""
+              aria-hidden="true"
+              className="h-auto w-36 dark:hidden sm:w-44"
+              height={222}
+              priority
+              src="/brand/logo-light.png"
+              width={671}
+            />
+            <Image
+              alt=""
+              aria-hidden="true"
+              className="hidden h-auto w-36 dark:block sm:w-44"
+              height={222}
+              priority
+              src="/brand/logo-dark.png"
+              width={671}
+            />
           </Link>
           <div className="flex items-center gap-2 sm:gap-3">
-            <DesktopNavigation categories={rentalCategories} />
+            <DesktopNavigation
+              categories={rentalCategories}
+              submissionMode={features.customerSubmissionMode}
+            />
             <ThemeToggle />
             {features.cartSubmissionsAvailable ? <CartHeaderLink /> : null}
             <Link
@@ -74,12 +86,23 @@ export function PublicShell({
       <footer className="mt-20 border-t border-border bg-card">
         <div className="public-container grid gap-10 py-12 md:grid-cols-[1.2fr_.8fr]">
           <div>
-            <p className="font-semibold text-foreground">
-              Mensah Rentals &amp; Services
-            </p>
+            <Image
+              alt="Mensah Rentals and Services"
+              className="h-auto w-56 dark:hidden"
+              height={222}
+              src="/brand/logo-light.png"
+              width={671}
+            />
+            <Image
+              alt="Mensah Rentals and Services"
+              className="hidden h-auto w-56 dark:block"
+              height={222}
+              src="/brand/logo-dark.png"
+              width={671}
+            />
             <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
-              Equipment rental requests for events, productions, and projects.
-              Our team reviews every request before confirming a custom quote.
+              Equipment rentals for events, productions, and projects. Build
+              your equipment list and send an enquiry for staff review.
             </p>
           </div>
           <div className="grid grid-cols-2 gap-8">

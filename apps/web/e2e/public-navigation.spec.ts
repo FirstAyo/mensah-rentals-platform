@@ -348,13 +348,13 @@ test('@public-navigation constrains public content while preserving full-bleed s
         hero: heroBox
           ? { left: heroBox.left, right: heroBox.right, width: heroBox.width }
           : null,
-        servicesToCategoriesGap:
+        categoriesBeforeServices:
           servicesBox && featuredCategoriesBox
-            ? featuredCategoriesBox.top - servicesBox.bottom
+            ? featuredCategoriesBox.top < servicesBox.top
             : null,
-        categoriesToRecentWorkGap:
-          featuredCategoriesBox && recentWorkBox
-            ? recentWorkBox.top - featuredCategoriesBox.bottom
+        servicesToRecentWorkGap:
+          servicesBox && recentWorkBox
+            ? recentWorkBox.top - servicesBox.bottom
             : null,
         servicesBottomPadding: Number.parseFloat(
           servicesStyle?.paddingBottom ?? '0',
@@ -377,11 +377,9 @@ test('@public-navigation constrains public content while preserving full-bleed s
         measurements.container!.left - (width - measurements.container!.right),
       ),
     ).toBeLessThanOrEqual(1);
+    expect(measurements.categoriesBeforeServices).toBe(true);
     expect(
-      Math.abs(measurements.servicesToCategoriesGap ?? 99),
-    ).toBeLessThanOrEqual(1);
-    expect(
-      Math.abs(measurements.categoriesToRecentWorkGap ?? 99),
+      Math.abs(measurements.servicesToRecentWorkGap ?? 99),
     ).toBeLessThanOrEqual(1);
     expect(measurements.servicesBottomPadding).toBe(
       width >= 1024 ? 56 : width >= 640 ? 64 : 48,

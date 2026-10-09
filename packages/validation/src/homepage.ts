@@ -312,10 +312,25 @@ export const homepageMediaLibraryQuerySchema = z
 export const categoryCoverSchema = z
   .object({
     mediaRef: homepageMediaReferenceSchema,
-    altText: text(300),
+    altText: z.string().trim().max(300),
     focalPoint: homepageFocalPointSchema.default('center'),
+    isDecorative: z.boolean().default(false),
   })
-  .strict();
+  .strict()
+  .superRefine((input, context) => {
+    if (!input.isDecorative && !input.altText)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['altText'],
+        message: 'Add descriptive alt text or mark the image decorative.',
+      });
+    if (input.isDecorative && input.altText)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['altText'],
+        message: 'Decorative images must have empty alt text.',
+      });
+  });
 
 export const publicHomepageContentSchema = homepageContentSchema
   .omit({
@@ -478,18 +493,18 @@ export const DEFAULT_HOMEPAGE_CONTENT: HomepageContent = {
   seo: {
     title: 'Equipment rentals for events, productions, and projects',
     description:
-      'Browse equipment and submit a custom rental request to Mensah Rentals for your next event, production, or project.',
+      'Browse equipment and send a rental enquiry to Mensah Rentals for your next event, production, or project.',
     socialImageMediaId: null,
   },
   hero: {
     eyebrow: 'Equipment rental, thoughtfully handled',
     heading: 'The right equipment for the work ahead.',
     description:
-      'Build a rental request for your event, production, or project. Our team reviews every request and prepares a tailored quote.',
+      'Build an equipment list for your event, production, or project, then send your enquiry to our team.',
     primaryLabel: 'Browse rental equipment',
     primaryHref: '/rentals',
-    secondaryLabel: 'Track a request',
-    secondaryHref: '/track-request',
+    secondaryLabel: 'Contact our team',
+    secondaryHref: '/contact',
     autoplayEnabled: true,
     intervalMs: 7000,
     overlayIntensity: 'STRONG',
@@ -510,19 +525,19 @@ export const DEFAULT_HOMEPAGE_CONTENT: HomepageContent = {
     eyebrow: 'Browse by category',
     heading: 'Start with what your project needs',
     description:
-      'Explore practical equipment groups and build a request at your own pace.',
+      'Explore practical equipment groups and build your enquiry at your own pace.',
   },
   benefits: {
     enabled: true,
     eyebrow: 'Why Mensah Rentals',
     heading: 'A rental process built around real project needs',
     description:
-      'Every request is reviewed by our team before pricing or confirmation.',
+      'Every enquiry is reviewed by our team before pricing or confirmation.',
     items: [
       {
         title: 'Human review',
         description:
-          'A staff member reviews the equipment and dates you request.',
+          'A staff member reviews the equipment and dates in your enquiry.',
         icon: 'clipboard-check',
         enabled: true,
       },
@@ -535,7 +550,7 @@ export const DEFAULT_HOMEPAGE_CONTENT: HomepageContent = {
       },
       {
         title: 'Custom quotation',
-        description: 'Pricing is prepared for your specific request.',
+        description: 'Pricing is prepared for your specific requirements.',
         icon: 'badge-check',
         enabled: true,
       },
@@ -559,20 +574,20 @@ export const DEFAULT_HOMEPAGE_CONTENT: HomepageContent = {
     eyebrow: 'How it works',
     heading: 'From equipment list to confirmed rental',
     description:
-      'The platform keeps requests, approvals, quotes, and confirmed orders separate.',
+      'Our team reviews your enquiry before preparing rental details and pricing.',
     steps: [
       {
         title: 'Browse',
         description: 'Explore the catalogue and choose desired quantities.',
       },
       {
-        title: 'Request',
+        title: 'Enquire',
         description:
           'Share your dates, contact details, and project information.',
       },
       {
         title: 'Review',
-        description: 'Our team checks the request and prepares an outcome.',
+        description: 'Our team reviews your equipment list and project needs.',
       },
       {
         title: 'Confirm',
@@ -586,7 +601,7 @@ export const DEFAULT_HOMEPAGE_CONTENT: HomepageContent = {
     eyebrow: 'Built for varied work',
     heading: 'Equipment support across different settings',
     description:
-      'Plan an equipment request for gatherings, productions, organizations, and field projects.',
+      'Plan an equipment enquiry for gatherings, productions, organizations, and field projects.',
     items: [
       {
         serviceType: 'FILM_PRODUCTION',
@@ -668,18 +683,19 @@ export const DEFAULT_HOMEPAGE_CONTENT: HomepageContent = {
     enabled: true,
     eyebrow: 'Service areas',
     heading: 'Tell us where the equipment is needed',
-    description: 'Service coverage is confirmed as part of request review.',
+    description:
+      'Service coverage is confirmed when our team reviews your enquiry.',
     areas: [
       {
-        label: 'Service location confirmed during request review',
+        label: 'Service location confirmed during enquiry review',
         enabled: true,
       },
     ],
   },
   finalCta: {
-    heading: 'Ready to build your equipment request?',
+    heading: 'Ready to build your equipment list?',
     description:
-      'Browse the catalogue, choose desired quantities, and let our team handle the review.',
+      'Browse the catalogue, choose desired quantities, and send your enquiry to our team.',
     primaryLabel: 'Browse rentals',
     primaryHref: '/rentals',
     secondaryLabel: 'View rental cart',

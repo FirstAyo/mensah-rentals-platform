@@ -163,6 +163,7 @@ export class ProductMediaService {
               homepagePlacements: true,
               homepageCategoryOverrides: true,
               categoryCovers: true,
+              categorySupportingVisuals: true,
             },
           },
         },
@@ -171,7 +172,8 @@ export class ProductMediaService {
       if (
         image._count.homepagePlacements > 0 ||
         image._count.homepageCategoryOverrides > 0 ||
-        image._count.categoryCovers > 0
+        image._count.categoryCovers > 0 ||
+        image._count.categorySupportingVisuals > 0
       )
         throw new ConflictException(
           'This image is referenced by website content and cannot be removed',

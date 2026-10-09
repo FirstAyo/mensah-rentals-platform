@@ -579,7 +579,7 @@ export const publicProductListQuerySchema = z
     search: z.string().trim().max(100).optional(),
     sort: z
       .enum(['featured', 'name-asc', 'name-desc', 'newest'])
-      .default('featured'),
+      .default('newest'),
   })
   .strict();
 
@@ -635,10 +635,138 @@ const productSpecificationInputSchema = z
   })
   .strict();
 
+const safeProductLinkSchema = z
+  .string()
+  .trim()
+  .max(2048)
+  .refine((value) => {
+    if (value.startsWith('/') || value.startsWith('#')) return true;
+    try {
+      return ['https:', 'http:', 'mailto:', 'tel:'].includes(
+        new URL(value).protocol,
+      );
+    } catch {
+      return false;
+    }
+  }, 'Use a safe web, email, telephone, anchor, or site-relative link.');
+
+const productDescriptionMarkSchema = z.discriminatedUnion('type', [
+  z.object({ type: z.literal('bold') }).strict(),
+  z.object({ type: z.literal('italic') }).strict(),
+  z
+    .object({
+      type: z.literal('link'),
+      attrs: z
+        .object({
+          href: safeProductLinkSchema,
+          target: z.enum(['_blank', '_self']).nullable().optional(),
+          rel: z.string().max(100).nullable().optional(),
+        })
+        .strict(),
+    })
+    .strict(),
+]);
+
+type ProductDescriptionNodeInput = {
+  type: string;
+  attrs?: { level?: number };
+  content?: ProductDescriptionNodeInput[];
+  marks?: Array<z.infer<typeof productDescriptionMarkSchema>>;
+  text?: string;
+};
+
+const productDescriptionNodeSchema: z.ZodType<ProductDescriptionNodeInput> =
+  z.lazy(() =>
+    z
+      .object({
+        type: z.enum([
+          'doc',
+          'paragraph',
+          'heading',
+          'bulletList',
+          'orderedList',
+          'listItem',
+          'blockquote',
+          'text',
+          'hardBreak',
+        ]),
+        attrs: z
+          .object({ level: z.union([z.literal(2), z.literal(3)]) })
+          .strict()
+          .optional(),
+        content: z.array(productDescriptionNodeSchema).max(500).optional(),
+        marks: z.array(productDescriptionMarkSchema).max(3).optional(),
+        text: z.string().max(20_000).optional(),
+      })
+      .strict()
+      .superRefine((node, context) => {
+        if (node.type === 'heading' && !node.attrs)
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Heading level is required.',
+          });
+        if (node.type !== 'heading' && node.attrs)
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Unexpected node attributes.',
+          });
+        if (node.type === 'text' && !node.text)
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Text nodes cannot be empty.',
+          });
+        if (node.type !== 'text' && (node.text !== undefined || node.marks))
+          context.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: 'Unexpected text content.',
+          });
+      }),
+  );
+
+export const productDescriptionDocumentSchema = productDescriptionNodeSchema
+  .refine(
+    (document) => document.type === 'doc',
+    'Description must be a document.',
+  )
+  .refine(
+    (document) => JSON.stringify(document).length <= 60_000,
+    'Description is too large.',
+  );
+
+const categoryPresentationItemSchema = z
+  .object({
+    mediaRef: z.string().trim().min(1).max(200),
+    altText: z.string().trim().max(300),
+    focalPoint: z
+      .enum(['center', 'top', 'bottom', 'left', 'right'])
+      .default('center'),
+    isDecorative: z.boolean().default(false),
+  })
+  .strict()
+  .superRefine((item, context) => {
+    if (!item.isDecorative && !item.altText)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['altText'],
+        message: 'Add descriptive alt text or mark the image decorative.',
+      });
+    if (item.isDecorative && item.altText)
+      context.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['altText'],
+        message: 'Decorative images must have empty alt text.',
+      });
+  });
+
+export const categoryPresentationSchema = z
+  .object({ items: z.array(categoryPresentationItemSchema).max(4) })
+  .strict();
+
 const productMutableFields = {
   categoryId: cuidParamSchema,
   defaultUnitPriceCents: z.number().int().min(0).max(100_000_000).nullable(),
   description: z.string().trim().max(20_000).nullable().optional(),
+  descriptionDocument: productDescriptionDocumentSchema.nullable().optional(),
   isFeatured: z.boolean().default(false),
   name: z
     .string()
@@ -1064,6 +1192,12 @@ export type DeleteCategoryInput = z.infer<typeof deleteCategorySchema>;
 export type CreateProductInput = z.infer<typeof createProductSchema>;
 export type UpdateProductInput = z.infer<typeof updateProductSchema>;
 export type DeleteProductInput = z.infer<typeof deleteProductSchema>;
+export type ProductDescriptionDocument = z.infer<
+  typeof productDescriptionDocumentSchema
+>;
+export type CategoryPresentationInput = z.infer<
+  typeof categoryPresentationSchema
+>;
 
 export const inventoryTrackingModeSchema = z.enum(['BULK', 'SERIALIZED']);
 export const inventoryStateSchema = z.enum([

@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { HomepageHero } from '@/components/homepage-hero';
 import { HomepageGalleryCarousel } from '@/components/homepage-gallery-carousel';
-import { HomepageFeaturedCategories } from '@/components/homepage-featured-categories';
+import { CategoryShowcase } from '@/components/category-showcase';
 import { HomepageServices } from '@/components/homepage-services';
 import {
   HomepageGoogleReviews,
@@ -26,6 +26,7 @@ import {
 import { ProductCard } from '@/components/product-card';
 import { getPublicHomepage } from '@/lib/public-homepage';
 import { getPublicGallery } from '@/lib/public-gallery';
+import { listCategoryShowcase } from '@/lib/public-catalogue';
 import { publicPageRobots, siteOrigin } from '@/lib/site-config';
 import {
   organizationJsonLd,
@@ -59,20 +60,20 @@ export async function generateMetadata(): Promise<Metadata> {
     };
   } catch {
     const description =
-      'Browse equipment for events, productions, and projects, then submit a rental request for a custom quote from Mensah Rentals.';
+      'Browse equipment for events, productions, and projects, then send your equipment enquiry to Mensah Rentals.';
     return {
-      title: { absolute: 'Mensah Rentals | Equipment Rental Requests' },
+      title: { absolute: 'Mensah Rentals | Equipment Rental Enquiries' },
       description,
       alternates: { canonical: '/' },
       openGraph: {
-        title: 'Mensah Rentals | Equipment Rental Requests',
+        title: 'Mensah Rentals | Equipment Rental Enquiries',
         description,
         type: 'website',
         url: '/',
       },
       twitter: {
         card: 'summary',
-        title: 'Mensah Rentals | Equipment Rental Requests',
+        title: 'Mensah Rentals | Equipment Rental Enquiries',
         description,
       },
       robots: publicPageRobots(),
@@ -96,11 +97,51 @@ const icons = {
 } as const;
 
 export default async function HomePage() {
-  const [homepage, gallery] = await Promise.all([
+  const [homepage, gallery, categoryShowcase] = await Promise.all([
     getPublicHomepage(),
     getPublicGallery().catch(() => null),
+    listCategoryShowcase().catch(() => []),
   ]);
   const { content, products, googleReviews } = homepage;
+  const showcaseBySlug = new Map(
+    categoryShowcase.map((category) => [category.slug, category]),
+  );
+  const orderedCategoryShowcase = [
+    ...homepage.categories.flatMap((selection) => {
+      const category = showcaseBySlug.get(selection.slug);
+      if (!category)
+        return [
+          {
+            description: selection.description,
+            image: selection.image.url
+              ? {
+                  url: selection.image.url,
+                  altText: selection.image.altText,
+                  focalPoint: selection.image.focalPoint,
+                  isDecorative: false,
+                }
+              : null,
+            name: selection.name,
+            products: [],
+            slug: selection.slug,
+          },
+        ];
+      showcaseBySlug.delete(selection.slug);
+      return [
+        {
+          ...category,
+          image: selection.image.url
+            ? {
+                url: selection.image.url,
+                altText: selection.image.altText,
+                focalPoint: selection.image.focalPoint,
+                isDecorative: false,
+              }
+            : category.image,
+        },
+      ];
+    }),
+  ];
   const selectedGallerySlugs = new Set(
     homepage.galleryProjects.map((project) => project.slug),
   );
@@ -126,6 +167,16 @@ export default async function HomePage() {
         type="application/ld+json"
       />
       <HomepageHero hero={content.hero} />
+
+      {content.featuredCategories.enabled && orderedCategoryShowcase.length ? (
+        <CategoryShowcase
+          categories={orderedCategoryShowcase}
+          description={content.featuredCategories.description}
+          eyebrow={content.featuredCategories.eyebrow}
+          heading={content.featuredCategories.heading}
+        />
+      ) : null}
+
       <div
         className="border-b border-border bg-card dark:bg-card"
         data-homepage-section="reassurance"
@@ -155,13 +206,6 @@ export default async function HomePage() {
       </div>
 
       <HomepageServices block={content.solutions} />
-
-      {content.featuredCategories.enabled && homepage.categories.length ? (
-        <HomepageFeaturedCategories
-          categories={homepage.categories}
-          content={content.featuredCategories}
-        />
-      ) : null}
 
       {content.gallery.enabled && galleryPhotos.length ? (
         <HomepageGalleryCarousel

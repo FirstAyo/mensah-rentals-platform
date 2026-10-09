@@ -10,6 +10,20 @@ export const metadata: Metadata = {
   description:
     'Secure staff access for the Mensah Rentals administration platform.',
   title: 'Mensah Rentals Admin',
+  icons: {
+    icon: [
+      {
+        url: '/brand/symbol-light.png',
+        type: 'image/png',
+        media: '(prefers-color-scheme: light)',
+      },
+      {
+        url: '/brand/symbol-dark.png',
+        type: 'image/png',
+        media: '(prefers-color-scheme: dark)',
+      },
+    ],
+  },
   robots: { index: false, follow: false, nocache: true },
 };
 

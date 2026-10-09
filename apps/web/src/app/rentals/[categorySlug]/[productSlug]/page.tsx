@@ -5,6 +5,7 @@ import { notFound } from 'next/navigation';
 import { Breadcrumbs, breadcrumbJsonLd } from '@/components/breadcrumbs';
 import { ProductCard } from '@/components/product-card';
 import { ProductGallery } from '@/components/product-gallery';
+import { ProductRichDescription } from '@/components/product-rich-description';
 import { getProduct, PublicCatalogueNotFound } from '@/lib/public-catalogue';
 import { siteOrigin } from '@/lib/site-config';
 import { productJsonLd, serializeJsonLd } from '@/lib/structured-data';
@@ -89,17 +90,18 @@ export default async function ProductPage({
       />
 
       <div className="mt-8 grid gap-10 lg:grid-cols-[minmax(0,1.12fr)_minmax(22rem,.88fr)] lg:gap-14">
-        <ProductGallery images={product.images} productName={product.name} />
-        <article className="lg:pt-3">
+        <section>
+          <ProductGallery images={product.images} productName={product.name} />
           <p className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">
             {product.category.name}
           </p>
           <h1 className="mt-3 text-4xl font-bold tracking-tight sm:text-5xl">
             {product.name}
           </h1>
-          <p className="mt-5 text-lg leading-8 text-muted-foreground">
-            {product.description ?? product.shortDescription}
-          </p>
+          <ProductRichDescription
+            document={product.descriptionDocument ?? null}
+            fallback={product.description ?? product.shortDescription}
+          />
 
           <dl className="mt-7 grid gap-3 sm:grid-cols-2">
             <div className="rounded-xl border border-border bg-card p-4">
@@ -117,7 +119,9 @@ export default async function ProductPage({
               <dd className="mt-1 font-semibold">Reviewed by staff</dd>
             </div>
           </dl>
+        </section>
 
+        <article className="lg:pt-3">
           <aside className="mt-6 rounded-2xl border border-primary/30 bg-accent p-5 text-accent-foreground">
             <div className="flex gap-3">
               <ClipboardList
@@ -128,8 +132,9 @@ export default async function ProductPage({
                 <h2 className="font-semibold">How this rental is confirmed</h2>
                 <p className="mt-1 text-sm leading-6">
                   Tell our team the quantity and dates your project requires.
-                  Authorized staff review supply privately and prepare a custom
-                  quote. No automatic price or public stock count is shown.
+                  Authorized staff review your enquiry privately and contact you
+                  about the next steps. No automatic price or public stock count
+                  is shown.
                 </p>
               </div>
             </div>

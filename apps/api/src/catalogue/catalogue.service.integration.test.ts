@@ -93,6 +93,23 @@ describe('catalogue service against PostgreSQL', () => {
         },
       ],
     });
+    const showcaseProducts = await prisma.product.findMany({
+      where: {
+        categoryId: active.id,
+        isActive: true,
+        deletedAt: null,
+      },
+      orderBy: { name: 'asc' },
+    });
+    await prisma.productImage.createMany({
+      data: showcaseProducts.map((product, index) => ({
+        altText: `${product.name} catalogue image`,
+        isPrimary: true,
+        productId: product.id,
+        sortOrder: index,
+        url: `/media/products/${product.slug}.webp`,
+      })),
+    });
   });
 
   it('applies real server-side search and pagination', async () => {
@@ -162,6 +179,55 @@ describe('catalogue service against PostgreSQL', () => {
     ).resolves.toMatchObject({ domain: 'CATALOGUE' });
   });
 
+  it('persists structured product content while deriving plain SEO text', async () => {
+    const product = await prisma.product.findUniqueOrThrow({
+      where: { slug: `alpha-${suffix}` },
+    });
+    const descriptionDocument = {
+      type: 'doc' as const,
+      content: [
+        {
+          type: 'heading' as const,
+          attrs: { level: 2 as const },
+          content: [{ type: 'text' as const, text: 'Production details' }],
+        },
+        {
+          type: 'paragraph' as const,
+          content: [{ type: 'text' as const, text: 'A flexible setup.' }],
+        },
+      ],
+    };
+    await service.updateProduct(
+      product.id,
+      {
+        categoryId: product.categoryId,
+        defaultUnitPriceCents: Number(product.defaultUnitPriceCents),
+        description: product.description,
+        descriptionDocument,
+        isFeatured: product.isFeatured,
+        name: product.name,
+        rentalUnit: product.rentalUnit,
+        shortDescription: product.shortDescription,
+        slug: product.slug,
+        specifications: [],
+      },
+      actorUserId,
+    );
+
+    const stored = await prisma.product.findUniqueOrThrow({
+      where: { id: product.id },
+    });
+    expect(stored.descriptionDocument).toEqual(descriptionDocument);
+    expect(stored.description).toBe('Production details\n\nA flexible setup.');
+    const detail = await service.getPublicProduct(
+      `active-${suffix}`,
+      `alpha-${suffix}`,
+    );
+    expect(detail.descriptionDocument).toEqual(descriptionDocument);
+    expect(detail.description).toBe('Production details\n\nA flexible setup.');
+    expectPublicDataSafe(detail);
+  });
+
   it('returns bounded active related products through the public allowlist', async () => {
     const detail = await service.getPublicProduct(
       `active-${suffix}`,
@@ -174,6 +240,7 @@ describe('catalogue service against PostgreSQL', () => {
       [
         'category',
         'description',
+        'descriptionDocument',
         'images',
         'isFeatured',
         'name',
@@ -185,6 +252,113 @@ describe('catalogue service against PostgreSQL', () => {
       ].sort(),
     );
     expectPublicDataSafe(detail);
+  });
+
+  it('returns a narrow, active-only category showcase with valid category products', async () => {
+    const showcase = await service.listPublicCategoryShowcase();
+    const category = showcase.find(({ slug }) => slug === `active-${suffix}`);
+    expect(category).toBeDefined();
+    expect(showcase.some(({ slug }) => slug === `inactive-${suffix}`)).toBe(
+      false,
+    );
+    expect(Object.keys(category!).sort()).toEqual(
+      ['description', 'image', 'name', 'products', 'slug'].sort(),
+    );
+    expect(category!.products).toHaveLength(2);
+    expect(
+      category!.products.every((product) =>
+        product.image.url.startsWith('/media/products/'),
+      ),
+    ).toBe(true);
+    expectPublicDataSafe(showcase);
+  });
+
+  it('uses fallback image metadata when a configured product cover becomes invalid', async () => {
+    const categoryId = categoryIds[0]!;
+    const coverProduct = await prisma.product.findUniqueOrThrow({
+      where: { slug: `alpha-${suffix}` },
+      include: { images: true },
+    });
+    const destination = await prisma.category.create({
+      data: {
+        name: `Cover destination ${suffix}`,
+        slug: `cover-destination-${suffix}`,
+      },
+    });
+    await prisma.categoryCover.upsert({
+      where: { categoryId },
+      create: {
+        altText: 'Stale configured cover text',
+        categoryId,
+        focalPoint: 'top',
+        isDecorative: true,
+        productImageId: coverProduct.images[0]!.id,
+        updatedByUserId: actorUserId,
+      },
+      update: {
+        altText: 'Stale configured cover text',
+        focalPoint: 'top',
+        homepageMediaId: null,
+        isDecorative: true,
+        productImageId: coverProduct.images[0]!.id,
+        updatedByUserId: actorUserId,
+      },
+    });
+    await prisma.product.update({
+      where: { id: coverProduct.id },
+      data: { categoryId: destination.id },
+    });
+    try {
+      const detail = await service.getPublicCategory(`active-${suffix}`);
+      expect(detail.banner).toMatchObject({
+        altText: `Gamma ${suffix} catalogue image`,
+        focalPoint: 'center',
+        isDecorative: false,
+      });
+      const showcase = await service.listPublicCategoryShowcase();
+      expect(
+        showcase.find(({ slug }) => slug === `active-${suffix}`)?.image,
+      ).toMatchObject({
+        altText: `Gamma ${suffix} catalogue image`,
+        focalPoint: 'center',
+        isDecorative: false,
+      });
+    } finally {
+      await prisma.product.update({
+        where: { id: coverProduct.id },
+        data: { categoryId },
+      });
+      await prisma.categoryCover.delete({ where: { categoryId } });
+      await prisma.category.delete({ where: { id: destination.id } });
+    }
+  });
+
+  it('orders the default public listing by createdAt then id descending', async () => {
+    const timestamp = new Date('2026-10-04T12:00:00.000Z');
+    const categoryId = categoryIds[0]!;
+    const created = await Promise.all(
+      ['one', 'two'].map((label) =>
+        prisma.product.create({
+          data: {
+            categoryId,
+            createdAt: timestamp,
+            name: `Newest ${label} ${suffix}`,
+            shortDescription: `Newest deterministic ${suffix}`,
+            slug: `newest-${label}-${suffix}`,
+          },
+        }),
+      ),
+    );
+    const page = await service.listPublicProducts({
+      page: 1,
+      pageSize: 10,
+      search: `Newest deterministic ${suffix}`,
+      sort: 'newest',
+    });
+    const expected = created
+      .toSorted((left, right) => right.id.localeCompare(left.id))
+      .map(({ slug }) => slug);
+    expect(page.items.map(({ slug }) => slug)).toEqual(expected);
   });
 
   it('paginates active categories with actual database queries', async () => {

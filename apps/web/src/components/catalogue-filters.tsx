@@ -26,16 +26,16 @@ export function CatalogueFilters({
     const target = category ? `/rentals/${category}` : '/rentals';
     const params = new URLSearchParams();
     const search = String(form.get('search') ?? '').trim();
-    const sort = String(form.get('sort') ?? 'featured');
+    const sort = String(form.get('sort') ?? 'newest');
     if (search) params.set('search', search);
     if (form.get('featured') === 'true') params.set('featured', 'true');
-    if (sort !== 'featured') params.set('sort', sort);
+    if (sort !== 'newest') params.set('sort', sort);
     const query = params.toString();
     router.push(query ? `${target}?${query}` : target);
   }
 
   const hasFilters =
-    Boolean(state.search) || state.featured || state.sort !== 'featured';
+    Boolean(state.search) || state.featured || state.sort !== 'newest';
 
   return (
     <form
@@ -86,10 +86,10 @@ export function CatalogueFilters({
             defaultValue={state.sort}
             name="sort"
           >
+            <option value="newest">Recently added</option>
             <option value="featured">Featured first</option>
             <option value="name-asc">Name: A to Z</option>
             <option value="name-desc">Name: Z to A</option>
-            <option value="newest">Newest catalogue items</option>
           </select>
         </label>
         <button

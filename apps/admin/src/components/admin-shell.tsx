@@ -28,6 +28,7 @@ import {
   Images,
 } from 'lucide-react';
 import Link from 'next/link';
+import Image from 'next/image';
 import type { ReactNode } from 'react';
 import { LogoutButton } from './logout-button';
 import { ActionableWorkBadge } from './actionable-work-badge';
@@ -205,8 +206,29 @@ export function AdminShell({
       <div className="min-h-screen w-full min-w-0">
         <aside className="fixed inset-y-0 left-0 z-30 hidden h-dvh w-[17rem] flex-col border-r border-border bg-card lg:flex">
           <div className="shrink-0 p-5 pb-3">
-            <Link className="text-xl font-bold" href="/">
-              Mensah Rentals
+            <Link
+              className="block rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              href="/"
+              aria-label="Mensah Rentals administration home"
+            >
+              <Image
+                alt=""
+                aria-hidden="true"
+                className="h-auto w-40 dark:hidden"
+                height={222}
+                priority
+                src="/brand/logo-light.png"
+                width={671}
+              />
+              <Image
+                alt=""
+                aria-hidden="true"
+                className="hidden h-auto w-40 dark:block"
+                height={222}
+                priority
+                src="/brand/logo-dark.png"
+                width={671}
+              />
             </Link>
             <p className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">
               Administration

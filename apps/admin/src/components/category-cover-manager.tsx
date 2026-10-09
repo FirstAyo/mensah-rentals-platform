@@ -10,6 +10,7 @@ type CoverResponse = {
     url: string;
     altText: string;
     focalPoint: 'center' | 'top' | 'bottom' | 'left' | 'right';
+    isDecorative: boolean;
     source: 'HOMEPAGE' | 'PRODUCT';
   };
   resolved: {
@@ -34,6 +35,7 @@ export function CategoryCoverManager({
     'center' | 'top' | 'bottom' | 'left' | 'right'
   >('center');
   const [message, setMessage] = useState('');
+  const [isDecorative, setIsDecorative] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const load = useCallback(async () => {
@@ -60,10 +62,12 @@ export function CategoryCoverManager({
       });
       setAltText(result.cover.altText);
       setFocalPoint(result.cover.focalPoint);
+      setIsDecorative(result.cover.isDecorative);
     } else {
       setSelected(null);
       setAltText('');
       setFocalPoint('center');
+      setIsDecorative(false);
     }
   }, [categoryId]);
 
@@ -76,8 +80,10 @@ export function CategoryCoverManager({
   }, [load]);
 
   async function save() {
-    if (!selected || !altText.trim()) {
-      setMessage('Choose an image and add descriptive alt text.');
+    if (!selected || (!isDecorative && !altText.trim())) {
+      setMessage(
+        'Choose an image and add descriptive alt text, or mark it decorative.',
+      );
       return;
     }
     setBusy(true);
@@ -89,8 +95,9 @@ export function CategoryCoverManager({
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             mediaRef: selected.mediaRef,
-            altText: altText.trim(),
+            altText: isDecorative ? '' : altText.trim(),
             focalPoint,
+            isDecorative,
           }),
         },
       );
@@ -167,7 +174,8 @@ export function CategoryCoverManager({
             Alt text
             <input
               className="h-11 rounded-lg border border-border bg-background px-3 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              disabled={!canManageMedia}
+              disabled={!canManageMedia || isDecorative}
+              aria-disabled={isDecorative}
               maxLength={300}
               onChange={(event) => setAltText(event.target.value)}
               value={altText}
@@ -191,6 +199,20 @@ export function CategoryCoverManager({
             </select>
           </label>
         </div>
+      ) : null}
+      {selected ? (
+        <label className="inline-flex items-center gap-2 text-sm">
+          <input
+            checked={isDecorative}
+            disabled={!canManageMedia}
+            onChange={(event) => {
+              setIsDecorative(event.target.checked);
+              if (event.target.checked) setAltText('');
+            }}
+            type="checkbox"
+          />
+          Decorative image (empty alt text)
+        </label>
       ) : null}
       {data ? (
         <p className="text-xs text-muted-foreground">

@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   ConflictException,
   ForbiddenException,
@@ -6,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { prisma } from '@mensah-rentals/database';
 import { DEFAULT_HOMEPAGE_CONTENT } from '@mensah-rentals/validation';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import { HomepageService } from './homepage.service';
 import { HomepageMediaService } from './homepage-media.service';
@@ -23,6 +26,7 @@ describe('homepage immutable publication against PostgreSQL', () => {
   let draftId: string;
   let publishedId: string;
   let heroMediaIds: string[];
+  let temporaryMediaRoot: string;
   const suffix = randomUUID().replaceAll('-', '');
 
   beforeAll(async () => {
@@ -32,6 +36,9 @@ describe('homepage immutable publication against PostgreSQL', () => {
       throw new Error(
         'Homepage integration tests require the guarded test database.',
       );
+    temporaryMediaRoot = await mkdtemp(
+      join(tmpdir(), 'mensah-homepage-media-'),
+    );
     await prisma.homepageSite.updateMany({
       data: { draftRevisionId: null, publishedRevisionId: null },
     });
@@ -161,6 +168,10 @@ describe('homepage immutable publication against PostgreSQL', () => {
     productImageId = productImage.id;
   });
 
+  afterAll(async () => {
+    await rm(temporaryMediaRoot, { recursive: true, force: true });
+  });
+
   it('creates an immutable draft then atomically publishes a copied revision', async () => {
     const before = await prisma.inventoryTransaction.count();
     const draft = (await service.saveDraft(
@@ -281,6 +292,46 @@ describe('homepage immutable publication against PostgreSQL', () => {
     await expect(
       mediaService.read(mediaId, `${hash}.webp`),
     ).rejects.toBeInstanceOf(NotFoundException);
+  });
+
+  it('serves homepage media referenced by an active category supporting visual', async () => {
+    const mediaId = `cmsv${suffix.slice(0, 20)}`;
+    const hash = 'b'.repeat(64);
+    const media = await prisma.homepageMedia.create({
+      data: {
+        byteSize: 10,
+        contentHash: hash,
+        createdByUserId: userId,
+        description: 'Supporting visual public media',
+        format: 'webp',
+        height: 1,
+        id: mediaId,
+        originalFilename: 'supporting.webp',
+        url: `/media/homepage/${mediaId}/${hash}.webp`,
+        width: 1,
+      },
+    });
+    const filename = media.url.split('/').at(-1)!;
+    await prisma.categorySupportingVisual.create({
+      data: {
+        altText: 'Supporting category image',
+        categoryId,
+        homepageMediaId: media.id,
+        sortOrder: 0,
+        updatedByUserId: userId,
+      },
+    });
+    const directory = join(temporaryMediaRoot, 'homepage', media.id);
+    await mkdir(directory, { recursive: true });
+    await writeFile(join(directory, filename), Buffer.from('test image'));
+    const mediaService = new HomepageMediaService(
+      { get: () => temporaryMediaRoot } as never,
+      {} as never,
+    );
+
+    await expect(mediaService.read(media.id, filename)).resolves.toEqual(
+      Buffer.from('test image'),
+    );
   });
 
   it('assigns and removes a category cover without deleting source media', async () => {

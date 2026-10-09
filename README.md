@@ -1,5 +1,7 @@
 # Mensah Rentals Platform
 
+Phase 19.2.4 category discovery, category presentation, rich Product descriptions, and approved branding are documented in [docs/category-discovery-and-rich-products.md](docs/category-discovery-and-rich-products.md).
+
 Phase 19.2 adds a premium company Homepage, a revisioned managed-media [Gallery](docs/gallery.md), an accessible Rentals mega menu, and the default launch [Cart email-enquiry workflow](docs/cart-email-enquiries.md). The four controlled service types are Film Production, Events & Festivals, Corporate Functions, and Private Functions. Email enquiry mode preserves the complete advanced Rental Request platform and creates no reservation or inventory change.
 
 Cart enquiries are always stored durably before delivery is attempted. Local/test environments use a non-networked capture transport. Staging and production can deliver the company notification through authenticated SMTP; failed or unavailable delivery remains visible and retryable from Admin without losing the enquiry.

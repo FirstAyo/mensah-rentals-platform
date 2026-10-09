@@ -571,6 +571,7 @@ model User {
   homepageActivities               HomepageActivity[]              @relation("HomepageActivityActor")
   homepageMediaCreated             HomepageMedia[]                 @relation("HomepageMediaCreator")
   categoryCoversUpdated            CategoryCover[]                 @relation("CategoryCoverUpdater")
+  categorySupportingVisualsUpdated CategorySupportingVisual[]      @relation("CategorySupportingVisualUpdater")
   platformAuditEvents              PlatformAuditEvent[]            @relation("PlatformAuditEventActor")
   platformFeatureSettingsUpdated   PlatformFeatureSetting[]         @relation("PlatformFeatureSettingUpdater")
   contactEnquiriesUpdated          ContactEnquiry[]                  @relation("ContactEnquiryStatusUpdater")
@@ -815,6 +816,7 @@ model Category {
   products           Product[]
   homepageSelections HomepageFeaturedCategory[]
   cover              CategoryCover?
+  supportingVisuals  CategorySupportingVisual[]
 
   @@index([isActive, sortOrder, name, id])
   @@index([deletedAt, sortOrder, name, id])
@@ -826,6 +828,7 @@ model Product {
   slug                       String                      @unique
   shortDescription           String
   description                String?                     @db.Text
+  descriptionDocument        Json?
   rentalUnit                 String                      @default("each")
   defaultUnitPriceCents      BigInt?
   categoryId                 String
@@ -846,6 +849,8 @@ model Product {
   cartEnquiryItems           CartEnquiryItem[]
 
   @@index([categoryId, isActive, name, id])
+  @@index([isActive, createdAt, id])
+  @@index([categoryId, isActive, createdAt, id])
   @@index([isActive, isFeatured, updatedAt, id])
   @@index([deletedAt, categoryId, name, id])
 }
@@ -2340,6 +2345,7 @@ model ProductImage {
   homepagePlacements        HomepageMediaPlacement[]   @relation("HomepagePlacementProductImage")
   homepageCategoryOverrides HomepageFeaturedCategory[] @relation("HomepageCategoryOverrideProductImage")
   categoryCovers            CategoryCover[]            @relation("CategoryCoverProductImage")
+  categorySupportingVisuals CategorySupportingVisual[] @relation("CategorySupportingVisualProductImage")
   publicPagePlacements      PublicPageMediaPlacement[] @relation("PublicPagePlacementProductImage")
 
   @@unique([productId, sortOrder])
@@ -2466,6 +2472,7 @@ model HomepageMedia {
   placements                HomepageMediaPlacement[]
   homepageCategoryOverrides HomepageFeaturedCategory[] @relation("HomepageCategoryOverrideMedia")
   categoryCovers            CategoryCover[]            @relation("CategoryCoverHomepageMedia")
+  categorySupportingVisuals CategorySupportingVisual[] @relation("CategorySupportingVisualHomepageMedia")
   publicPagePlacements      PublicPageMediaPlacement[]
   galleryRevisionMedia      GalleryProjectRevisionMedia[]
 
@@ -2631,6 +2638,7 @@ model CategoryCover {
   productImageId  String?
   altText         String         @db.VarChar(300)
   focalPoint      String         @default("center") @db.VarChar(20)
+  isDecorative    Boolean        @default(false)
   updatedByUserId String
   createdAt       DateTime       @default(now()) @db.Timestamptz(3)
   updatedAt       DateTime       @updatedAt @db.Timestamptz(3)
@@ -2639,6 +2647,29 @@ model CategoryCover {
   productImage    ProductImage?  @relation("CategoryCoverProductImage", fields: [productImageId], references: [id], onDelete: Restrict)
   updatedBy       User           @relation("CategoryCoverUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
 
+  @@index([homepageMediaId])
+  @@index([productImageId])
+  @@index([updatedByUserId, updatedAt])
+}
+
+model CategorySupportingVisual {
+  id              String         @id @default(cuid())
+  categoryId      String
+  sortOrder       Int
+  homepageMediaId String?
+  productImageId  String?
+  altText         String         @db.VarChar(300)
+  focalPoint      String         @default("center") @db.VarChar(20)
+  isDecorative    Boolean        @default(false)
+  updatedByUserId String
+  createdAt       DateTime       @default(now()) @db.Timestamptz(3)
+  updatedAt       DateTime       @updatedAt @db.Timestamptz(3)
+  category        Category       @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  homepageMedia   HomepageMedia? @relation("CategorySupportingVisualHomepageMedia", fields: [homepageMediaId], references: [id], onDelete: Restrict)
+  productImage    ProductImage?  @relation("CategorySupportingVisualProductImage", fields: [productImageId], references: [id], onDelete: Restrict)
+  updatedBy       User           @relation("CategorySupportingVisualUpdater", fields: [updatedByUserId], references: [id], onDelete: Restrict)
+
+  @@unique([categoryId, sortOrder])
   @@index([homepageMediaId])
   @@index([productImageId])
   @@index([updatedByUserId, updatedAt])

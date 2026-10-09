@@ -1,5 +1,7 @@
 import type { Metadata } from 'next';
 import { PackageSearch } from 'lucide-react';
+import Image from 'next/image';
+import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import { Breadcrumbs, breadcrumbJsonLd } from '@/components/breadcrumbs';
 import { CatalogueFilters } from '@/components/catalogue-filters';
@@ -19,6 +21,7 @@ import {
 } from '@/lib/public-catalogue';
 import { publicPageRobots, siteOrigin } from '@/lib/site-config';
 import { serializeJsonLd } from '@/lib/structured-data';
+import { getPublicFeatures } from '@/lib/public-features';
 
 export const dynamic = 'force-dynamic';
 type Params = Record<string, string | string[] | undefined>;
@@ -77,9 +80,10 @@ export default async function CategoryPage({
 }) {
   const { categorySlug } = await params;
   const state = parseCatalogueQuery(await searchParams);
-  const [category, categories] = await Promise.all([
+  const [category, categories, features] = await Promise.all([
     categoryOr404(categorySlug),
     listCategories('?page=1&pageSize=100'),
+    getPublicFeatures(),
   ]);
   const products = await listProducts(catalogueApiQuery(state, category.slug));
   const basePath = `/rentals/${category.slug}`;
@@ -102,19 +106,72 @@ export default async function CategoryPage({
         }}
         type="application/ld+json"
       />
-      <div className="mt-7 max-w-4xl">
-        <p className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">
-          Equipment category
-        </p>
-        <h1 className="mt-2 text-4xl font-bold tracking-tight sm:text-5xl">
-          {category.name}
-        </h1>
-        {category.description ? (
-          <p className="mt-4 max-w-3xl text-lg leading-8 text-muted-foreground">
-            {category.description}
+      {category.banner ? (
+        <div className="relative mt-7 min-h-[18rem] overflow-hidden rounded-[2rem] border border-border bg-muted sm:min-h-[24rem]">
+          <Image
+            alt={category.banner.isDecorative ? '' : category.banner.altText}
+            className="object-cover"
+            fill
+            priority
+            sizes="(max-width: 1800px) 100vw, 1800px"
+            src={category.banner.url}
+            style={{ objectPosition: category.banner.focalPoint }}
+          />
+          <span
+            aria-hidden="true"
+            className="absolute inset-0 bg-gradient-to-t from-black/75 via-black/20 to-transparent"
+          />
+          <div className="absolute inset-x-0 bottom-0 max-w-4xl p-6 text-white sm:p-10">
+            <p className="text-sm font-semibold uppercase tracking-[0.16em] text-amber-200">
+              Equipment category
+            </p>
+            <h1 className="mt-2 text-4xl font-bold tracking-tight sm:text-6xl">
+              {category.name}
+            </h1>
+            {category.description ? (
+              <p className="mt-4 max-w-3xl text-base leading-7 text-white/85 sm:text-lg">
+                {category.description}
+              </p>
+            ) : null}
+          </div>
+        </div>
+      ) : (
+        <div className="mt-7 max-w-4xl">
+          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">
+            Equipment category
           </p>
-        ) : null}
-      </div>
+          <h1 className="mt-2 text-4xl font-bold tracking-tight sm:text-5xl">
+            {category.name}
+          </h1>
+          {category.description ? (
+            <p className="mt-4 max-w-3xl text-lg leading-8 text-muted-foreground">
+              {category.description}
+            </p>
+          ) : null}
+        </div>
+      )}
+      {category.supportingVisuals.length ? (
+        <ul
+          aria-label={`${category.name} highlights`}
+          className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4"
+        >
+          {category.supportingVisuals.map((visual, index) => (
+            <li
+              className="relative aspect-[4/3] overflow-hidden rounded-2xl border border-border bg-muted"
+              key={`${visual.url}-${index}`}
+            >
+              <Image
+                alt={visual.isDecorative ? '' : visual.altText}
+                className="object-cover"
+                fill
+                sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 25vw"
+                src={visual.url}
+                style={{ objectPosition: visual.focalPoint }}
+              />
+            </li>
+          ))}
+        </ul>
+      ) : null}
       <div className="mt-8">
         <CatalogueFilters
           basePath={basePath}
@@ -171,6 +228,24 @@ export default async function CategoryPage({
           totalPages={products.meta.totalPages}
         />
       </section>
+      <aside className="mt-14 rounded-3xl bg-primary px-6 py-10 text-primary-foreground sm:px-10">
+        <h2 className="text-2xl font-semibold">
+          Planning a project with {category.name.toLowerCase()}?
+        </h2>
+        <p className="mt-3 max-w-3xl leading-7 opacity-90">
+          {features.cartSubmissionsAvailable
+            ? 'Add the equipment you need to your cart, then send your enquiry with project details for staff review.'
+            : 'Tell our team what your project needs and we will help you plan the right equipment.'}
+        </p>
+        <Link
+          className="mt-6 inline-flex min-h-11 items-center rounded-lg bg-background px-5 font-semibold text-foreground"
+          href={features.cartSubmissionsAvailable ? '/rentals' : '/contact'}
+        >
+          {features.cartSubmissionsAvailable
+            ? 'Browse all equipment'
+            : 'Contact our team'}
+        </Link>
+      </aside>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { ArrowRight, PackageSearch, SearchCheck } from 'lucide-react';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { CatalogueFilters } from '@/components/catalogue-filters';
+import { CategoryShowcase } from '@/components/category-showcase';
 import { CataloguePagination } from '@/components/catalogue-pagination';
 import { ProductCard } from '@/components/product-card';
 import {
@@ -11,7 +12,12 @@ import {
   hasCatalogueQueryParameters,
   parseCatalogueQuery,
 } from '@/lib/catalogue-query';
-import { listCategories, listProducts } from '@/lib/public-catalogue';
+import {
+  listCategories,
+  listCategoryShowcase,
+  listProducts,
+} from '@/lib/public-catalogue';
+import { shuffled } from '@/lib/shuffle';
 import { publicPageRobots } from '@/lib/site-config';
 
 export const dynamic = 'force-dynamic';
@@ -34,14 +40,14 @@ export async function generateMetadata({
     openGraph: {
       title: 'Equipment for Events, Productions, and Projects | Mensah Rentals',
       description:
-        'Browse equipment and prepare a rental request for a custom quote.',
+        'Browse equipment and send your project requirements to our team.',
       url: canonical,
     },
     twitter: {
       card: 'summary',
       title: 'Equipment for Events, Productions, and Projects | Mensah Rentals',
       description:
-        'Browse equipment and prepare a rental request for a custom quote.',
+        'Browse equipment and send your project requirements to our team.',
     },
     robots: publicPageRobots(!variant),
   };
@@ -53,32 +59,46 @@ export default async function RentalsPage({
   searchParams: Promise<Params>;
 }) {
   const state = parseCatalogueQuery(await searchParams);
-  const [categories, products] = await Promise.all([
+  const [categories, products, showcase] = await Promise.all([
     listCategories('?page=1&pageSize=100'),
     listProducts(catalogueApiQuery(state)),
+    listCategoryShowcase().catch(() => []),
   ]);
+  const randomSeed = crypto.getRandomValues(new Uint32Array(1))[0] ?? 1;
+  const orderedShowcase = shuffled(showcase, randomSeed);
   if (state.page > Math.max(1, products.meta.totalPages))
     redirect(
       catalogueHref('/rentals', state, Math.max(1, products.meta.totalPages)),
     );
 
   return (
-    <div className="public-container py-10 lg:py-14">
-      <div className="max-w-4xl">
-        <p className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">
-          Rental catalogue
-        </p>
-        <h1 className="mt-2 text-4xl font-bold tracking-tight sm:text-5xl">
-          Equipment for events, productions, and projects
-        </h1>
-        <p className="mt-4 max-w-3xl text-lg leading-8 text-muted-foreground">
-          Explore descriptive equipment information and identify what suits your
-          project. Our team reviews quantities and prepares custom pricing
-          privately after you share your requirements.
-        </p>
+    <div className="py-10 lg:py-14">
+      <div className="public-container max-w-none">
+        <div className="max-w-4xl">
+          <p className="text-sm font-semibold uppercase tracking-[0.16em] text-primary">
+            Rental catalogue
+          </p>
+          <h1 className="mt-2 text-4xl font-bold tracking-tight sm:text-5xl">
+            Equipment for events, productions, and projects
+          </h1>
+          <p className="mt-4 max-w-3xl text-lg leading-8 text-muted-foreground">
+            Explore descriptive equipment information and identify what suits
+            your project. Our team reviews quantities and prepares custom
+            pricing privately after you share your requirements.
+          </p>
+        </div>
       </div>
 
-      <div className="mt-8">
+      {orderedShowcase.length ? (
+        <CategoryShowcase
+          categories={orderedShowcase}
+          description="Browse by collection and discover equipment selected from each category."
+          eyebrow="Explore the catalogue"
+          heading="Find the right equipment by category"
+        />
+      ) : null}
+
+      <div className="public-container mt-10">
         <CatalogueFilters
           basePath="/rentals"
           categories={categories.items}
@@ -86,7 +106,10 @@ export default async function RentalsPage({
         />
       </div>
 
-      <section className="mt-12" aria-labelledby="products-title">
+      <section
+        className="public-container mt-12"
+        aria-labelledby="products-title"
+      >
         <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
           <div>
             <p className="text-sm text-muted-foreground">
@@ -139,7 +162,7 @@ export default async function RentalsPage({
         />
       </section>
 
-      <aside className="mt-16 flex flex-col gap-5 rounded-3xl border border-border bg-muted/45 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
+      <aside className="public-container mt-16 flex flex-col gap-5 rounded-3xl border border-border bg-muted/45 p-6 sm:flex-row sm:items-center sm:justify-between sm:p-8">
         <div className="flex max-w-3xl gap-4">
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-primary/10 text-primary">
             <SearchCheck aria-hidden="true" className="h-5 w-5" />

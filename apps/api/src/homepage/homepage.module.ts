@@ -13,6 +13,8 @@ import { HomepageMediaService } from './homepage-media.service';
 import { ProductMediaModule } from '../media/product-media.module';
 import { CategoryCoverController } from './category-cover.controller';
 import { CategoryCoverService } from './category-cover.service';
+import { CategoryPresentationController } from './category-presentation.controller';
+import { CategoryPresentationService } from './category-presentation.service';
 import {
   GOOGLE_PLACES_FETCH,
   GooglePlacesReviewsService,
@@ -27,11 +29,13 @@ import { PublicGoogleReviewsRateLimitGuard } from './public-google-reviews-rate-
     AdminHomepageMediaController,
     PublicHomepageMediaController,
     CategoryCoverController,
+    CategoryPresentationController,
   ],
   providers: [
     HomepageService,
     HomepageMediaService,
     CategoryCoverService,
+    CategoryPresentationService,
     GooglePlacesReviewsService,
     PublicGoogleReviewsRateLimitGuard,
     { provide: GOOGLE_PLACES_FETCH, useFactory: () => fetch },
