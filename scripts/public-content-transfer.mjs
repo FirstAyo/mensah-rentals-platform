@@ -94,16 +94,76 @@ export function assertDevelopmentExportEnvironment(environment) {
     );
 }
 
-export function assertStagingImportEnvironment(environment) {
+export function assertContentExportEnvironment(environment) {
+  try {
+    assertDevelopmentExportEnvironment(environment);
+    return 'LOCAL';
+  } catch (developmentError) {
+    const sourceCommitSha = (
+      environment.CONTENT_EXPORT_SOURCE_COMMIT_SHA || environment.APP_COMMIT_SHA
+    )
+      ?.trim()
+      .toLowerCase();
+    if (
+      environment.NODE_ENV === 'production' &&
+      environment.PLATFORM_ENVIRONMENT === 'STAGING' &&
+      environment.CONTENT_EXPORT_CONFIRM_ENVIRONMENT === 'STAGING' &&
+      /^[0-9a-f]{40}$/.test(sourceCommitSha ?? '')
+    )
+      return 'STAGING';
+    throw new Error(
+      'Export requires a local development database or explicit STAGING confirmation with a 40-character source commit SHA.',
+      { cause: developmentError },
+    );
+  }
+}
+
+export function assertContentImportEnvironment(environment) {
+  if (environment.NODE_ENV !== 'production')
+    throw new Error('Import requires NODE_ENV=production.');
+
+  const target = environment.PLATFORM_ENVIRONMENT;
   if (
-    environment.NODE_ENV !== 'production' ||
-    environment.PLATFORM_ENVIRONMENT !== 'STAGING' ||
-    environment.CONTENT_IMPORT_CONFIRM_ENVIRONMENT !== 'STAGING'
-  ) {
+    target === 'STAGING' &&
+    environment.CONTENT_IMPORT_CONFIRM_ENVIRONMENT === 'STAGING'
+  )
+    return target;
+
+  if (
+    target === 'PRODUCTION' &&
+    environment.CONTENT_IMPORT_CONFIRM_ENVIRONMENT === 'PRODUCTION' &&
+    environment.CONTENT_IMPORT_CONFIRM_SCOPE === 'PUBLIC_CONTENT_ONLY' &&
+    environment.CONTENT_IMPORT_CONFIRM_EMPTY_TARGET === 'YES' &&
+    environment.CONTENT_IMPORT_CONFIRM_FEATURE_STATES === 'YES' &&
+    /^[0-9a-f]{40}$/.test(
+      environment.CONTENT_IMPORT_EXPECTED_SOURCE_COMMIT_SHA?.trim() ?? '',
+    )
+  )
+    return target;
+
+  throw new Error(
+    'Import requires explicit STAGING confirmation, or the complete PRODUCTION public-content-only confirmation set.',
+  );
+}
+
+export function assertStagingImportEnvironment(environment) {
+  if (assertContentImportEnvironment(environment) !== 'STAGING') {
     throw new Error(
       'Import requires NODE_ENV=production and explicit STAGING confirmation.',
     );
   }
+}
+
+export function assertProductionBundleSource(environment, manifest) {
+  const expectedSourceCommit =
+    environment.CONTENT_IMPORT_EXPECTED_SOURCE_COMMIT_SHA.trim().toLowerCase();
+  if (
+    manifest.sourceEnvironment !== 'STAGING' ||
+    manifest.sourceCommitSha !== expectedSourceCommit
+  )
+    throw new Error(
+      'Production import requires a STAGING bundle from the exact accepted source commit.',
+    );
 }
 
 export function stripKeys(value) {
@@ -289,7 +349,7 @@ async function createMediaArchive(mediaRoot, archivePath, relativePaths) {
 }
 
 async function exportContent(environment, outputRoot) {
-  assertDevelopmentExportEnvironment(environment);
+  const sourceEnvironment = assertContentExportEnvironment(environment);
   const root = resolve(repositoryRoot, outputRoot || '.local-transfers');
   mkdirSync(root, { recursive: true });
   const setDirectory = resolve(root, `${formatTimestamp()}-public-content`);
@@ -325,6 +385,16 @@ async function exportContent(environment, outputRoot) {
       formatVersion: TRANSFER_FORMAT,
       kind: 'PUBLIC_CONTENT_ONLY',
       createdAt: new Date().toISOString(),
+      sourceEnvironment,
+      sourceCommitSha:
+        sourceEnvironment === 'STAGING'
+          ? (
+              environment.CONTENT_EXPORT_SOURCE_COMMIT_SHA ||
+              environment.APP_COMMIT_SHA
+            )
+              .trim()
+              .toLowerCase()
+          : null,
       content: {
         filename: basename(contentPath),
         sha256: sha256File(contentPath),
@@ -412,8 +482,10 @@ async function ensureEmptyTarget(tx) {
 }
 
 async function importContent(environment, bundlePath) {
-  assertStagingImportEnvironment(environment);
+  const targetEnvironment = assertContentImportEnvironment(environment);
   const { content, manifest } = await inspectBundle(bundlePath);
+  if (targetEnvironment === 'PRODUCTION')
+    assertProductionBundleSource(environment, manifest);
   const prisma = new PrismaClient({ datasourceUrl: environment.DATABASE_URL });
   try {
     const actor = await prisma.user.findUnique({
@@ -427,7 +499,9 @@ async function importContent(environment, bundlePath) {
       actor.status !== 'ACTIVE' ||
       !actor.roles.some((assignment) => assignment.role.name === 'SUPER_ADMIN')
     )
-      throw new Error('Import actor must be an active staging SUPER_ADMIN.');
+      throw new Error(
+        `Import actor must be an active ${targetEnvironment} SUPER_ADMIN.`,
+      );
 
     await prisma.$transaction(
       async (tx) => {
@@ -592,7 +666,7 @@ async function importContent(environment, bundlePath) {
     const counts = transferCounts(imported);
     if (JSON.stringify(counts) !== JSON.stringify(manifest.content.counts))
       throw new Error('Post-import public-content counts do not match.');
-    return { counts, media: manifest.media };
+    return { counts, media: manifest.media, targetEnvironment };
   } finally {
     await prisma.$disconnect();
   }
@@ -632,7 +706,9 @@ async function main() {
   }
   if (mode === 'import') {
     const result = await importContent(environment, options.bundle);
-    console.log('STAGING public-content database import passed.');
+    console.log(
+      `${result.targetEnvironment} public-content database import passed.`,
+    );
     console.log(JSON.stringify(result.counts));
     console.log(`Expected media files: ${result.media.fileCount}`);
     return;

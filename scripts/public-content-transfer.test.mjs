@@ -2,9 +2,12 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+  assertContentExportEnvironment,
+  assertContentImportEnvironment,
   assertDevelopmentExportEnvironment,
   assertExactContentModels,
   assertNoForbiddenKeys,
+  assertProductionBundleSource,
   assertStagingImportEnvironment,
   collectLocalMediaPaths,
   filterTransferContent,
@@ -43,6 +46,87 @@ test('requires an explicit production-mode staging import confirmation', () => {
       CONTENT_IMPORT_CONFIRM_ENVIRONMENT: 'STAGING',
       NODE_ENV: 'production',
       PLATFORM_ENVIRONMENT: 'PRODUCTION',
+    }),
+  );
+});
+
+test('allows staging export only with confirmation and an exact source commit', () => {
+  assert.equal(
+    assertContentExportEnvironment({
+      CONTENT_EXPORT_CONFIRM_ENVIRONMENT: 'STAGING',
+      CONTENT_EXPORT_SOURCE_COMMIT_SHA:
+        '5d490cda7cf401a4430987689c599063c1cb67d0',
+      DATABASE_URL: 'postgresql://user:secret@postgres:5432/mensah_staging',
+      NODE_ENV: 'production',
+      PLATFORM_ENVIRONMENT: 'STAGING',
+    }),
+    'STAGING',
+  );
+  assert.throws(() =>
+    assertContentExportEnvironment({
+      CONTENT_EXPORT_CONFIRM_ENVIRONMENT: 'STAGING',
+      DATABASE_URL: 'postgresql://user:secret@postgres:5432/mensah_staging',
+      NODE_ENV: 'production',
+      PLATFORM_ENVIRONMENT: 'STAGING',
+    }),
+  );
+  assert.throws(() =>
+    assertContentExportEnvironment({
+      CONTENT_EXPORT_CONFIRM_ENVIRONMENT: 'PRODUCTION',
+      CONTENT_EXPORT_SOURCE_COMMIT_SHA:
+        '5d490cda7cf401a4430987689c599063c1cb67d0',
+      DATABASE_URL: 'postgresql://user:secret@postgres:5432/mensah_production',
+      NODE_ENV: 'production',
+      PLATFORM_ENVIRONMENT: 'PRODUCTION',
+    }),
+  );
+});
+
+test('production import requires every destructive-boundary confirmation', () => {
+  const environment = {
+    CONTENT_IMPORT_CONFIRM_EMPTY_TARGET: 'YES',
+    CONTENT_IMPORT_CONFIRM_ENVIRONMENT: 'PRODUCTION',
+    CONTENT_IMPORT_CONFIRM_FEATURE_STATES: 'YES',
+    CONTENT_IMPORT_CONFIRM_SCOPE: 'PUBLIC_CONTENT_ONLY',
+    CONTENT_IMPORT_EXPECTED_SOURCE_COMMIT_SHA:
+      '5d490cda7cf401a4430987689c599063c1cb67d0',
+    NODE_ENV: 'production',
+    PLATFORM_ENVIRONMENT: 'PRODUCTION',
+  };
+  assert.equal(assertContentImportEnvironment(environment), 'PRODUCTION');
+  for (const key of [
+    'CONTENT_IMPORT_CONFIRM_EMPTY_TARGET',
+    'CONTENT_IMPORT_CONFIRM_ENVIRONMENT',
+    'CONTENT_IMPORT_CONFIRM_FEATURE_STATES',
+    'CONTENT_IMPORT_CONFIRM_SCOPE',
+    'CONTENT_IMPORT_EXPECTED_SOURCE_COMMIT_SHA',
+  ])
+    assert.throws(() =>
+      assertContentImportEnvironment({ ...environment, [key]: undefined }),
+    );
+});
+
+test('production import accepts only the exact accepted staging bundle', () => {
+  const environment = {
+    CONTENT_IMPORT_EXPECTED_SOURCE_COMMIT_SHA:
+      '5d490cda7cf401a4430987689c599063c1cb67d0',
+  };
+  assert.doesNotThrow(() =>
+    assertProductionBundleSource(environment, {
+      sourceCommitSha: '5d490cda7cf401a4430987689c599063c1cb67d0',
+      sourceEnvironment: 'STAGING',
+    }),
+  );
+  assert.throws(() =>
+    assertProductionBundleSource(environment, {
+      sourceCommitSha: '0ff3e0dd1bfc3a255e88f629dd15e19202e06a3a',
+      sourceEnvironment: 'STAGING',
+    }),
+  );
+  assert.throws(() =>
+    assertProductionBundleSource(environment, {
+      sourceCommitSha: '5d490cda7cf401a4430987689c599063c1cb67d0',
+      sourceEnvironment: 'LOCAL',
     }),
   );
 });

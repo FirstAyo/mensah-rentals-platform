@@ -54,6 +54,8 @@ services:
     networks:
       - private
     restart: 'no'
+    volumes:
+      - media_data:/workspace/storage/media
 
   api:
     <<: *runtime-environment
