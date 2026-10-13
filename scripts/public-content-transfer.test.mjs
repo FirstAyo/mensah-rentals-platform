@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import {
@@ -14,6 +15,26 @@ import {
   stripKeys,
   transferCounts,
 } from './public-content-transfer.mjs';
+
+test('deployment operator mounts media at the configured runtime path', () => {
+  const compose = readFileSync(
+    new URL('../compose.deploy.yml', import.meta.url),
+    'utf8',
+  );
+  const environmentTemplate = readFileSync(
+    new URL('../deploy/production.env.example', import.meta.url),
+    'utf8',
+  );
+
+  assert.match(
+    environmentTemplate,
+    /^MEDIA_STORAGE_ROOT=\/app\/storage\/media$/m,
+  );
+  assert.match(
+    compose,
+    /migrate:[\s\S]*?volumes:\s*\n\s*- media_data:\/app\/storage\/media/,
+  );
+});
 
 test('allows export only from a loopback non-test database', () => {
   assert.doesNotThrow(() =>
