@@ -64,7 +64,6 @@ export function validateDeploymentEnvironment(values) {
   for (const [key, value] of Object.entries(expected))
     requireExact(values, key, value);
 
-  requireExact(values, 'API_INTERNAL_URL', 'http://api:4000');
   requireExact(values, 'AUTH_COOKIE_SECURE', 'true');
   requireExact(values, 'PUBLIC_CART_COOKIE_SECURE', 'true');
   requireExact(values, 'PUBLIC_REQUEST_COOKIE_SECURE', 'true');
@@ -116,6 +115,11 @@ export function validateDeploymentEnvironment(values) {
   const aliasPrefix = staging ? 'mensah-staging-' : 'mensah-production-';
   if (aliases.some((alias) => !alias.startsWith(aliasPrefix)))
     throw new Error(`Caddy aliases must start with ${aliasPrefix}.`);
+  requireExact(
+    values,
+    'API_INTERNAL_URL',
+    `http://${requireValue(values, 'CADDY_API_ALIAS')}:4000`,
+  );
 
   return { platform, siteUrl: values.SITE_URL };
 }

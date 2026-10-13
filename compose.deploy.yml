@@ -7,7 +7,7 @@ x-runtime-environment: &runtime-environment
 x-app-build: &app-build
   context: .
   args:
-    API_INTERNAL_URL: http://api:4000
+    API_INTERNAL_URL: ${API_INTERNAL_URL:?Set API_INTERNAL_URL}
     SITE_INDEXING_ENABLED: ${SITE_INDEXING_ENABLED:?Set SITE_INDEXING_ENABLED}
     SITE_URL: ${SITE_URL:?Set SITE_URL}
 

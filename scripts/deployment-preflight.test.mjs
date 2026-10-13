@@ -11,7 +11,7 @@ const secret = (label) => `${label}-${'x'.repeat(40)}`;
 function stagingEnvironment() {
   return {
     ADMIN_ORIGIN: 'https://admin-staging.mensahrentals.com',
-    API_INTERNAL_URL: 'http://api:4000',
+    API_INTERNAL_URL: 'http://mensah-staging-api:4000',
     AUTH_COOKIE_SECURE: 'true',
     CADDY_ADMIN_ALIAS: 'mensah-staging-admin',
     CADDY_API_ALIAS: 'mensah-staging-api',
@@ -52,6 +52,28 @@ test('accepts the exact safe staging boundary', () => {
     platform: 'STAGING',
     siteUrl: 'https://staging.mensahrentals.com',
   });
+});
+
+test('rejects a shared generic API hostname', () => {
+  assert.throws(
+    () =>
+      validateDeploymentEnvironment({
+        ...stagingEnvironment(),
+        API_INTERNAL_URL: 'http://api:4000',
+      }),
+    /API_INTERNAL_URL must be http:\/\/mensah-staging-api:4000/u,
+  );
+});
+
+test('requires the internal API URL to follow its deployment alias', () => {
+  assert.throws(
+    () =>
+      validateDeploymentEnvironment({
+        ...stagingEnvironment(),
+        CADDY_API_ALIAS: 'mensah-staging-api-v2',
+      }),
+    /API_INTERNAL_URL must be http:\/\/mensah-staging-api-v2:4000/u,
+  );
 });
 
 test('rejects staging indexing', () => {
