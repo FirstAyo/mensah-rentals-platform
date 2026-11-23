@@ -214,20 +214,20 @@ export function AdminShell({
               <Image
                 alt=""
                 aria-hidden="true"
-                className="h-auto w-40 dark:hidden"
-                height={222}
+                className="h-auto w-52 dark:hidden"
+                height={287}
                 priority
                 src="/brand/logo-light.png"
-                width={671}
+                width={1324}
               />
               <Image
                 alt=""
                 aria-hidden="true"
-                className="hidden h-auto w-40 dark:block"
-                height={222}
+                className="hidden h-auto w-52 dark:block"
+                height={287}
                 priority
                 src="/brand/logo-dark.png"
-                width={671}
+                width={1324}
               />
             </Link>
             <p className="mt-1 text-xs uppercase tracking-[0.16em] text-muted-foreground">

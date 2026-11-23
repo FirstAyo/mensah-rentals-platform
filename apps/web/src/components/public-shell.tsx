@@ -43,20 +43,20 @@ export function PublicShell({
             <Image
               alt=""
               aria-hidden="true"
-              className="h-auto w-36 dark:hidden sm:w-44"
-              height={222}
+              className="h-auto w-40 dark:hidden sm:w-60"
+              height={287}
               priority
               src="/brand/logo-light.png"
-              width={671}
+              width={1324}
             />
             <Image
               alt=""
               aria-hidden="true"
-              className="hidden h-auto w-36 dark:block sm:w-44"
-              height={222}
+              className="hidden h-auto w-40 dark:block sm:w-60"
+              height={287}
               priority
               src="/brand/logo-dark.png"
-              width={671}
+              width={1324}
             />
           </Link>
           <div className="flex items-center gap-2 sm:gap-3">
@@ -88,17 +88,17 @@ export function PublicShell({
           <div>
             <Image
               alt="Mensah Rentals and Services"
-              className="h-auto w-56 dark:hidden"
-              height={222}
+              className="h-auto w-72 dark:hidden"
+              height={287}
               src="/brand/logo-light.png"
-              width={671}
+              width={1324}
             />
             <Image
               alt="Mensah Rentals and Services"
-              className="hidden h-auto w-56 dark:block"
-              height={222}
+              className="hidden h-auto w-72 dark:block"
+              height={287}
               src="/brand/logo-dark.png"
-              width={671}
+              width={1324}
             />
             <p className="mt-2 max-w-xl text-sm leading-6 text-muted-foreground">
               Equipment rentals for events, productions, and projects. Build
